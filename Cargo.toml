@@ -1,0 +1,33 @@
+[package]
+name = "minbft"
+version = "0.10.0"
+edition = "2021"
+license = "MIT"
+description = "Efficient Byzantine Fault-Tolerance in the partially synchronous timing model"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+shared-ids = { path = "../shared-ids", version = "0.10.0" }
+usig = { path = "../usig", version = "0.10.0" }
+serde = { version = "1.0", features = ["derive"] }
+anyhow = "1.0"
+bincode = "1.3"
+derivative = "2.2"
+tracing = "0.1.10"
+blake2 = "0.10"
+serde_bytes = "0.11.5"
+either = "1.8.1"
+serde_with = "2.2.0"
+thiserror = "1.0.40"
+
+[dev-dependencies]
+rstest = "0.16.0"
+
+test-log = { version = "0.2.11", default-features = false, features = [
+    "trace",
+] }
+tracing-subscriber = { version = "0.3", default-features = false, features = [
+    "env-filter",
+    "fmt",
+] }
