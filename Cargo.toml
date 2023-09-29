@@ -4,6 +4,7 @@ version = "0.10.0"
 edition = "2021"
 license = "MIT"
 description = "Efficient Byzantine Fault-Tolerance in the partially synchronous timing model"
+repository = "https://github.com/abcperf/minbft"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
