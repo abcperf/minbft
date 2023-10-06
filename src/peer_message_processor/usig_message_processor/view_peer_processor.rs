@@ -51,9 +51,7 @@ where
                     };
                     output.broadcast(commit, &mut self.sent_usig_msgs);
                 }
-                if Some(prepare.counter()) <= self.counter_last_accepted_prep {
-                    panic!();
-                }
+                assert!(Some(prepare.counter()) > self.counter_last_accepted_prep);
                 let amount_collected = in_view
                     .collector_commits
                     .collect(ViewPeerMessage::Prepare(prepare.clone()), &self.config);
@@ -92,7 +90,8 @@ where
             ViewState::InView(in_view) => {
                 if Some(commit.prepare.counter()) <= self.counter_last_accepted_prep {
                     return;
-                }
+                }                
+                assert!(Some(commit.prepare.counter()) > self.counter_last_accepted_prep);
                 let amount_collected = in_view
                     .collector_commits
                     .collect(ViewPeerMessage::Commit(commit.clone()), &self.config);
