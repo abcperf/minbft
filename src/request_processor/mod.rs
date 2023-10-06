@@ -255,7 +255,6 @@ where
                 Ordering::Greater => {
                     // The oldest request in the data structure has not yet been accepted.
                     // Send a request to start a timeout for it with the adjusted duration.
-                    assert!(request.client != oldest_req.1.client);
                     let duration = curr_full_timeout_duration
                         .checked_sub(oldest_req.2.elapsed())
                         .unwrap_or_else(|| Duration::from_secs(0));
