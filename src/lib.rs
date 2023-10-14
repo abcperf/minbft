@@ -33,7 +33,7 @@ use request_processor::RequestProcessor;
 use shared_ids::AnyId;
 use shared_ids::{ClientId, ReplicaId, RequestId};
 use timeout::TimeoutType;
-use tracing::{debug, error_span, warn};
+use tracing::{debug, error, error_span, info, warn};
 use usig::Count;
 use usig::{Counter, Usig};
 
@@ -154,7 +154,7 @@ impl<P: Clone, Sig: Counter + Clone> ViewState<P, Sig> {
 #[derive(Clone, Debug, Derivative)]
 #[derivative(Default(bound = "Sig: Counter"))]
 struct ReplicaState<P, Sig> {
-    usig_message_handler_state: UsigMsgOrderEnforcer<P, Sig>,
+    usig_message_order_enforcer: UsigMsgOrderEnforcer<P, Sig>,
 }
 
 /// Defines a replica of a system of multiple replicas
@@ -376,10 +376,11 @@ where
     pub fn handle_client_message(&mut self, client_id: ClientId, request: P) -> Output<P, U> {
         let _minbft_span = error_span!("minbft", id = self.config.id.as_u64()).entered();
 
-        debug!(
-            "handle_client_message (client_id: {:?}, request_id: {:?})",
-            client_id,
-            request.id()
+        let req_id = request.id();
+
+        info!(
+            "Handling client request (ID: {:?}, client ID: {:?}) ...",
+            req_id, client_id
         );
 
         // Create output in order to return information regarding the handling of the client-message.
@@ -388,13 +389,26 @@ where
         // The payload of a client-request is forced to have a function that verifies itself.
         // It must be valid, otherwise it is not handled further.
         // Errors are stored in the output variable.
+        debug!(
+            "Verifying client request (ID {:?}, client ID: {:?}) ...",
+            req_id, client_id
+        );
         if request.verify(client_id).is_err() {
+            error!(
+                "Failed to handle client request (ID: {:?}, client ID: {:?}): Verification of client request failed.",
+                req_id,
+                client_id
+            );
             output.error(Error::Request {
                 receiver: self.config.id,
                 client_id,
             });
             return output.reflect(self);
         }
+        debug!(
+            "Successfully verified client request (ID: {:?}, client ID: {:?}).",
+            req_id, client_id
+        );
 
         let client_request = ClientRequest {
             client: client_id,
@@ -416,9 +430,11 @@ where
         if let Some(prepare_content) = prepare_content {
             match Prepare::sign(prepare_content, &mut self.usig) {
                 Ok(prepare) => {
+                    info!("Broadcast Prepare (view: {:?}, counter: {:?}) for client request (ID: {:?}, client ID: {:?}).", prepare.view, prepare.counter(), req_id, client_id);
                     output.broadcast(prepare, &mut self.sent_usig_msgs);
                 }
                 Err(usig_error) => {
+                    error!("Failed to handle client request (ID: {:?}, client ID: {:?}): Failed to sign Prepare for client request before broadcasting it. For further information see output.", req_id, client_id);
                     output.process_usig_error(usig_error, self.config.me(), "Prepare");
                     return output.reflect(self);
                 }
@@ -498,10 +514,11 @@ where
     ) -> Output<P, U> {
         let _minbft_span = error_span!("minbft", id = self.config.id.as_u64()).entered();
 
-        debug!(
-            "handle_peer_message from {:?}: {:?}",
-            from,
-            message.msg_type()
+        let msg_type = message.msg_type();
+
+        info!(
+            "Handling message (origin: {:?}, type: {:?}) ...",
+            from, msg_type,
         );
 
         assert_ne!(from, self.config.me());
@@ -516,6 +533,10 @@ where
             }
         };
         self.process_peer_message(from, message, &mut output);
+        info!(
+            "Successfully handled message (origin: {:?}, from {:?}).",
+            from, msg_type
+        );
         output.reflect(self)
     }
 
@@ -595,18 +616,19 @@ where
     /// ```
     pub fn handle_timeout(&mut self, timeout_type: TimeoutType) -> Output<P, U> {
         let _minbft_span = error_span!("minbft", id = self.config.id.as_u64()).entered();
-        debug!("handle_timeout (type: {:?})", timeout_type);
+        info!("Handling timeout (type: {:?}) ...", timeout_type);
         let mut output = NotReflectedOutput::new(&self.config, &self.recv_hellos);
 
         match timeout_type {
             TimeoutType::Batch => match &self.view_state {
                 ViewState::InView(in_view) => {
-                    let (maybe_batch, timeout_request) =
+                    let (maybe_batch, stop_timeout_request) =
                         self.request_processor.request_batcher.timeout();
-                    output.timeout_request(timeout_request);
+                    output.timeout_request(stop_timeout_request);
                     let origin = self.config.me();
                     if let Some(batch) = maybe_batch {
-                        let prepare = match Prepare::sign(
+                        debug!("Creating Prepare for timed out batch ...");
+                        match Prepare::sign(
                             PrepareContent {
                                 view: in_view.view,
                                 origin,
@@ -614,50 +636,68 @@ where
                             },
                             &mut self.usig,
                         ) {
-                            Ok(prepare) => prepare,
+                            Ok(prepare) => {
+                                debug!("Successfully created Prepare for timed-out batch.");
+                                info!("Broadcast Prepare (view: {:?}, counter: {:?}) for timed-out batch.", prepare.view, prepare.counter());
+                                output.broadcast(prepare, &mut self.sent_usig_msgs);
+                                info!("Successfully handled timeout (type: {:?}).", timeout_type);
+                            }
                             Err(usig_error) => {
+                                error!("Failed to handle timeout (type: {:?}): Failed to sign Prepare for batch before broadcasting it. For further information see output.", timeout_type);
                                 output.process_usig_error(usig_error, origin, "Prepare");
-                                return output.reflect(self);
                             }
                         };
-                        output.broadcast(prepare, &mut self.sent_usig_msgs);
                     }
                 }
-                ViewState::ChangeInProgress(_) => {}
+                ViewState::ChangeInProgress(in_progress) => {
+                    warn!("Handling timeout resulted in skipping creation of Prepare for timed out batch: Replica is in progress of changing views (from: {:?}, to: {:?}).", in_progress.prev_view, in_progress.next_view);
+                }
             },
             TimeoutType::Client => match &mut self.view_state {
                 ViewState::InView(in_view) => {
-                    warn!("client timeout");
+                    warn!("Client request timed out.");
                     if !in_view.has_requested_view_change {
                         in_view.has_requested_view_change = true;
-                        output.broadcast(
-                            ReqViewChange {
-                                prev_view: in_view.view,
-                                next_view: in_view.view + 1,
-                            },
-                            &mut self.sent_usig_msgs,
-                        )
+                        let msg = ReqViewChange {
+                            prev_view: in_view.view,
+                            next_view: in_view.view + 1,
+                        };
+                        info!(
+                            "Broadcast ReqViewChange (previous view: {:?}, next view: {:?}).",
+                            msg.prev_view, msg.next_view
+                        );
+                        output.broadcast(msg, &mut self.sent_usig_msgs)
+                    } else {
+                        debug!("Already broadcast ReqViewChange (previous view: {:?}, next view: {:?}).", in_view.view, in_view.view + 1);
                     }
+                    info!("Successfully handled timeout (type: {:?}).", timeout_type);
                 }
-                ViewState::ChangeInProgress(_) => {}
+                ViewState::ChangeInProgress(in_progress) => {
+                    warn!("Handling timeout resulted in skipping creation of ReqViewChange: Replica is in progress of changing views (from: {:?}, to: {:?}).", in_progress.prev_view, in_progress.next_view);
+                }
             },
             TimeoutType::ViewChange => match &mut self.view_state {
-                ViewState::InView(_) => {}
+                ViewState::InView(in_view) => {
+                    warn!("Handling timeout resulted in skipping creation of ReqViewChange: Replica is in view ({:?}).", in_view.view);
+                }
                 ViewState::ChangeInProgress(in_progress) => {
-                    warn!("view change timed out");
+                    warn!("View-Change timed out.");
                     self.current_timeout_duration *= BACKOFF_MULTIPLIER as u32;
                     in_progress.has_broadcast_view_change = false;
-                    output.broadcast(
-                        ReqViewChange {
-                            prev_view: in_progress.prev_view,
-                            next_view: in_progress.next_view + 1,
-                        },
-                        &mut self.sent_usig_msgs,
-                    )
+
+                    let msg = ReqViewChange {
+                        prev_view: in_progress.prev_view,
+                        next_view: in_progress.next_view + 1,
+                    };
+                    info!(
+                        "Broadcast ReqViewChange (previous view: {:?}, next view: {:?}).",
+                        msg.prev_view, msg.next_view
+                    );
+                    output.broadcast(msg, &mut self.sent_usig_msgs);
+                    info!("Successfully handled timeout (type: {:?}).", timeout_type);
                 }
             },
         }
-
         output.reflect(self)
     }
 
