@@ -16,7 +16,7 @@ use anyhow::Result;
 use blake2::{digest::Update, Blake2b512, Digest};
 use serde::{Deserialize, Serialize};
 use shared_ids::AnyId;
-use tracing::debug;
+use tracing::{debug, error};
 use usig::{Count, Counter, Usig};
 
 use crate::{error::InnerError, Config, ReplicaId, RequestPayload, View};
@@ -182,16 +182,30 @@ impl<P: RequestPayload, Sig: Counter + Serialize + Debug> ViewChange<P, Sig> {
         config: &Config,
         usig: &mut impl Usig<Signature = Sig>,
     ) -> Result<(), InnerError> {
+        debug!(
+            "Validating ViewChange (origin: {:?}, next view: {:?}) ...",
+            self.origin, self.next_view
+        );
         // Assure that the signature is correct.
-        self.verify(usig).map_err(|usig_error| {
-            InnerError::parse_usig_error(usig_error, config.id, "ViewChange", self.origin)
+        debug!(
+            "Verifying signature of ViewChange (origin: {:?}, next view: {:?}) ...",
+            self.origin, self.next_view
+        );
+        self.verify(usig).map_or_else(|usig_error| {
+            error!("Failed validating ViewChange (origin: {:?}, next view: {:?}): Verification of the signature failed.", self.origin, self.next_view);
+            Err(InnerError::parse_usig_error(usig_error, config.id, "Commit", self.origin))
+        }, |v| {
+            debug!("Successfully verified signature of ViewChange (origin: {:?}, next view: {:?}).", self.origin, self.next_view);
+            Ok(v)
         })?;
 
         // Only consider messages consistent to the system state.
 
         // Assure that the CheckpointCertificate is valid.
         match &self.checkpoint {
-            Some(checkpoint_cert) => checkpoint_cert.validate(config, usig)?,
+            Some(checkpoint_cert) => {
+                checkpoint_cert.validate(config, usig)?;
+            }
             None => {}
         };
 
@@ -210,6 +224,7 @@ impl<P: RequestPayload, Sig: Counter + Serialize + Debug> ViewChange<P, Sig> {
             let first = seq_num_msgs.first().unwrap();
             let last = seq_num_msgs.last().unwrap();
             if amount_msgs as u64 != last - first + 1 {
+                error!("Failed validating ViewChange (origin: {:?}, next view: {:?}): ViewChange contains holes in its message log. For further information see output.", self.origin, self.next_view);
                 return Err(InnerError::ViewChangeHolesInMessageLog {
                     receiver: config.id,
                     origin: self.origin,
@@ -221,6 +236,7 @@ impl<P: RequestPayload, Sig: Counter + Serialize + Debug> ViewChange<P, Sig> {
         match self.variant.message_log.last() {
             Some(last) => {
                 if last.counter().0 != self.counter().0 - 1 {
+                    error!("Failed validating ViewChange (origin: {:?}, next view: {:?}): Counter of last message is not one less than the counter of the ViewChange. For further information see output.", self.origin, self.next_view);
                     return Err(InnerError::ViewChangeLastUnexpectedCounter {
                         receiver: config.id,
                         origin: self.origin,
@@ -231,7 +247,7 @@ impl<P: RequestPayload, Sig: Counter + Serialize + Debug> ViewChange<P, Sig> {
             }
             None => {
                 if self.counter().0 != 0 {
-                    debug!("counter of ViewChange message: {:?}", self.counter().0);
+                    error!("Failed validating ViewChange (origin: {:?}, next view: {:?}): The message log of the ViewChange is unexpectedly empty. For further information see output.", self.origin, self.next_view);
                     return Err(InnerError::ViewChangeLogUnexpectedlyEmpty {
                         receiver: config.id,
                         origin: self.origin,
@@ -239,6 +255,10 @@ impl<P: RequestPayload, Sig: Counter + Serialize + Debug> ViewChange<P, Sig> {
                 }
             }
         }
+        debug!(
+            "Successfully validated ViewChange (origin: {:?}, next view: {:?}).",
+            self.origin, self.next_view
+        );
         Ok(())
     }
 }
