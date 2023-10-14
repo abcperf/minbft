@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::time::Duration;
 
 use shared_ids::{ClientId, ReplicaId};
-use tracing::{debug, error_span};
+use tracing::{debug, error_span, info};
 
 use usig::{Usig, UsigError};
 
@@ -100,8 +100,6 @@ where
     ) {
         let message = message.into();
 
-        debug!("broadcasting message of type {:?}", message.msg_type(),);
-
         if let ValidatedPeerMessage::Usig(msg) = &message {
             message_log.push(msg.clone());
         }
@@ -111,7 +109,11 @@ where
 
     /// Collects the given response.
     pub(super) fn response(&mut self, client_id: ClientId, output: P) {
-        debug!("response to {:?} for {:?}", client_id, output.id());
+        info!(
+            "Output response to client request (ID: {:?}, client ID: {:?}).",
+            output.id(),
+            client_id
+        );
         self.responses.push((client_id, output));
     }
 
@@ -120,14 +122,14 @@ where
         match &timeout_request {
             TimeoutRequest::Start(timeout) => {
                 debug!(
-                    "set request for starting timeout (type: {:?}, duration: {:?})",
-                    timeout.timeout_type, timeout.duration,
+                    "Output request for starting timeout (type: {:?}, duration: {:?}, stop class: {:?}).",
+                    timeout.timeout_type, timeout.duration, timeout.stop_class
                 );
             }
-            TimeoutRequest::Stop(timeout_type) => {
+            TimeoutRequest::Stop(timeout) => {
                 debug!(
-                    "set request for stopping timeout (type: {:?})",
-                    timeout_type
+                    "Output request for stopping timeout (type: {:?}, duration: {:?}, stop class: {:?}).",
+                    timeout.timeout_type, timeout.duration, timeout.stop_class
                 );
             }
         }
@@ -157,8 +159,9 @@ where
 
     /// Returns true if the participant is ready to receive client requests, otherwise false.
     pub(super) fn ready_for_client_requests(&mut self) {
-        debug!("hello done");
-
+        info!(
+            "Replica is ready for client requests as sufficient Hello messages have been received."
+        );
         self.ready_for_client_requests = true;
     }
 
@@ -175,10 +178,18 @@ where
             }
             let messages: Vec<_> = self.broadcasts.iter().skip(last_len).cloned().collect();
             for message in messages {
+                debug!(
+                    "Processing reflected message (type {:?}) ...",
+                    message.msg_type()
+                );
                 reflectable.process_reflected_peer_message(
-                    message,
+                    message.clone(),
                     &mut self,
                     OutputRestricted(()),
+                );
+                debug!(
+                    "Processed reflected message (type: {:?}).",
+                    message.msg_type()
                 );
             }
             last_len = cur_len;
