@@ -29,9 +29,10 @@ where
         message: ValidatedPeerMessage<U::Attestation, P, U::Signature>,
         output: &mut NotReflectedOutput<P, U>,
     ) {
+        let msg_type = message.msg_type();
         debug!(
-            "process_peer_message from {from:?} of type {:?}",
-            message.msg_type()
+            "Processing message (origin: {from:?}, type: {:?}) ...",
+            msg_type
         );
         match message {
             ValidatedPeerMessage::ReqViewChange(req_view_change) => {
@@ -44,6 +45,10 @@ where
                 self.process_hello_message(from, attestation, output)
             }
         };
+        debug!(
+            "Successfully processed message (origin: {from:?}, type: {:?}).",
+            msg_type
+        );
     }
 }
 

@@ -42,24 +42,43 @@ impl<P: Clone, Sig: Counter + Clone> CollectorCommits<P, Sig> {
         match msg {
             ViewPeerMessage::Prepare(prepare) => {
                 debug!(
-                    "Insert message Prepare (origin: {:?}, view: {:?}, counter: {:?})",
+                    "Collecting Prepare (origin: {:?}, view: {:?}, counter: {:?}) ...",
                     prepare.origin,
                     prepare.view,
                     prepare.counter(),
                 );
-                self.recv_commits
-                    .collect(prepare.counter(), prepare.origin, config)
+                let amount_collected =
+                    self.recv_commits
+                        .collect(prepare.counter(), prepare.origin, config);
+                debug!(
+                    "Successfully inserted Prepare (origin: {:?}, view: {:?}, counter: {:?}).",
+                    prepare.origin,
+                    prepare.view,
+                    prepare.counter(),
+                );
+                amount_collected
             }
             ViewPeerMessage::Commit(commit) => {
                 debug!(
-                    "Insert message Commit (origin: {:?}, counter: {:?} counter of prepare: {:?})",
+                    "Collecting Commit (origin: {:?}, counter: {:?}, Prepare: [origin: {:?}, view: {:?}, counter: {:?}]) ...",
                     commit.origin,
                     commit.counter(),
+                    commit.prepare.origin,
+                    commit.prepare.view,
                     commit.prepare.counter(),
                 );
                 self.collect(ViewPeerMessage::Prepare(commit.prepare.clone()), config);
-                self.recv_commits
-                    .collect(commit.prepare.counter(), commit.origin, config)
+                let amount_collected =
+                    self.recv_commits
+                        .collect(commit.prepare.counter(), commit.origin, config);
+                debug!("Successfully inserted Commit (origin: {:?}, counter: {:?}, Prepare: [origin: {:?}, view: {:?}, counter: {:?}]).",
+                    commit.origin,
+                    commit.counter(),
+                    commit.prepare.origin,
+                    commit.prepare.view,
+                    commit.prepare.counter(),
+                );
+                amount_collected
             }
         }
     }
@@ -67,7 +86,7 @@ impl<P: Clone, Sig: Counter + Clone> CollectorCommits<P, Sig> {
     /// Cleans the collection up by retaining only
     /// entries which have a counter higher than the provided one.
     pub(crate) fn clean_up(&mut self, counter_prepare: Count) {
-        debug!("Cleaning up collector of Commits by removing Commits for Prepares with Counter less than or equal to {:?}", counter_prepare);
+        debug!("Cleaning up collector of Commits: Removing Commits for Prepares with counter less than or equal to {:?}", counter_prepare);
         self.recv_commits.clean_up(counter_prepare);
     }
 }

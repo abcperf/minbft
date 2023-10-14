@@ -3,6 +3,8 @@ use std::cmp::Reverse;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use tracing::debug;
+use tracing::error;
+use tracing::info;
 use usig::Count;
 use usig::Counter;
 use usig::Usig;
@@ -80,6 +82,10 @@ where
                             next_view,
                             has_broadcast_view_change: false,
                         });
+                        info!(
+                            "Broadcast ViewChange (next view: {:?}).",
+                            view_change.next_view
+                        );
                         output.broadcast(view_change, &mut self.sent_usig_msgs);
                         output.timeout_request(start_new_timeout);
                         return;
@@ -109,6 +115,7 @@ where
                     }
                 }
 
+                debug!("Accepting unique Prepares contained in NewViewCertificate ...");
                 while !unique_preps.is_empty() {
                     let unique_prep = unique_preps.pop_front().unwrap();
                     self.request_processor.accept_prepare(
@@ -118,6 +125,7 @@ where
                         output,
                     );
                 }
+                debug!("Accepted unique Prepares contained in NewViewCertificate.");
 
                 // Clean up the collection of ReqViewChanges.
                 self.collector_rvc
@@ -135,60 +143,71 @@ where
                     // This makes sure all replicas are synced correctly upon changing views.
                     self.counter_last_accepted_prep = Some(new_view.counter());
 
-                    debug!(
-                        "successfully transitioned to new view {:?}",
+                    info!(
+                        "Successfully transitioned to next view ({:?})",
                         new_view.next_view
                     );
 
                     // Relay the NewView message.
+                    info!(
+                        "Relayed NewView (origin: {:?}, next view: {:?}).",
+                        new_view.origin, new_view.next_view
+                    );
                     output.broadcast(new_view, &mut Vec::new());
                 } else {
-                    let mut prepares_to_send: Vec<ClientRequest<P>> = Vec::new();
+                    let mut requests_to_batch: Vec<ClientRequest<P>> = Vec::new();
 
                     // After the new View sends and receives the message of type NewView,
                     // it sends Prepares for the client requests that had not yet been accepted by the previous View.
                     for (_, req) in self.request_processor.currently_processing_all() {
-                        if !prepares_to_send.iter().any(|e| e.id() == req.id()) {
-                            prepares_to_send.push(req.clone());
+                        if !requests_to_batch.iter().any(|e| e.id() == req.id()) {
+                            requests_to_batch.push(req.clone());
                         }
                     }
 
                     // Send Prepares in a batch.
+                    debug!("Creating Prepare for client requests that have yet to be accepted ...");
                     let origin = self.config.me();
-                    if !prepares_to_send.is_empty() {
-                        let prepare = match Prepare::sign(
+                    if !requests_to_batch.is_empty() {
+                        match Prepare::sign(
                             PrepareContent {
                                 view: new_view.next_view,
                                 origin,
                                 request_batch: RequestBatch {
-                                    batch: prepares_to_send.into_boxed_slice(),
+                                    batch: requests_to_batch.into_boxed_slice(),
                                 },
                             },
                             &mut self.usig,
                         ) {
-                            Ok(prepare) => prepare,
+                            Ok(prepare) => {
+                                debug!("Successfully created Prepare for client requests that have yet to be accepted.");
+                                info!("Broadcast Prepare for client requests that have yet to be accepted.");
+                                output.broadcast(prepare, &mut self.sent_usig_msgs);
+                                info!(
+                                    "Successfully transitioned to new view ({:?}).",
+                                    new_view.next_view
+                                );
+                            }
                             Err(usig_error) => {
+                                error!("Failed to create Prepare for client requests that have yet to be accepted. For further information see output.");
                                 let output_error = Error::Usig {
                                     replica: origin,
                                     msg_type: "Prepare",
                                     usig_error,
                                 };
                                 output.error(output_error);
-                                return;
                             }
                         };
-                        output.broadcast(prepare, &mut self.sent_usig_msgs);
                     }
 
                     // Set the counter of the last accepted Prepare temporarily
                     // as the counter of the last sent UsigMessage by the new View.
                     // This makes sure all replicas are synced correctly upon changing views.
-                    self.counter_last_accepted_prep = Some(new_view.counter());
-
                     debug!(
-                        "successfully transitioned to new view {:?}",
-                        new_view.next_view
+                        "Set counter of last accepted Prepare to counter of NewView ({:?}).",
+                        new_view.counter()
                     );
+                    self.counter_last_accepted_prep = Some(new_view.counter());
                 }
             }
         }

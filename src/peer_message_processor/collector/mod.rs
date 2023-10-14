@@ -15,6 +15,7 @@ use std::{collections::HashMap, hash::Hash, mem, num::NonZeroU64};
 
 use serde::{Deserialize, Serialize};
 use shared_ids::{AnyId, ReplicaId};
+use tracing::debug;
 
 use crate::Config;
 
@@ -37,6 +38,7 @@ impl<K: Eq + Hash + PartialOrd, M> CollectorMessages<K, M> {
             Some((actual_counter, messages)) => {
                 // At least one message with the same key has been received before.
                 if messages[index].is_some() {
+                    debug!("Skipped inserting message (origin: {from:?}) into collector: Message was a duplicate.");
                     return *actual_counter;
                 }
                 // The given message is new.
@@ -44,6 +46,7 @@ impl<K: Eq + Hash + PartialOrd, M> CollectorMessages<K, M> {
                 messages[index] = Some(msg);
                 counter = *actual_counter + 1;
                 self.0.insert(key, (counter, messages));
+                debug!("Inserted message (origin: {from:?}) into collector.");
             }
             None => {
                 // No message with the same key has been received before.
@@ -56,6 +59,7 @@ impl<K: Eq + Hash + PartialOrd, M> CollectorMessages<K, M> {
                 messages[index] = Some(msg);
                 counter = 1;
                 self.0.insert(key, (counter, messages));
+                debug!("Inserted message (origin: {from:?}) into collector.");
             }
         }
         counter
@@ -153,11 +157,16 @@ impl<K: Eq + Hash + PartialOrd> CollectorBools<K> {
             Some(actual_bool_array) => {
                 bool_array = mem::take(actual_bool_array);
                 let index = from.as_u64() as usize;
-                bool_array.update(index);
+                if bool_array.update(index) {
+                    debug!("Inserted message (origin: {from:?}) into collector.");
+                } else {
+                    debug!("Skipped inserting message (origin: {from:?}) into collector: Message was a duplicate.");
+                };
             }
             None => {
                 let index = from.as_u64() as usize;
-                bool_array.update(index);
+                assert!(bool_array.update(index));
+                debug!("Inserted message (origin: {from:?}) into collector.");
             }
         }
         let amount_collected = bool_array.counter;

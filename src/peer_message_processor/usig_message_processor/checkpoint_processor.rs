@@ -21,6 +21,7 @@ where
             .collector_checkpoints
             .collect(&self.config, checkpoint.clone());
         if amount_collected <= self.config.t {
+            debug!("Processing Checkpoint (origin: {:?}, counter latest accepted Prepare: {:?}, amount accepted batches: {:?}) resulted in ignoring creation of Certificate: A sufficient amount of Checkpoints has not been collected yet (collected: {:?}, required: {:?}).", checkpoint.origin, checkpoint.counter_latest_prep, checkpoint.total_amount_accepted_batches, amount_collected, self.config.t + 1);
             return;
         }
         if let Some(cert) = self
@@ -28,12 +29,15 @@ where
             .retrieve(&checkpoint, &self.config)
         {
             // The Replica can discard all entries in its log with a sequence number less than the counter value of its own Checkpoint.
-            debug!("clearing message log ...");
+            debug!(
+                "Clearing message log by removing messages with a counter less than {:?}...",
+                cert.my_checkpoint.counter()
+            );
             self.sent_usig_msgs
                 .retain(|x| x.counter() >= cert.my_checkpoint.counter());
 
             debug!(
-                "cleared message log by removing messages with counter less than {:?}",
+                "Successfully cleared message log by removing messages with a counter less than {:?}.",
                 cert.my_checkpoint.counter()
             );
             self.last_checkpoint_cert = Some(cert);
