@@ -13,6 +13,7 @@ use anyhow::Result;
 use blake2::digest::Update;
 use serde::{Deserialize, Serialize};
 use shared_ids::ReplicaId;
+use tracing::{debug, error};
 use usig::Usig;
 
 use crate::{
@@ -71,15 +72,33 @@ impl<P: RequestPayload, Sig: Serialize> Commit<P, Sig> {
         config: &Config,
         usig: &mut impl Usig<Signature = Sig>,
     ) -> Result<(), InnerError> {
+        debug!(
+            "Validating Commit (origin: {:?}, Prepare: [origin: {:?}, view: {:?}]) ...",
+            self.origin, self.prepare.origin, self.prepare.view
+        );
         if self.origin == self.prepare.origin {
+            error!("Failed validating Commit (origin: {:?}, Prepare: [origin: {:?}, view: {:?}]): Commit originates from Primary. For further information see output", self.origin, self.prepare.origin, self.prepare.view);
             return Err(InnerError::CommitFromPrimary {
                 receiver: config.id,
                 primary: self.origin,
             });
         }
         self.prepare.validate(config, usig)?;
-        self.verify(usig).map_err(|usig_error| {
-            InnerError::parse_usig_error(usig_error, config.id, "Commit", self.origin)
+
+        debug!(
+            "Verifying signature of Commit (origin: {:?}, Prepare: [origin: {:?}, view: {:?}]) ...",
+            self.origin, self.prepare.origin, self.prepare.view
+        );
+        self.verify(usig).map_or_else(|usig_error| {
+            error!(
+                "Failed validating Commit (origin: {:?}, Prepare: [origin: {:?}, view: {:?}]): Signature of Commit is invalid. For further information see output.",
+                self.origin, self.prepare.origin, self.prepare.view
+            );
+            Err(InnerError::parse_usig_error(usig_error, config.id, "Commit", self.origin))
+        }, |v| {
+            debug!("Successfully verified signature of Commit (origin: {:?}, Prepare: [origin: {:?}, view: {:?}]).", self.origin, self.prepare.origin, self.prepare.view);
+            debug!("Successfully validated Commit (origin: {:?}, Prepare: [origin: {:?}, view: {:?}]).", self.origin, self.prepare.origin, self.prepare.view);
+            Ok(v)
         })
     }
 }
