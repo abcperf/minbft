@@ -18,6 +18,7 @@ use blake2::digest::Update;
 use serde::{Deserialize, Serialize};
 use shared_ids::{AnyId, ReplicaId};
 use std::fmt::Debug;
+use tracing::{debug, error};
 use usig::{Counter, Usig};
 
 use crate::{error::InnerError, Config, RequestPayload, View};
@@ -52,6 +53,7 @@ impl<P: RequestPayload, Sig: Serialize + Counter + Debug> NewViewContent<P, Sig>
     pub(crate) fn validate(&self, config: &Config) -> Result<(), InnerError> {
         // Assure that the origin is the expected next View.
         if !config.is_primary(self.next_view, self.origin) {
+            error!("Failed validating NewView (origin: {:?}, next view: {:?}): Origin does not correspond to set next view.", self.origin, self.next_view);
             return Err(InnerError::NewViewContentUnexpectedNextView {
                 receiver: config.id,
                 origin_actual: self.origin,
@@ -88,13 +90,39 @@ impl<P: RequestPayload, Sig: Serialize + Counter + Debug> NewView<P, Sig> {
         config: &Config,
         usig: &mut impl Usig<Signature = Sig>,
     ) -> Result<(), InnerError> {
+        debug!(
+            "Validating NewView (origin: {:?}, next view: {:?}) ...",
+            self.origin, self.next_view
+        );
         // The origin of the message of type NewView must be the replica that corresponds to the set next View.
-        config.is_primary(self.next_view, self.origin);
+        if !config.is_primary(self.next_view, self.origin) {
+            error!("Failed validating NewView (origin: {:?}, next view: {:?}): The origin of the NewView does not correspond to the set next view.", self.origin, self.next_view);
+        };
+
         // Assure that the signature is correct.
-        self.verify(usig).map_err(|usig_error| {
-            InnerError::parse_usig_error(usig_error, config.id, "NewView", self.origin)
+        debug!(
+            "Verifying signature of NewView (origin: {:?}, next view: {:?}) ...",
+            self.origin, self.next_view
+        );
+        self.verify(usig).map_or_else(|usig_error| {
+            error!(
+                "Failed validating NewView (origin: {:?}, next view: {:?}): Signature of NewView is invalid. For further information see output.",
+                self.origin, self.next_view
+            );
+            Err(InnerError::parse_usig_error(usig_error, config.id, "NewView", self.origin))
+        }, |v| {
+            debug!("Successfully verified signature of NewView (origin: {:?}, next view: {:?}).", self.origin, self.next_view);
+            debug!("Successfully validated NewView (origin: {:?}, next view: {:?}).", self.origin, self.next_view);
+            Ok(v)
         })?;
-        self.data.validate(config)
+
+        self.data.validate(config).map(|v| {
+            debug!(
+                "Successfully validated NewView (origin: {:?}, next view: {:?}).",
+                self.origin, self.next_view
+            );
+            v
+        })
     }
 }
 
@@ -114,8 +142,10 @@ impl<P: RequestPayload, Sig: Serialize + Counter + Debug> NewViewCertificate<P, 
         config: &Config,
         usig: &mut impl Usig<Signature = Sig>,
     ) -> Result<(), InnerError> {
+        debug!("Validating NewViewCertificate ...");
         // Assure that there are at least t + 1 ViewChanges.
         if (self.view_changes.len() as u64) <= config.t {
+            error!("Failed validating NewViewCertificate: NewViewCertificate does not contain sufficient ViewChanges (contains: {:?}, requires: {:?}). For further information see output.", self.view_changes.len(),config.t + 1);
             return Err(InnerError::NewViewCheckpointCertNotSufficientMsgs {
                 receiver: config.id,
             });
@@ -124,6 +154,7 @@ impl<P: RequestPayload, Sig: Serialize + Counter + Debug> NewViewCertificate<P, 
         // Assure that all messages of type ViewChange have the same next View set.
         for view_change in &self.view_changes {
             if self.view_changes.first().unwrap().next_view != view_change.next_view {
+                error!("Failed validating NewViewCertificate: Not all ViewChanges contained in the NewViewCertificate have all the same next view. For further information see output.");
                 return Err(InnerError::NewViewCheckpointCertNotAllSameNextView {
                     receiver: config.id,
                 });
@@ -134,6 +165,7 @@ impl<P: RequestPayload, Sig: Serialize + Counter + Debug> NewViewCertificate<P, 
         let mut origins = HashSet::new();
         for msg in &self.view_changes {
             if !origins.insert(msg.origin) {
+                error!("Failed validating NewViewCertificate: Not all ViewChanges contained in the NewViewCertificate originate from different replicas. For further information see output.");
                 return Err(InnerError::NewViewCheckpointCertNotAllDifferentOrigin {
                     receiver: config.id,
                 });
