@@ -1,5 +1,7 @@
 use std::{mem, num::NonZeroUsize, time::Duration};
 
+use tracing::info;
+
 use crate::{
     client_request::{ClientRequest, RequestBatch},
     output::TimeoutRequest,
@@ -37,6 +39,7 @@ impl<P: RequestPayload> RequestBatcher<P> {
         match self.max_size {
             Some(max_size) if self.next_batch.len() >= max_size.get() => {
                 let batch = mem::take(&mut self.next_batch);
+                info!("Reached the maximum size of batched client requests.");
                 (
                     Some(RequestBatch::new(batch.into_boxed_slice())),
                     TimeoutRequest::new_stop_batch_req(),
