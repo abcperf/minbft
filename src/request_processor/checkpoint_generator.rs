@@ -46,26 +46,18 @@ impl<P: RequestPayload, U: Usig> CheckpointGenerator<P, U> {
         self.last_hash = self.next_state_hash(prepare);
 
         debug!(
-            "accepted in total {:?} batches",
+            "Accepted in total {:?} batches.",
             self.total_amount_accepted_batches
         );
         if self.total_amount_accepted_batches % config.checkpoint_period != 0 {
             return None;
         };
-        debug!(
-                "generating new checkpoint since checkpoint period ({:?}) has been reached by accepting batch ...",
-                config.checkpoint_period
-            );
-
         let checkpoint = CheckpointContent {
             origin: config.id,
             state_hash: self.last_hash,
             counter_latest_prep: prepare.counter(),
             total_amount_accepted_batches: self.total_amount_accepted_batches,
         };
-
-        debug!("checkpoint successfully generated");
-
         Some(checkpoint)
     }
 
