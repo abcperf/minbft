@@ -1,6 +1,7 @@
 use serde::Serialize;
 use shared_ids::ReplicaId;
 use std::fmt::Debug;
+use tracing::error;
 use usig::Usig;
 
 use crate::{output::NotReflectedOutput, Error, MinBft, RequestPayload};
@@ -24,6 +25,7 @@ where
                 output.ready_for_client_requests()
             }
         } else {
+            error!("Failed to process Hello (origin: {from:?}): The attestation failed. For further information see output.");
             let output_error = Error::Attestation {
                 receiver: self.config.id,
                 origin: from,
