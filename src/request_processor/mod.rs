@@ -11,8 +11,8 @@ use std::{
 use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 use shared_ids::{ClientId, RequestId};
-use tracing::debug;
-use usig::{Counter, Usig};
+use tracing::{debug, warn};
+use usig::Usig;
 
 use crate::{
     client_request::ClientRequest,
@@ -48,26 +48,33 @@ impl<P> ClientState<P> {
         client_req: ClientRequest<P>,
     ) -> bool {
         if Some(request_id) <= self.last_accepted_req {
-            debug!("client request is too old");
+            warn!("Ignored request to update client state with an old client request with ID {:?} from client with ID {:?}: last accepted request of the same client had ID {:?}.", request_id, client_req.client, self.last_accepted_req);
             return false;
         }
+
         if let Some(processing) = &self.currently_processing_req {
             match request_id.cmp(&processing.0) {
                 Ordering::Less => {
-                    debug!("client request is too old");
+                    warn!("Ignored request to update client state with an old client request with ID {:?} from client with ID {:?}: currently processing request of the same client is newer, has ID {:?}.", request_id, client_req.client, processing.0);
                     false
                 }
 
                 Ordering::Equal => {
                     // It was seen before.
+                    warn!("Ignored request to update client state with client request with ID {:?} from client with ID {:?} which was already previously received and is being processed.", request_id, client_req.client);
                     false
                 }
                 Ordering::Greater => {
+                    debug!("Updated client state with client request with ID {:?} from client with ID {:?}: received request is newer than the currently processing one with ID {:?} of the same client.", request_id, client_req.client, processing.0);
                     self.currently_processing_req = Some((request_id, client_req));
                     true
                 }
             }
         } else {
+            debug!(
+                "Updated client state with client request with ID {:?} from client with ID {:?}: no request was currently being processed of the same client.",
+                request_id, client_req.client
+            );
             self.currently_processing_req = Some((request_id, client_req));
             true
         }
@@ -75,7 +82,7 @@ impl<P> ClientState<P> {
 
     /// Update [ClientState] when completing a client request.
     fn update_upon_request_completion(&mut self, request_id: RequestId) {
-        assert!(self.last_accepted_req < Some(request_id));
+        assert!(self.last_accepted_req < Some(request_id), "Failed to update client state regarding the completion of client request (ID: {:?}): ID of last accepted request from the same client is greater than or equal to the receiving request's ID.", request_id);
         self.last_accepted_req = Some(request_id);
         if let Some(currently_processing) = &self.currently_processing_req {
             if currently_processing.0 <= request_id {
@@ -135,14 +142,28 @@ where
         Option<PrepareContent<P>>,
         Option<TimeoutRequest>,
     ) {
+        debug!(
+            "Processing client request (ID {:?}, client ID: {:?}) ...",
+            client_request.id(),
+            client_request.client
+        );
         let request_id = client_request.id();
 
+        debug!(
+            "Updating state of client (ID: {:?}) ...",
+            client_request.client
+        );
         if !self
             .clients_state
             .entry(client_request.client)
             .or_default()
             .update_upon_request_receival(request_id, client_request.clone())
         {
+            warn!(
+                "Processing client request (ID: {:?}, client ID: {:?}) resulted in ignoring request: Did not update the client's state (ID: {:?}).",
+                client_request.client, client_request.id(), client_request.client
+            );
+
             return (None, None, None);
         }
 
@@ -165,7 +186,8 @@ where
                 if config.me_primary(in_view.view) {
                     let request_batch;
                     let timeout_request;
-                    (request_batch, timeout_request) = self.request_batcher.batch(client_request);
+                    (request_batch, timeout_request) =
+                        self.request_batcher.batch(client_request.clone());
                     batch_timeout_request = Some(timeout_request);
                     prepare_content = None;
                     if let Some(batch) = request_batch {
@@ -179,8 +201,15 @@ where
                 };
             }
             // Client messages are ignored when the replica is in the state of changing Views.
-            ViewState::ChangeInProgress(_) => {}
+            ViewState::ChangeInProgress(in_progress) => {
+                warn!("Ignored possible (if replica is primary) creation of Prepare as replica is in the process of changing views (from: {:?}, to: {:?}).", in_progress.prev_view, in_progress.next_view);
+            }
         }
+        debug!(
+            "Processed client request (ID: {:?}, client ID: {:?}).",
+            client_request.id(),
+            client_request.client
+        );
         (start_client_timeout, prepare_content, batch_timeout_request)
     }
 
@@ -204,17 +233,11 @@ where
         timeout_duration: Duration,
         output: &mut NotReflectedOutput<P, U>,
     ) -> Option<CheckpointContent> {
-        debug!(
-            "accepting batch of prepare (view: {:?}, counter: {:?}) ...",
-            prepare.view,
-            prepare.counter()
-        );
+        debug!("Accepting batch of Prepares ...");
         for request in prepare.request_batch.clone() {
-            debug!("accepting request {:?}", request.clone());
             self.accept_request(request, timeout_duration, output);
-            debug!("accepted request");
         }
-        debug!("accepted batch");
+        debug!("Accepted batch of Prepares.");
         self.checkpoint_generator
             .generate_checkpoint(&prepare, config)
     }
@@ -228,6 +251,10 @@ where
         curr_full_timeout_duration: Duration,
         output: &mut NotReflectedOutput<P, U>,
     ) {
+        debug!(
+            "Accepting client request (ID: {:?}, client ID: {:?}) ...",
+            request, request.client
+        );
         // Update state of the client from which the request is.
         self.clients_state
             .entry(request.client)
@@ -271,6 +298,11 @@ where
                 }
             }
         }
+        debug!(
+            "Accepted client request (ID: {:?}, client ID: {:?})",
+            request.id(),
+            request.client
+        );
         output.response(request.client, request.payload);
         if let Some(start_client_request) = start_client_timeout {
             output.timeout_request(start_client_request);
