@@ -1455,6 +1455,90 @@ fn multi_view_changes_subsequently(
     }
 }
 
+/// Test if a replica that was previously the primary and later becomes the primary again 
+/// still receives and accepts client requests after a full view change cycle.
+#[rstest]
+fn replica_becomes_primary_after_view_change_cycle(
+    #[values(5, 6, 7, 8, 9, 11, 21, 31)] n: u64,
+    #[values(1, 2, 3)] checkpoint_period: u64,
+) {
+    let (mut minbfts, mut timeout_handlers) = setup_set(n, 1, checkpoint_period);
+
+    let mut current_req_id = 0;
+    let mut current_view = 0;
+
+    while current_view < n {
+        let current_primary = minbfts.remove((current_view % n).try_into().unwrap());
+
+        // send client message
+        // the primary got deleted, therefore it is expected that the message is not handled
+        let collected_output = try_client_request(
+            &mut minbfts,
+            ClientId::from_u64(0),
+            DummyPayload(current_req_id, true),
+        );
+        // output should be empty
+        for o in collected_output.responses.values() {
+            assert_eq!(o.len(), 0);
+        }
+        minbfts.insert((current_view % n).try_into().unwrap(), current_primary);
+
+        // force timeout in order for view-change to take place
+        let timeouts_to_handle = collected_output.timeouts_to_handle(&mut timeout_handlers);
+        let collected_output = force_timeout(&mut minbfts, &timeouts_to_handle);
+
+        let timeouts_to_handle = collected_output.timeouts_to_handle(&mut timeout_handlers);
+        let collected_output = force_timeout(&mut minbfts, &timeouts_to_handle);
+
+        // client request should have been handled by the new View now
+        for responses in collected_output.responses.values() {
+            assert_eq!(responses.len(), 1);
+            assert_eq!(
+                *responses.get(0).unwrap(),
+                (ClientId::from_u64(0), DummyPayload(current_req_id, true))
+            );
+        }
+
+        // no errors should have been collected
+        for errors in collected_output.errors.values() {
+            assert!(errors.is_empty());
+        }
+        // the view-change should have taken place
+        // the new View should be Replica(1)
+        for minbft in &minbfts {
+            match &minbft.view_state {
+                ViewState::InView(in_view) => {
+                    assert!(minbft.config.is_primary(in_view.view, ReplicaId::from_u64((current_view + 1) % n)));
+                }
+                ViewState::ChangeInProgress(in_progress) => {
+                    panic!(
+                        "view-change is still in progress, possibly stuck (from {:?}, to {:?}",
+                        in_progress.prev_view, in_progress.next_view
+                    );
+                }
+            }
+        }
+        current_view += 1;
+        current_req_id += 1;
+    }
+    // receive and handle new client message
+    let collected_output =
+    try_client_request(&mut minbfts, ClientId::from_u64(0), DummyPayload(current_req_id, true));
+
+    // (ClientId::from_u64(0), DummyPayload(1, true)) should have been handled by the new View now
+    for o in collected_output.responses.values() {
+        assert_eq!(o.len(), 1);
+        assert_eq!(
+            *o.get(0).unwrap(),
+            (ClientId::from_u64(0), DummyPayload(current_req_id, true))
+        );
+    }
+    // no errors should have been collected
+    for errors in collected_output.errors.values() {
+        assert!(errors.is_empty());
+    }
+}
+
 /// Validates the checkpoint certificate of the provided Replica.
 fn validate_checkpoint_cert(minbft: &mut MinBft<DummyPayload, UsigNoOp>) {
     assert!(minbft.last_checkpoint_cert.is_some());

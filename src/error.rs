@@ -8,14 +8,14 @@ use crate::View;
 pub(super) enum InnerError {
     /// A replica (the given receiver) received a message of type Commit that was sent by the primary (the given primary).
     /// Primaries should not send Commits.
-    #[error("replica {receiver:?} received commit sent by the primary {primary:?}")]
+    #[error("replica {receiver:?} received Commit sent by the primary {primary:?}")]
     CommitFromPrimary {
         receiver: ReplicaId,
         primary: ReplicaId,
     },
     /// A replica (the given receiver) received a message of type Prepare
     /// that was sent by another replica (the given backup) other than the current view (the given view).
-    #[error("replica {receiver:?} received prepare sent by backup {backup:?} for view {view:?}")]
+    #[error("replica {receiver:?} received Prepare sent by backup {backup:?} for view {view:?}")]
     PrepareFromBackup {
         receiver: ReplicaId,
         backup: ReplicaId,
@@ -23,7 +23,7 @@ pub(super) enum InnerError {
     },
     /// A replica's (the given receiver) attempt to validate a Prepare
     /// sent by the given origin failed since it contains an invalid client request.
-    #[error("replica's {receiver:?} validation of the prepare from {origin:?} failed since it contains an invalid client request")]
+    #[error("replica's {receiver:?} validation of Prepare from {origin:?} failed since it contains an invalid client request")]
     RequestInPrepare {
         receiver: ReplicaId,
         origin: ReplicaId,
@@ -133,13 +133,13 @@ impl InnerError {
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     /// A replica's (receiver) validation of the message of type Commit from the given origin failed.
-    #[error("replica's ({receiver:?}) validation of the commit from {origin:?} failed")]
+    #[error("replica's ({receiver:?}) validation of Commit from {origin:?} failed")]
     Commit {
         receiver: ReplicaId,
         origin: ReplicaId,
     },
     /// A replica's (receiver) validation of the message of type Prepare from the given origin failed.
-    #[error("replica's ({receiver:?}) validation of the prepare from {origin:?} failed")]
+    #[error("replica's ({receiver:?}) validation of Prepare from {origin:?} failed")]
     Prepare {
         receiver: ReplicaId,
         origin: ReplicaId,

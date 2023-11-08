@@ -129,17 +129,17 @@ where
                     collector_commits: CollectorCommits::new(),
                 });
 
-                // Set the counter of the last accepted Prepare temporarily
-                // as the counter of the last sent UsigMessage by the new View.
-                // This makes sure all replicas are synced correctly upon changing views.
-                self.counter_last_accepted_prep = Some(new_view.counter());
-
-                debug!(
-                    "successfully transitioned to new view {:?}",
-                    new_view.next_view
-                );
-
                 if !self.config.me_primary(new_view.next_view) {
+                    // Set the counter of the last accepted Prepare temporarily
+                    // as the counter of the last sent UsigMessage by the new View.
+                    // This makes sure all replicas are synced correctly upon changing views.
+                    self.counter_last_accepted_prep = Some(new_view.counter());
+
+                    debug!(
+                        "successfully transitioned to new view {:?}",
+                        new_view.next_view
+                    );
+
                     // Relay the NewView message.
                     output.broadcast(new_view, &mut Vec::new());
                 } else {
@@ -179,6 +179,16 @@ where
                         };
                         output.broadcast(prepare, &mut self.sent_usig_msgs);
                     }
+
+                    // Set the counter of the last accepted Prepare temporarily
+                    // as the counter of the last sent UsigMessage by the new View.
+                    // This makes sure all replicas are synced correctly upon changing views.
+                    self.counter_last_accepted_prep = Some(new_view.counter());
+
+                    debug!(
+                        "successfully transitioned to new view {:?}",
+                        new_view.next_view
+                    );
                 }
             }
         }
@@ -199,10 +209,9 @@ where
                 match m {
                     UsigMessageV::View(view) => match view {
                         ViewPeerMessage::Prepare(prepare) => {
-                            if Some(prepare.counter()) <= counter_last_accepted_prep {
-                                continue;
+                            if Some(prepare.counter()) > counter_last_accepted_prep {
+                                preps.push(Reverse(prepare.clone()));
                             };
-                            preps.push(Reverse(prepare.clone()));
                         }
                         ViewPeerMessage::Commit(commit) => {
                             if Some(commit.prepare.counter()) > counter_last_accepted_prep {
@@ -227,8 +236,7 @@ where
         }
 
         let mut unique_preps: VecDeque<Prepare<P, U::Signature>> = VecDeque::new();
-        while !preps.is_empty() {
-            let min_prep = preps.pop().unwrap();
+        while let Some(min_prep) = preps.pop() {
             if unique_preps.back().is_none()
                 || unique_preps.back().unwrap().counter() != min_prep.0.counter()
             {
