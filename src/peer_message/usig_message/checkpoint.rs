@@ -16,6 +16,7 @@ use anyhow::Result;
 use blake2::digest::Update;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use tracing::{debug, error};
 use usig::{Count, Usig};
 
 use crate::{error::InnerError, Config, ReplicaId};
@@ -75,8 +76,15 @@ impl<Sig: Serialize> Checkpoint<Sig> {
         config: &Config,
         usig: &mut impl Usig<Signature = Sig>,
     ) -> Result<(), InnerError> {
-        self.verify(usig).map_err(|usig_error| {
-            InnerError::parse_usig_error(usig_error, config.id, "Checkpoint", self.origin)
+        debug!("Validating Checkpoint (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}) ...", self.origin, self.counter_latest_prep, self.total_amount_accepted_batches);
+        debug!("Verifying signature of Checkpoint (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}) ...", self.origin, self.counter_latest_prep, self.total_amount_accepted_batches);
+        self.verify(usig).map_or_else(|usig_error| {
+            error!("Failed validating Checkpoint (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}): Verification of the signature failed.", self.origin, self.counter_latest_prep, self.total_amount_accepted_batches);
+            Err(InnerError::parse_usig_error(usig_error, config.id, "Checkpoint", self.origin))
+        }, |v| {
+            debug!("Successfully verified signature of Checkpoint (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}).", self.origin, self.counter_latest_prep, self.total_amount_accepted_batches);
+            debug!("Successfully validated Checkpoint (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}) ...", self.origin, self.counter_latest_prep, self.total_amount_accepted_batches);
+            Ok(v)
         })
     }
 }
@@ -108,9 +116,11 @@ impl<Sig: Serialize> CheckpointCertificate<Sig> {
         config: &Config,
         usig: &mut impl Usig<Signature = Sig>,
     ) -> Result<(), InnerError> {
+        debug!("Validating checkpoint certificate (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}) ...", self.my_checkpoint.origin, self.my_checkpoint.counter_latest_prep, self.my_checkpoint.total_amount_accepted_batches);
         // Assures that the CheckpointCertificate contains at least t + 1 messages of type Checkpoint,
         // (one of them is implicitly the Checkpoint of the origin of the CheckpointCertificate).
         if (self.other_checkpoints.len() as u64) < config.t {
+            error!("Failed validating checkpoint certificate (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}): Checkpoint certificate does not contain sufficient checkpoints. For further information see output.", self.my_checkpoint.origin, self.my_checkpoint.counter_latest_prep, self.my_checkpoint.total_amount_accepted_batches);
             return Err(InnerError::CheckpointCertNotSufficientMsgs {
                 receiver: config.id,
                 origin: self.my_checkpoint.origin,
@@ -122,6 +132,7 @@ impl<Sig: Serialize> CheckpointCertificate<Sig> {
         // (and are therefore all equal).
         for other in &self.other_checkpoints {
             if self.my_checkpoint.state_hash != other.state_hash {
+                error!("Failed validating checkpoint certificate (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}): Not all checkpoints contained in certificate have the same state hash. For further information see output.", self.my_checkpoint.origin, self.my_checkpoint.counter_latest_prep, self.my_checkpoint.total_amount_accepted_batches);
                 return Err(InnerError::CheckpointCertNotAllSameStateHash {
                     receiver: config.id,
                     origin: self.my_checkpoint.origin,
@@ -134,6 +145,7 @@ impl<Sig: Serialize> CheckpointCertificate<Sig> {
         origins.insert(self.my_checkpoint.origin);
         for msg in &self.other_checkpoints {
             if !origins.insert(msg.origin) {
+                error!("Failed validating checkpoint certificate (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}): Not all checkpoints contained in certificate originate from different replicas. For further information see output.", self.my_checkpoint.origin, self.my_checkpoint.counter_latest_prep, self.my_checkpoint.total_amount_accepted_batches);
                 return Err(InnerError::CheckpointCertNotAllDifferentOrigin {
                     receiver: config.id,
                     origin: self.my_checkpoint.origin,
@@ -142,6 +154,7 @@ impl<Sig: Serialize> CheckpointCertificate<Sig> {
         }
 
         // Assures the signatures of all Checkpoints are valid.
+        debug!("Validating checkpoints contained in certificate (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}) ...", self.my_checkpoint.origin, self.my_checkpoint.counter_latest_prep, self.my_checkpoint.total_amount_accepted_batches);
         self.my_checkpoint.validate(config, usig)?;
         for msg in &self.other_checkpoints {
             match msg.validate(config, usig) {
@@ -149,7 +162,8 @@ impl<Sig: Serialize> CheckpointCertificate<Sig> {
                 Err(e) => return Err(e),
             }
         }
-
+        debug!("Successfully validated checkpoints contained in certificate (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}).", self.my_checkpoint.origin, self.my_checkpoint.counter_latest_prep, self.my_checkpoint.total_amount_accepted_batches);
+        debug!("Successfully validated checkpoint certificate (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}).", self.my_checkpoint.origin, self.my_checkpoint.counter_latest_prep, self.my_checkpoint.total_amount_accepted_batches);
         Ok(())
     }
 }

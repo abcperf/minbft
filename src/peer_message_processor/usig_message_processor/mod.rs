@@ -3,6 +3,7 @@ use std::{borrow::Cow, fmt::Debug};
 use serde::Serialize;
 use shared_ids::AnyId;
 use tracing::debug;
+use tracing::warn;
 use usig::Counter;
 use usig::Usig;
 
@@ -35,17 +36,18 @@ where
         // case 1.1: The UsigMessage is a Commit.
         if let UsigMessage::View(ViewPeerMessage::Commit(commit)) = &usig_message {
             debug!(
-                "process_usig_message of type {:?} from {:?} with counter {:?} for prepare from {:?}",
-                usig_message.msg_type(),
-                *usig_message.as_ref(),
-                usig_message.counter(),
-                commit.prepare.origin
+                "Processing inner message Prepare (origin: {:?}, view: {:?}, counter {:?}) by first passing it to the order enforcer ... (outer message is Commit [origin: {:?}, counter: {:?}])",
+                commit.prepare.origin,
+                commit.prepare.view,
+                commit.prepare.counter(),
+                commit.origin,
+                commit.counter(),
             );
             let usig_prepare = &commit.prepare;
             let from = *usig_prepare.as_ref();
             let replica_state = &mut self.replicas_state[from.as_u64() as usize];
             let messages: Vec<_> = replica_state
-                .usig_message_handler_state
+                .usig_message_order_enforcer
                 .push_to_handle(Cow::Borrowed(usig_prepare))
                 .collect();
             for usig_inner_message in messages {
@@ -54,14 +56,9 @@ where
         }
 
         // case 1.2: The UsigMessage is a ViewChange.
-        if let UsigMessage::ViewChange(view_change_message) = &usig_message {
-            debug!(
-                "process_usig_message of type {:?} from {:?} with counter {:?}",
-                usig_message.msg_type(),
-                *usig_message.as_ref(),
-                usig_message.counter(),
-            );
-            view_change_message
+        if let UsigMessage::ViewChange(view_change) = &usig_message {
+            debug!("Processing inner messages of outer message ViewChange (origin: {:?}, next view: {:?}, counter: {:?}) by first passing them to the order enforcer ...", view_change.origin, view_change.next_view, view_change.counter());
+            view_change
                 .variant
                 .message_log
                 .iter()
@@ -70,16 +67,16 @@ where
                     let replica_state = &mut self.replicas_state[from.as_u64() as usize];
                     let messages: Vec<_> = match usig_inner_message_of_log {
                         UsigMessageV::View(view_peer_message) => replica_state
-                            .usig_message_handler_state
+                            .usig_message_order_enforcer
                             .push_to_handle(Cow::Borrowed(view_peer_message))
                             .collect(),
                         UsigMessageV::ViewChange(_) => return,
                         UsigMessageV::NewView(new_view_message) => replica_state
-                            .usig_message_handler_state
+                            .usig_message_order_enforcer
                             .push_to_handle(Cow::Borrowed(new_view_message))
                             .collect(),
                         UsigMessageV::Checkpoint(checkpoint_message) => replica_state
-                            .usig_message_handler_state
+                            .usig_message_order_enforcer
                             .push_to_handle(Cow::Borrowed(checkpoint_message))
                             .collect(),
                     };
@@ -90,36 +87,36 @@ where
         }
 
         // case 1.3: The UsigMessage is a NewView.
-        if let UsigMessage::NewView(new_view_message) = &usig_message {
-            debug!(
-                "process_usig_message of type {:?} from {:?}",
-                usig_message.msg_type(),
-                *usig_message.as_ref()
-            );
+        if let UsigMessage::NewView(new_view) = &usig_message {
+            debug!("Processing inner messages of outer message NewView (origin: {:?}, next view: {:?}, counter: {:?}) by first passing them to the order enforcer ...", new_view.origin, new_view.next_view, new_view.counter());
             // process the other messages of type ViewChange
-            new_view_message
-                .data
-                .certificate
-                .view_changes
-                .iter()
-                .for_each(|usig_inner_view_change_message| {
+            new_view.data.certificate.view_changes.iter().for_each(
+                |usig_inner_view_change_message| {
                     let from = *usig_inner_view_change_message.as_ref();
                     let replica_state = &mut self.replicas_state[from.as_u64() as usize];
                     let messages: Vec<_> = replica_state
-                        .usig_message_handler_state
+                        .usig_message_order_enforcer
                         .push_to_handle(Cow::Borrowed(usig_inner_view_change_message))
                         .collect();
                     for usig_inner_message in messages {
                         self.process_usig_message_ordered(usig_inner_message, output);
                     }
-                });
+                },
+            );
         }
+
+        debug!(
+            "Process message (origin: {:?}, type: {:?}, counter: {:?}) by first passing it to the order enforcer ...",
+            *usig_message.as_ref(),
+            usig_message.msg_type(),
+            usig_message.counter()
+        );
 
         // case 2: The UsigMessage does not contain other messages (i.e. a non-nested UsigMessage is to be processed).
         let from = *usig_message.as_ref();
         let replica_state = &mut self.replicas_state[from.as_u64() as usize];
         let messages: Vec<_> = replica_state
-            .usig_message_handler_state
+            .usig_message_order_enforcer
             .push_to_handle(Cow::<'_, UsigMessage<P, U::Signature>>::Owned(usig_message))
             .collect();
 
@@ -135,12 +132,10 @@ where
         usig_message: UsigMessage<P, U::Signature>,
         output: &mut NotReflectedOutput<P, U>,
     ) {
-        debug!(
-            "process_usig_message_ordered from {:?} of type {:?} with counter {:?}",
-            *usig_message.as_ref(),
-            usig_message.msg_type(),
-            usig_message.counter()
-        );
+        let origin = *usig_message.as_ref();
+        let msg_type = usig_message.msg_type();
+        let counter = usig_message.counter();
+        debug!("Processing message (origin: {:?}, type: {:?}, counter: {:?}) completely as it has been selected by the order enforcer as the next one to be processed ...", origin, msg_type, counter);
         match usig_message {
             UsigMessage::View(view) => match &mut self.view_state {
                 ViewState::InView(in_view) => {
@@ -153,11 +148,18 @@ where
                         }
                     }
                 }
-                ViewState::ChangeInProgress(_) => {}
+                ViewState::ChangeInProgress(in_progress) => {
+                    warn!("Processing message (origin: {:?}, type: {:?}, counter: {:?}) resulted in ignoring it: Replica is in progress of changing views (from {:?} to {:?}).", origin, msg_type, counter, in_progress.prev_view, in_progress.next_view);
+                    return;
+                }
             },
             UsigMessage::ViewChange(view_change) => self.process_view_change(view_change, output),
             UsigMessage::NewView(new_view) => self.process_new_view(new_view, output),
             UsigMessage::Checkpoint(checkpoint) => self.process_checkpoint(checkpoint),
         }
+        debug!(
+            "Successfully processed message (origin: {:?}, type: {:?}, counter: {:?}) completely.",
+            origin, msg_type, counter
+        );
     }
 }

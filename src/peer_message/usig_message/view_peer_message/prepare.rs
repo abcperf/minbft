@@ -16,6 +16,7 @@ use anyhow::Result;
 use blake2::digest::Update;
 use serde::{Deserialize, Serialize};
 use shared_ids::ReplicaId;
+use tracing::{debug, error};
 use usig::{Counter, Usig};
 
 use crate::{
@@ -96,21 +97,45 @@ impl<P: RequestPayload, Sig> Prepare<P, Sig> {
         config: &Config,
         usig: &mut impl Usig<Signature = Sig>,
     ) -> Result<(), InnerError> {
+        debug!(
+            "Validating Prepare (origin: {:?}, view: {:?})...",
+            self.origin, self.view
+        );
         if !config.is_primary(self.view, self.origin) {
+            error!(
+                "Failed validating Prepare (origin: {:?}, view: {:?}): Prepare originates from a backup replica.",
+                self.origin, self.view
+            );
             return Err(InnerError::PrepareFromBackup {
                 receiver: config.id,
                 backup: self.origin,
                 view: self.view,
             });
         }
+        debug!(
+            "Successfully validated Prepare (origin: {:?}, view: {:?}).",
+            self.origin, self.view
+        );
         self.request_batch
             .validate()
             .map_err(|_| InnerError::RequestInPrepare {
                 receiver: config.id,
                 origin: self.origin,
             })?;
-        self.verify(usig).map_err(|usig_error| {
-            InnerError::parse_usig_error(usig_error, config.id, "Prepare", self.origin)
+        debug!(
+            "Verifying signature of Prepare (origin: {:?}, view: {:?}) ...",
+            self.origin, self.view
+        );
+        self.verify(usig).map_or_else(|usig_error| {
+            error!(
+                "Failed validating Prepare (origin: {:?}, view: {:?}): Signature of Prepare is invalid. For further information see output.",
+                self.origin, self.view
+            );
+            Err(InnerError::parse_usig_error(usig_error, config.id, "Prepare", self.origin))
+        }, |v| {
+            debug!("Successfully verified signature of Prepare (origin: {:?}, view: {:?}).", self.origin, self.view);
+            debug!("Successfully validated Prepare (origin: {:?}, view: {:?}).", self.origin, self.view);
+            Ok(v)
         })
     }
 }

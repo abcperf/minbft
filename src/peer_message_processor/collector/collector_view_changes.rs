@@ -22,12 +22,18 @@ impl<P: Clone, Sig: Clone> CollectorViewChanges<P, Sig> {
     /// Inserts a ViewChange message and returns the amount of so far collected
     /// ViewChanges for the same next [View] as the given message.
     pub(crate) fn collect(&mut self, msg: ViewChange<P, Sig>, config: &Config) -> u64 {
+        let origin = msg.origin;
+        let next_view = msg.next_view;
         debug!(
-            "Insert message ViewChange (origin: {:?}, next_view: {:?})",
-            msg.origin, msg.next_view
+            "Collecting ViewChange (origin: {:?}, next_view: {:?}) ...",
+            origin, next_view
         );
-        self.0
-            .collect(msg.clone(), msg.origin, msg.next_view, config)
+        let amount_collected = self.0.collect(msg, origin, next_view, config);
+        debug!(
+            "Successfully collected ViewChange (origin: {:?}, next view: {:?}).",
+            origin, next_view
+        );
+        amount_collected
     }
 
     /// Retrieves a collection of at least t + 1 ViewChanges if they are valid and
@@ -39,13 +45,17 @@ impl<P: Clone, Sig: Clone> CollectorViewChanges<P, Sig> {
         config: &Config,
     ) -> Option<Vec<ViewChange<P, Sig>>> {
         debug!(
-            "Retrieving ViewChanges from collector with next_view equal to {:?}",
+            "Retrieving ViewChanges (next view: {:?}) from collector ...",
             msg.next_view,
         );
         let mut retrieved = self.0.retrieve(msg.next_view, config)?;
         let mut retrieved_single = Vec::new();
         retrieved_single.push(retrieved.0);
         retrieved_single.append(&mut retrieved.1);
+        debug!(
+            "Successfully retrieved ViewChanges (next view: {:?}).",
+            msg.next_view
+        );
         Some(retrieved_single)
     }
 }

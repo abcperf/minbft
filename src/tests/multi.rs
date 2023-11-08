@@ -815,10 +815,6 @@ fn view_change_primary_impersonation(
     #[values(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)] checkpoint_period: u64,
 ) {
     for t in 1..n / 2 {
-        debug!(
-            "n: {:?}, t: {:?}, checkpoint_period: {:?}",
-            n, t, checkpoint_period
-        );
         let (mut minbfts, mut timeout_handlers) = setup_set(n, t, checkpoint_period);
 
         let collected_output =
@@ -1455,7 +1451,7 @@ fn multi_view_changes_subsequently(
     }
 }
 
-/// Test if a replica that was previously the primary and later becomes the primary again 
+/// Test if a replica that was previously the primary and later becomes the primary again
 /// still receives and accepts client requests after a full view change cycle.
 #[rstest]
 fn replica_becomes_primary_after_view_change_cycle(
@@ -1508,7 +1504,9 @@ fn replica_becomes_primary_after_view_change_cycle(
         for minbft in &minbfts {
             match &minbft.view_state {
                 ViewState::InView(in_view) => {
-                    assert!(minbft.config.is_primary(in_view.view, ReplicaId::from_u64((current_view + 1) % n)));
+                    assert!(minbft
+                        .config
+                        .is_primary(in_view.view, ReplicaId::from_u64((current_view + 1) % n)));
                 }
                 ViewState::ChangeInProgress(in_progress) => {
                     panic!(
@@ -1522,8 +1520,11 @@ fn replica_becomes_primary_after_view_change_cycle(
         current_req_id += 1;
     }
     // receive and handle new client message
-    let collected_output =
-    try_client_request(&mut minbfts, ClientId::from_u64(0), DummyPayload(current_req_id, true));
+    let collected_output = try_client_request(
+        &mut minbfts,
+        ClientId::from_u64(0),
+        DummyPayload(current_req_id, true),
+    );
 
     // (ClientId::from_u64(0), DummyPayload(1, true)) should have been handled by the new View now
     for o in collected_output.responses.values() {

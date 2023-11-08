@@ -74,23 +74,28 @@ impl CollectorReqViewChanges {
     }
     /// Inserts a ReqViewChange message and returns the amount of collected ReqViewChanges
     /// received for the same previous and next [View] as the input.
-    pub(crate) fn collect(&mut self, msg: ReqViewChange, from: ReplicaId, config: &Config) -> u64 {
+    pub(crate) fn collect(&mut self, msg: &ReqViewChange, from: ReplicaId, config: &Config) -> u64 {
         debug!(
-            "Insert message ReqViewChange (origin: {:?}, prev_view: {:?}, next_view: {:?})",
-            from, msg.prev_view, msg.next_view,
+            "Collecting ReqViewChange (origin: {from:?}, previous view: {:?}, next view: {:?}) ...",
+            msg.prev_view, msg.next_view,
         );
         let key = KeyRVC {
             prev_view: msg.prev_view,
             next_view: msg.next_view,
         };
-        self.0.collect(key, from, config)
+        let amount_collected = self.0.collect(key, from, config);
+        debug!(
+            "Successfully collected ReqViewChange (origin: {from:?}, previous view: {:?}, next view: {:?}).",
+            msg.prev_view, msg.next_view,
+        );
+        amount_collected
     }
 
     /// Cleans up the collection by retaining only ReqViewChanges with
     /// their previous [View] set as higher than the provided one, or
     /// the same but their next [View] is set higher.
     pub(crate) fn clean_up(&mut self, prev_view: View, next_view: View) {
-        debug!("Cleaning up collector of ReqViewChanges by removing ReqViewChanges with prev_view less than {:?} or equal to it and next_view less than {:?}", prev_view, next_view);
+        debug!("Cleaning up collector of ReqViewChanges: Removing ReqViewChanges with previous view less than {:?} or equal to it and next view less than {:?}", prev_view, next_view);
         let key = KeyRVC {
             prev_view,
             next_view,

@@ -61,12 +61,14 @@ impl<Sig: Clone> CollectorCheckpoints<Sig> {
 
     /// Inserts a message of type [Checkpoint] to the collector.
     pub(crate) fn collect(&mut self, config: &Config, msg: Checkpoint<Sig>) -> u64 {
-        debug!("insert message Checkpoint from {:?}", msg.origin);
+        debug!("Collecting Checkpoint (origin: {:?}, counter latest accepted Prepare: {:?}, amount accepted batches: {:?}) ...", msg.origin, msg.counter_latest_prep, msg.total_amount_accepted_batches);
         let key = KeyCheckpoints {
             state_hash: msg.state_hash,
             total_amount_accepted_batches: msg.total_amount_accepted_batches,
         };
-        self.0.collect(msg.clone(), msg.origin, key, config)
+        let amount_collected = self.0.collect(msg.clone(), msg.origin, key, config);
+        debug!("Successfully collected Checkpoint (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}).", msg.origin, msg.counter_latest_prep, msg.total_amount_accepted_batches);
+        amount_collected
     }
 
     /// Generate a new checkpoint certificate.
@@ -81,7 +83,10 @@ impl<Sig: Clone> CollectorCheckpoints<Sig> {
         msg: &Checkpoint<Sig>,
         config: &Config,
     ) -> Option<CheckpointCertificate<Sig>> {
-        debug!("Retrieving Checkpoints from collector ...",);
+        debug!(
+            "Retrieving Checkpoints (amount accepted batches: {:?}) from collector ...",
+            msg.total_amount_accepted_batches
+        );
         let key = KeyCheckpoints {
             state_hash: msg.state_hash,
             total_amount_accepted_batches: msg.total_amount_accepted_batches,
