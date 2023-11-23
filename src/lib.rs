@@ -378,7 +378,7 @@ where
 
         let req_id = request.id();
 
-        info!(
+        debug!(
             "Handling client request (ID: {:?}, client ID: {:?}) ...",
             req_id, client_id
         );
@@ -430,7 +430,7 @@ where
         if let Some(prepare_content) = prepare_content {
             match Prepare::sign(prepare_content, &mut self.usig) {
                 Ok(prepare) => {
-                    info!("Broadcast Prepare (view: {:?}, counter: {:?}) for client request (ID: {:?}, client ID: {:?}).", prepare.view, prepare.counter(), req_id, client_id);
+                    debug!("Broadcast Prepare (view: {:?}, counter: {:?}) for client request (ID: {:?}, client ID: {:?}).", prepare.view, prepare.counter(), req_id, client_id);
                     output.broadcast(prepare, &mut self.sent_usig_msgs);
                 }
                 Err(usig_error) => {
@@ -516,7 +516,7 @@ where
 
         let msg_type = message.msg_type();
 
-        info!(
+        debug!(
             "Handling message (origin: {:?}, type: {:?}) ...",
             from, msg_type,
         );
@@ -533,7 +533,7 @@ where
             }
         };
         self.process_peer_message(from, message, &mut output);
-        info!(
+        debug!(
             "Successfully handled message (origin: {:?}, from {:?}).",
             from, msg_type
         );
@@ -638,9 +638,9 @@ where
                         ) {
                             Ok(prepare) => {
                                 debug!("Successfully created Prepare for timed-out batch.");
-                                info!("Broadcast Prepare (view: {:?}, counter: {:?}) for timed-out batch.", prepare.view, prepare.counter());
+                                debug!("Broadcast Prepare (view: {:?}, counter: {:?}) for timed-out batch.", prepare.view, prepare.counter());
                                 output.broadcast(prepare, &mut self.sent_usig_msgs);
-                                info!("Successfully handled timeout (type: {:?}).", timeout_type);
+                                debug!("Successfully handled timeout (type: {:?}).", timeout_type);
                             }
                             Err(usig_error) => {
                                 error!("Failed to handle timeout (type: {:?}): Failed to sign Prepare for batch before broadcasting it. For further information see output.", timeout_type);
@@ -670,7 +670,7 @@ where
                     } else {
                         debug!("Already broadcast ReqViewChange (previous view: {:?}, next view: {:?}).", in_view.view, in_view.view + 1);
                     }
-                    info!("Successfully handled timeout (type: {:?}).", timeout_type);
+                    debug!("Successfully handled timeout (type: {:?}).", timeout_type);
                 }
                 ViewState::ChangeInProgress(in_progress) => {
                     warn!("Handling timeout resulted in skipping creation of ReqViewChange: Replica is in progress of changing views (from: {:?}, to: {:?}).", in_progress.prev_view, in_progress.next_view);
@@ -694,7 +694,7 @@ where
                         msg.prev_view, msg.next_view
                     );
                     output.broadcast(msg, &mut self.sent_usig_msgs);
-                    info!("Successfully handled timeout (type: {:?}).", timeout_type);
+                    debug!("Successfully handled timeout (type: {:?}).", timeout_type);
                 }
             },
         }

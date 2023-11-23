@@ -109,7 +109,7 @@ where
 
     /// Collects the given response.
     pub(super) fn response(&mut self, client_id: ClientId, output: P) {
-        info!(
+        debug!(
             "Output response to client request (ID: {:?}, client ID: {:?}).",
             output.id(),
             client_id

@@ -62,7 +62,7 @@ where
                             return;
                         }
                     };
-                    info!(
+                    debug!(
                         "Broadcast Commit for Prepare (origin: {:?}, view: {:?}, counter: {:?}) ...",
                         commit.prepare.origin,
                         commit.prepare.view,

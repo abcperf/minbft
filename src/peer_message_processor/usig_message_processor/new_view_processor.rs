@@ -149,7 +149,7 @@ where
                     );
 
                     // Relay the NewView message.
-                    info!(
+                    debug!(
                         "Relayed NewView (origin: {:?}, next view: {:?}).",
                         new_view.origin, new_view.next_view
                     );
@@ -181,7 +181,7 @@ where
                         ) {
                             Ok(prepare) => {
                                 debug!("Successfully created Prepare for client requests that have yet to be accepted.");
-                                info!("Broadcast Prepare for client requests that have yet to be accepted.");
+                                debug!("Broadcast Prepare for client requests that have yet to be accepted.");
                                 output.broadcast(prepare, &mut self.sent_usig_msgs);
                                 info!(
                                     "Successfully transitioned to new view ({:?}).",
