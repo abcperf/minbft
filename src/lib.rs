@@ -616,7 +616,7 @@ where
     /// ```
     pub fn handle_timeout(&mut self, timeout_type: TimeoutType) -> Output<P, U> {
         let _minbft_span = error_span!("minbft", id = self.config.id.as_u64()).entered();
-        info!("Handling timeout (type: {:?}) ...", timeout_type);
+        debug!("Handling timeout (type: {:?}) ...", timeout_type);
         let mut output = NotReflectedOutput::new(&self.config, &self.recv_hellos);
 
         match timeout_type {
