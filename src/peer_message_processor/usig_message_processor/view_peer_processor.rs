@@ -3,7 +3,6 @@ use tracing::debug;
 
 use serde::Serialize;
 use tracing::error;
-use tracing::info;
 use usig::Counter;
 use usig::Usig;
 
@@ -102,7 +101,7 @@ where
                             return;
                         }
                     };
-                    info!("Broadcast Checkpoint (counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}).", checkpoint.counter_latest_prep, checkpoint.total_amount_accepted_batches);
+                    debug!("Broadcast Checkpoint (counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}).", checkpoint.counter_latest_prep, checkpoint.total_amount_accepted_batches);
                     output.broadcast(checkpoint, &mut self.sent_usig_msgs);
                 }
                 self.counter_last_accepted_prep = Some(prepare.counter());
@@ -154,7 +153,7 @@ where
                             return;
                         }
                     };
-                    info!("Broadcast Checkpoint (counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}).", checkpoint.counter_latest_prep, checkpoint.total_amount_accepted_batches);
+                    debug!("Broadcast Checkpoint (counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}).", checkpoint.counter_latest_prep, checkpoint.total_amount_accepted_batches);
                     output.broadcast(checkpoint, &mut self.sent_usig_msgs);
                 }
                 self.counter_last_accepted_prep = Some(commit.prepare.counter());
