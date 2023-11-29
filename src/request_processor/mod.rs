@@ -48,20 +48,20 @@ impl<P> ClientState<P> {
         client_req: ClientRequest<P>,
     ) -> bool {
         if Some(request_id) <= self.last_accepted_req {
-            warn!("Ignored request to update client state with an old client request with ID {:?} from client with ID {:?}: last accepted request of the same client had ID {:?}.", request_id, client_req.client, self.last_accepted_req);
+            debug!("Ignored request to update client state with an old client request with ID {:?} from client with ID {:?}: last accepted request of the same client had ID {:?}.", request_id, client_req.client, self.last_accepted_req);
             return false;
         }
 
         if let Some(processing) = &self.currently_processing_req {
             match request_id.cmp(&processing.0) {
                 Ordering::Less => {
-                    warn!("Ignored request to update client state with an old client request with ID {:?} from client with ID {:?}: currently processing request of the same client is newer, has ID {:?}.", request_id, client_req.client, processing.0);
+                    debug!("Ignored request to update client state with an old client request with ID {:?} from client with ID {:?}: currently processing request of the same client is newer, has ID {:?}.", request_id, client_req.client, processing.0);
                     false
                 }
 
                 Ordering::Equal => {
                     // It was seen before.
-                    warn!("Ignored request to update client state with client request with ID {:?} from client with ID {:?} which was already previously received and is being processed.", request_id, client_req.client);
+                    debug!("Ignored request to update client state with client request with ID {:?} from client with ID {:?} which was already previously received and is being processed.", request_id, client_req.client);
                     false
                 }
                 Ordering::Greater => {
@@ -159,11 +159,6 @@ where
             .or_default()
             .update_upon_request_receival(request_id, client_request.clone())
         {
-            warn!(
-                "Processing client request (ID: {:?}, client ID: {:?}) resulted in ignoring request: Did not update the client's state (ID: {:?}).",
-                client_request.client, client_request.id(), client_request.client
-            );
-
             return (None, None, None);
         }
 
