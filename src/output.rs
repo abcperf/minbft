@@ -21,6 +21,11 @@ pub(super) struct OutputRestricted(());
 /// Contains the PeerMessages to be broadcasted.
 type BroadcastList<Att, P, Sig> = Box<[PeerMessage<Att, P, Sig>]>;
 
+pub enum ViewInfo {
+    InView(u64),
+    ViewChange { from: u64, to: u64 },
+}
+
 /// Collects all the information a participant (of a system of multiple participants
 /// that together form an atomic broadcast) may generate when handling
 /// client-requests, peer-messages or timeouts.
@@ -43,6 +48,9 @@ pub struct Output<P, U: Usig> {
     pub ready_for_client_requests: bool,
     /// The current primary if the participant is in the state InView.
     pub primary: Option<ReplicaId>,
+
+    pub view_info: ViewInfo,
+    pub round: u64,
 }
 
 /// Collects all the non-reflected output, i.e. without own messages, a participant (of a system of multiple participants
@@ -74,6 +82,10 @@ pub(super) trait Reflectable<P, U: Usig> {
 
     /// Returns the current primary participant.
     fn current_primary(&self, restricted: OutputRestricted) -> Option<ReplicaId>;
+
+    fn view_info(&self, restricted: OutputRestricted) -> ViewInfo;
+
+    fn round(&self, restricted: OutputRestricted) -> u64;
 }
 
 impl<P: RequestPayload, U: Usig> NotReflectedOutput<P, U>
@@ -198,6 +210,8 @@ where
         let broadcast = self.broadcasts.into_iter().map(|m| m.into()).collect();
 
         let primary = reflectable.current_primary(OutputRestricted(()));
+        let view_info = reflectable.view_info(OutputRestricted(()));
+        let round = reflectable.round(OutputRestricted(()));
 
         Output {
             broadcasts: broadcast,
@@ -206,6 +220,8 @@ where
             errors: self.errors.into_boxed_slice(),
             ready_for_client_requests: self.ready_for_client_requests,
             primary,
+            view_info,
+            round,
         }
     }
 }

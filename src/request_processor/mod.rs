@@ -104,6 +104,8 @@ pub(crate) struct RequestProcessor<P: RequestPayload, U: Usig> {
     pub(crate) request_batcher: RequestBatcher<P>,
     /// Used for possibly generating a Checkpoint when sufficient requests have been accepted.
     pub(crate) checkpoint_generator: CheckpointGenerator<P, U>,
+
+    round: u64,
 }
 
 impl<P: RequestPayload, U: Usig> RequestProcessor<P, U>
@@ -122,6 +124,7 @@ where
             currently_processing_reqs: VecDeque::new(),
             request_batcher: RequestBatcher::new(batch_timeout_duration, batch_max_size),
             checkpoint_generator: CheckpointGenerator::new(),
+            round: 0,
         }
     }
 
@@ -228,6 +231,8 @@ where
         timeout_duration: Duration,
         output: &mut NotReflectedOutput<P, U>,
     ) -> Option<CheckpointContent> {
+        self.round += 1;
+
         debug!("Accepting batch of Prepares ...");
         for request in prepare.request_batch.clone() {
             self.accept_request(request, timeout_duration, output);
@@ -235,6 +240,10 @@ where
         debug!("Accepted batch of Prepares.");
         self.checkpoint_generator
             .generate_checkpoint(&prepare, config)
+    }
+
+    pub(crate) fn round(&self) -> u64 {
+        self.round
     }
 
     /// Accepts the provided request and responds to the respective client.

@@ -11,7 +11,7 @@ use tracing::debug;
 use usig::Usig;
 
 use crate::{
-    output::{self, NotReflectedOutput, OutputRestricted},
+    output::{self, NotReflectedOutput, OutputRestricted, ViewInfo},
     peer_message::ValidatedPeerMessage,
     MinBft, RequestPayload,
 };
@@ -70,5 +70,19 @@ where
 
     fn current_primary(&self, _restricted: OutputRestricted) -> Option<ReplicaId> {
         self.primary()
+    }
+
+    fn view_info(&self, _restricted: OutputRestricted) -> ViewInfo {
+        match &self.view_state {
+            crate::ViewState::InView(s) => ViewInfo::InView(s.view.0),
+            crate::ViewState::ChangeInProgress(s) => ViewInfo::ViewChange {
+                from: s.prev_view.0,
+                to: s.next_view.0,
+            },
+        }
+    }
+
+    fn round(&self, _restricted: OutputRestricted) -> u64 {
+        self.request_processor.round()
     }
 }
