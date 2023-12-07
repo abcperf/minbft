@@ -2,7 +2,8 @@
 //! After a sufficient amount (t + 1) of Commits are received and collected, the respective batch of client-requests is accepted.
 //! The Commits must share the same next [crate::View].
 
-use std::marker::PhantomData;
+use crate::Prepare;
+use std::collections::{hash_map::Entry, BTreeMap};
 
 use tracing::debug;
 use usig::{Count, Counter};
@@ -20,7 +21,8 @@ pub(crate) struct CollectorCommits<P, Sig> {
     /// In other words, if i is the ID of the primary, element i (index) in the vector is set to true upon receival of the [crate::Prepare].
     /// The receival of the [crate::Prepare] may be either indirect (through a Commit) or direct (actual [crate::Prepare] broadcast by primary).
     recv_commits: CollectorBools<Count>,
-    phantom_data: PhantomData<(P, Sig)>,
+    prepare: BTreeMap<Count, Prepare<P, Sig>>,
+    t: u64,
 }
 
 /// Defines the key for the collector.
@@ -30,15 +32,20 @@ struct KeyCommits(Count);
 
 impl<P: Clone, Sig: Counter + Clone> CollectorCommits<P, Sig> {
     /// Creates a new collector of Commits.
-    pub(crate) fn new() -> CollectorCommits<P, Sig> {
+    pub(crate) fn new(t: u64) -> CollectorCommits<P, Sig> {
         CollectorCommits {
             recv_commits: CollectorBools::new(),
-            phantom_data: PhantomData,
+            prepare: BTreeMap::new(),
+            t,
         }
     }
     /// Collects a [ViewPeerMessage] (Prepare or Commit) and returns the amount of valid
     /// Commits received for the Prepare to which the received Commit belongs to.
-    pub(crate) fn collect(&mut self, msg: ViewPeerMessage<P, Sig>, config: &Config) -> u64 {
+    pub(crate) fn collect(
+        &mut self,
+        msg: ViewPeerMessage<P, Sig>,
+        config: &Config,
+    ) -> Vec<Prepare<P, Sig>> {
         match msg {
             ViewPeerMessage::Prepare(prepare) => {
                 debug!(
@@ -47,16 +54,10 @@ impl<P: Clone, Sig: Counter + Clone> CollectorCommits<P, Sig> {
                     prepare.view,
                     prepare.counter(),
                 );
-                let amount_collected =
-                    self.recv_commits
-                        .collect(prepare.counter(), prepare.origin, config);
-                debug!(
-                    "Successfully inserted Prepare (origin: {:?}, view: {:?}, counter: {:?}).",
-                    prepare.origin,
-                    prepare.view,
-                    prepare.counter(),
-                );
-                amount_collected
+
+                self.recv_commits
+                    .collect(prepare.counter(), prepare.origin, config);
+                self.prepare.insert(prepare.counter(), prepare);
             }
             ViewPeerMessage::Commit(commit) => {
                 debug!(
@@ -67,26 +68,26 @@ impl<P: Clone, Sig: Counter + Clone> CollectorCommits<P, Sig> {
                     commit.prepare.view,
                     commit.prepare.counter(),
                 );
-                self.collect(ViewPeerMessage::Prepare(commit.prepare.clone()), config);
-                let amount_collected =
-                    self.recv_commits
-                        .collect(commit.prepare.counter(), commit.origin, config);
-                debug!("Successfully inserted Commit (origin: {:?}, counter: {:?}, Prepare: [origin: {:?}, view: {:?}, counter: {:?}]).",
-                    commit.origin,
-                    commit.counter(),
-                    commit.prepare.origin,
-                    commit.prepare.view,
-                    commit.prepare.counter(),
-                );
-                amount_collected
+                self.recv_commits
+                    .collect(commit.prepare.counter(), commit.origin, config);
             }
         }
-    }
 
-    /// Cleans the collection up by retaining only
-    /// entries which have a counter higher than the provided one.
-    pub(crate) fn clean_up(&mut self, counter_prepare: Count) {
-        debug!("Cleaning up collector of Commits: Removing Commits for Prepares with counter less than or equal to {:?}", counter_prepare);
-        self.recv_commits.clean_up(counter_prepare);
+        let mut vec = Vec::new();
+
+        while let Some(entry) = self.prepare.first_entry() {
+            let amount = self.recv_commits.0.entry(*entry.key());
+            let amount = match amount {
+                Entry::Occupied(amount) => amount,
+                Entry::Vacant(_) => unreachable!(),
+            };
+            if amount.get().counter <= self.t {
+                break;
+            }
+            amount.remove();
+            vec.push(entry.remove());
+        }
+
+        vec
     }
 }

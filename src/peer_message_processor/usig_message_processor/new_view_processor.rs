@@ -143,7 +143,7 @@ where
                 self.view_state = ViewState::InView(InView {
                     view: new_view.next_view,
                     has_requested_view_change: false,
-                    collector_commits: CollectorCommits::new(),
+                    collector_commits: CollectorCommits::new(self.config.t),
                 });
 
                 if !self.config.me_primary(new_view.next_view) {
