@@ -70,41 +70,38 @@ where
                     output.broadcast(commit, &mut self.sent_usig_msgs);
                 }
 
-                let amount_collected = in_view
+                let acceptable_prepares = in_view
                     .collector_commits
-                    .collect(ViewPeerMessage::Prepare(prepare.clone()), &self.config);
-                if amount_collected <= self.config.t {
-                    debug!("Processing Prepare (origin: {:?}, view: {:?}, counter: {:?}) resulted in not accepting it yet: A sufficient amount of Commits has not been collected yet (collected: {:?}, required: {:?}).", prepare.origin, prepare.view, prepare.counter(), amount_collected, self.config.t + 1);
-                    return;
-                }
-                in_view.collector_commits.clean_up(prepare.counter());
-                if let Some(checkpoint_content) = self.request_processor.accept_prepare(
-                    &self.config,
-                    prepare.clone(),
-                    self.current_timeout_duration,
-                    output,
-                ) {
-                    debug!("Generating new Checkpoint since checkpoint period ({:?}) has been reached by accepting Prepare ...", self.config.checkpoint_period);
-                    let checkpoint = match Checkpoint::sign(checkpoint_content, &mut self.usig) {
-                        Ok(checkpoint) => {
-                            debug!("Successfully generated new Checkpoint.");
-                            checkpoint
+                    .collect(ViewPeerMessage::Prepare(prepare), &self.config);
+                for acceptable_prepare in acceptable_prepares {
+                    let count = acceptable_prepare.counter();
+                    if let Some(checkpoint_content) = self.request_processor.accept_prepare(
+                        &self.config,
+                        acceptable_prepare,
+                        self.current_timeout_duration,
+                        output,
+                    ) {
+                        debug!("Generating new Checkpoint since checkpoint period ({:?}) has been reached by accepting Prepare ...", self.config.checkpoint_period);
+                        match Checkpoint::sign(checkpoint_content, &mut self.usig) {
+                            Ok(checkpoint) => {
+                                debug!("Successfully generated new Checkpoint.");
+                                debug!("Broadcast Checkpoint (counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}).", checkpoint.counter_latest_prep, checkpoint.total_amount_accepted_batches);
+                                output.broadcast(checkpoint, &mut self.sent_usig_msgs);
+                            }
+                            Err(usig_error) => {
+                                error!("Failed to process Prepare: Failed to create and sign Checkpoint in response to accepting Prepare. For further information see output.");
+                                let output_error = Error::Usig {
+                                    replica: self.config.id,
+                                    msg_type: "Prepare",
+                                    usig_error,
+                                };
+                                output.error(output_error);
+                                return;
+                            }
                         }
-                        Err(usig_error) => {
-                            error!("Failed to process Prepare (origin: {:?}, view: {:?}, counter: {:?}): Failed to create and sign Checkpoint in response to accepting Prepare. For further information see output.", prepare.origin, prepare.view, prepare.counter());
-                            let output_error = Error::Usig {
-                                replica: self.config.id,
-                                msg_type: "Prepare",
-                                usig_error,
-                            };
-                            output.error(output_error);
-                            return;
-                        }
-                    };
-                    debug!("Broadcast Checkpoint (counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}).", checkpoint.counter_latest_prep, checkpoint.total_amount_accepted_batches);
-                    output.broadcast(checkpoint, &mut self.sent_usig_msgs);
+                    }
+                    self.counter_last_accepted_prep = Some(count);
                 }
-                self.counter_last_accepted_prep = Some(prepare.counter());
             }
             ViewState::ChangeInProgress(_) => unreachable!(),
         }
@@ -122,41 +119,37 @@ where
                     return;
                 }
                 assert!(Some(commit.prepare.counter()) > self.counter_last_accepted_prep);
-                let amount_collected = in_view
+                let acceptable_prepares = in_view
                     .collector_commits
-                    .collect(ViewPeerMessage::Commit(commit.clone()), &self.config);
-                if amount_collected <= self.config.t {
-                    debug!("Processing Commit (origin: {:?}, counter: {:?}, Prepare: [origin: {:?}, view: {:?}, counter: {:?}]) resulted in not accepting it yet: A sufficient amount of Commits has not been collected yet (collected: {:?}, required: {:?}).", commit.origin, commit.counter(), commit.prepare.origin, commit.prepare.view, commit.prepare.counter(), amount_collected, self.config.t + 1);
-                    return;
-                }
-                in_view.collector_commits.clean_up(commit.prepare.counter());
-                if let Some(checkpoint_content) = self.request_processor.accept_prepare(
-                    &self.config,
-                    commit.prepare.clone(),
-                    self.current_timeout_duration,
-                    output,
-                ) {
-                    debug!("Generating new Checkpoint since checkpoint period ({:?}) has been reached by accepting Prepare ...", self.config.checkpoint_period);
-                    let checkpoint = match Checkpoint::sign(checkpoint_content, &mut self.usig) {
-                        Ok(checkpoint) => {
-                            debug!("Successfully generated new Checkpoint.");
-                            checkpoint
+                    .collect(ViewPeerMessage::Commit(commit), &self.config);
+                for acceptable_prepare in acceptable_prepares {
+                    let count = acceptable_prepare.counter();
+                    if let Some(checkpoint_content) = self.request_processor.accept_prepare(
+                        &self.config,
+                        acceptable_prepare,
+                        self.current_timeout_duration,
+                        output,
+                    ) {
+                        debug!("Generating new Checkpoint since checkpoint period ({:?}) has been reached by accepting Prepare ...", self.config.checkpoint_period);
+                        match Checkpoint::sign(checkpoint_content, &mut self.usig) {
+                            Ok(checkpoint) => {
+                                debug!("Successfully generated new Checkpoint.");
+                                debug!("Broadcast Checkpoint (counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}).", checkpoint.counter_latest_prep, checkpoint.total_amount_accepted_batches);
+                                output.broadcast(checkpoint, &mut self.sent_usig_msgs);
+                            }
+                            Err(usig_error) => {
+                                error!("Failed to process Commit: Failed to create and sign Checkpoint in response to accepting Prepare. For further information see output.");
+                                let output_error = Error::Usig {
+                                    replica: self.config.id,
+                                    msg_type: "Prepare",
+                                    usig_error,
+                                };
+                                output.error(output_error);
+                            }
                         }
-                        Err(usig_error) => {
-                            error!("Failed to process Commit (origin: {:?}, counter: {:?}, Prepare: [origin: {:?}, view: {:?}, counter: {:?}]): Failed to create and sign Checkpoint in response to accepting Prepare. For further information see output.", commit.origin, commit.counter(), commit.prepare.origin, commit.prepare.view, commit.prepare.counter());
-                            let output_error = Error::Usig {
-                                replica: self.config.id,
-                                msg_type: "Prepare",
-                                usig_error,
-                            };
-                            output.error(output_error);
-                            return;
-                        }
-                    };
-                    debug!("Broadcast Checkpoint (counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}).", checkpoint.counter_latest_prep, checkpoint.total_amount_accepted_batches);
-                    output.broadcast(checkpoint, &mut self.sent_usig_msgs);
+                    }
+                    self.counter_last_accepted_prep = Some(count);
                 }
-                self.counter_last_accepted_prep = Some(commit.prepare.counter());
             }
             ViewState::ChangeInProgress(_) => unreachable!(),
         }
