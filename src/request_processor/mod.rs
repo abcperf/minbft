@@ -200,7 +200,7 @@ where
             }
             // Client messages are ignored when the replica is in the state of changing Views.
             ViewState::ChangeInProgress(in_progress) => {
-                warn!("Ignored possible (if replica is primary) creation of Prepare as replica is in the process of changing views (from: {:?}, to: {:?}).", in_progress.prev_view, in_progress.next_view);
+                debug!("Ignored possible (if replica is primary) creation of Prepare as replica is in the process of changing views (from: {:?}, to: {:?}).", in_progress.prev_view, in_progress.next_view);
             }
         }
         debug!(
