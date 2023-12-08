@@ -11,7 +11,7 @@ use std::{
 use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 use shared_ids::{ClientId, RequestId};
-use tracing::{debug, warn};
+use tracing::debug;
 use usig::Usig;
 
 use crate::{
