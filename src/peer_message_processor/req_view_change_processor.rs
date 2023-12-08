@@ -77,6 +77,8 @@ where
             has_broadcast_view_change: true,
         });
 
+        output.timeout_request(TimeoutRequest::new_stop_any_client_req());
+
         let origin = self.config.me();
         debug!(
             "Creating ViewChange for ReqViewChanges (previous view: {:?}, next view: {:?}) ...",

@@ -177,4 +177,13 @@ impl<P: Clone, Sig: Counter + Clone> UsigMsgOrderEnforcer<P, Sig> {
             None
         })
     }
+
+    /// Update the last seen counter after a unique [crate::Prepare] is accepted
+    /// when processing a valid NewView.
+    pub(crate) fn update_in_new_view(&mut self, counter_accepted_prep: Count) {
+        while self.count_checker.next_count.0 <= counter_accepted_prep.0 {
+            self.count_checker.next_count += 1;
+            self.unprocessed.pop();
+        }
+    }
 }

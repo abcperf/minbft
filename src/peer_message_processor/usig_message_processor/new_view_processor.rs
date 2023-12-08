@@ -1,4 +1,5 @@
 use serde::Serialize;
+use shared_ids::AnyId;
 use std::cmp::Reverse;
 use std::collections::VecDeque;
 use std::fmt::Debug;
@@ -118,12 +119,20 @@ where
                 debug!("Accepting unique Prepares contained in NewViewCertificate ...");
                 while !unique_preps.is_empty() {
                     let unique_prep = unique_preps.pop_front().unwrap();
+                    let from = unique_prep.origin;
+                    let counter = unique_prep.counter();
                     self.request_processor.accept_prepare(
                         &self.config,
                         unique_prep,
                         self.current_timeout_duration,
                         output,
                     );
+                    // Update the last seen counter in the replica state of the
+                    // origin of the prepare.
+                    let replica_state = &mut self.replicas_state[from.as_u64() as usize];
+                    replica_state
+                        .usig_message_order_enforcer
+                        .update_in_new_view(counter);
                 }
                 debug!("Accepted unique Prepares contained in NewViewCertificate.");
 
@@ -134,8 +143,16 @@ where
                 self.view_state = ViewState::InView(InView {
                     view: new_view.next_view,
                     has_requested_view_change: false,
-                    collector_commits: CollectorCommits::new(),
+                    collector_commits: CollectorCommits::new(self.config.t),
                 });
+
+                output.timeout_request(TimeoutRequest::new_stop_any_client_req());
+                if let Some((_, req)) = self.request_processor.currently_processing_all().next() {
+                    output.timeout_request(TimeoutRequest::new_start_client_req(
+                        req.client,
+                        self.current_timeout_duration,
+                    ));
+                }
 
                 if !self.config.me_primary(new_view.next_view) {
                     // Set the counter of the last accepted Prepare temporarily

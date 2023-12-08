@@ -141,11 +141,11 @@ enum ViewState<P, Sig> {
 
 impl<P: Clone, Sig: Counter + Clone> ViewState<P, Sig> {
     /// Creates a ViewState with the default initial values (state is InView).
-    fn new() -> Self {
+    fn new(t: u64) -> Self {
         Self::InView(InView {
             view: View::default(),
             has_requested_view_change: false,
-            collector_commits: CollectorCommits::new(),
+            collector_commits: CollectorCommits::new(t),
         })
     }
 }
@@ -190,7 +190,7 @@ struct ReplicaState<P, Sig> {
 /// }
 ///
 /// fn handle_output<U: Usig>(output: Output<SamplePayload, U>) {
-///     let Output { broadcasts, responses, timeout_requests, errors, ready_for_client_requests, primary: _} = output;
+///     let Output { broadcasts, responses, timeout_requests, errors, ready_for_client_requests, primary: _, view_info: _, round: _ } = output;
 ///     for broadcast in broadcasts.iter() {
 ///         todo!();
 ///     }
@@ -301,7 +301,7 @@ where
             sent_usig_msgs: Vec::new(),
             usig,
             request_processor: RequestProcessor::new(config.batch_timeout, config.max_batch_size),
-            view_state: ViewState::new(),
+            view_state: ViewState::new(config.t),
             counter_last_accepted_prep: None,
             recv_hellos: HashSet::new(),
             collector_rvc: CollectorReqViewChanges::new(),
@@ -572,7 +572,7 @@ where
     /// use serde::{Serialize, Deserialize};
     /// use anyhow::Result;
     ///
-    /// use minbft::{MinBft, Config, RequestPayload, output::TimeoutRequest::{Start, Stop}};
+    /// use minbft::{MinBft, Config, RequestPayload, output::TimeoutRequest::{Start, Stop, StopAny}};
     /// use shared_ids::{ClientId, RequestId, AnyId};
     /// use usig::noop::UsigNoOp;
     ///
@@ -609,6 +609,9 @@ where
     ///             minbft.handle_timeout(timeout.timeout_type);
     ///         }
     ///         Stop(timeout) => {
+    ///             // if there is already a timeout set of the same type and stop class, stop it
+    ///         }
+    ///         StopAny(timeout) => {
     ///             // if there is already a timeout set of the same type and stop class, stop it
     ///         }
     ///     }
@@ -673,7 +676,7 @@ where
                     debug!("Successfully handled timeout (type: {:?}).", timeout_type);
                 }
                 ViewState::ChangeInProgress(in_progress) => {
-                    warn!("Handling timeout resulted in skipping creation of ReqViewChange: Replica is in progress of changing views (from: {:?}, to: {:?}).", in_progress.prev_view, in_progress.next_view);
+                    debug!("Handling timeout resulted in skipping creation of ReqViewChange: Replica is in progress of changing views (from: {:?}, to: {:?}).", in_progress.prev_view, in_progress.next_view);
                 }
             },
             TimeoutType::ViewChange => match &mut self.view_state {

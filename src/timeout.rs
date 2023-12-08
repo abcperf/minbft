@@ -34,6 +34,28 @@ pub struct Timeout {
     pub stop_class: StopClass,
 }
 
+/// Defines a Timeout consisting of a type, duration, and stop class.
+/// Timeouts ensure view-changes occur when they are necessary.
+/// [crate::MinBft] outputs timeout requests when a timeout may possibly have to be set.
+/// Timeout requests and timeouts must be handled explicitly, see [crate::MinBft].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TimeoutAny {
+    /// The type a timeout can have.
+    pub timeout_type: TimeoutType,
+    /// The time until the Timeout is triggered.
+    pub duration: Duration,
+}
+
+impl TimeoutAny {
+    /// Crates a [Timeout] of [TimeoutType::Client] with the specified [ClientId] and duration.
+    pub(super) fn client(duration: Duration) -> Self {
+        Self {
+            timeout_type: TimeoutType::Client,
+            duration,
+        }
+    }
+}
+
 /// Identifies a timeout when a request for stopping it is received.
 /// Only set timeouts with the same [StopClass] as the timeout of the received TimeoutRequest should be stopped.
 #[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]

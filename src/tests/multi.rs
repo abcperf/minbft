@@ -40,6 +40,8 @@ fn setup_set(
                     errors,
                     ready_for_client_requests,
                     primary: _,
+                    view_info: _,
+                    round: _,
                 },
             ),
             timeout_handler,
@@ -73,6 +75,8 @@ fn setup_set(
                     errors,
                     ready_for_client_requests,
                     primary: _,
+                    view_info: _,
+                    round: _,
                 } = minbft.handle_peer_message(id, broadcast.clone());
                 assert_eq!(broadcasts.len(), 0);
                 assert_eq!(responses.len(), 0);
@@ -139,6 +143,8 @@ fn handle_broadcasts(
                     errors,
                     ready_for_client_requests,
                     primary: _,
+                    view_info: _,
+                    round: _,
                 } = minbft.handle_peer_message(from, message_to_broadcast.clone());
                 assert!(ready_for_client_requests);
                 // collect the responses of the Replica
@@ -194,6 +200,8 @@ fn try_client_request(
             errors,
             ready_for_client_requests,
             primary: _,
+            view_info: _,
+            round: _,
         } = minbft.handle_client_message(client_id, payload);
         assert!(ready_for_client_requests);
         // collect the responses of the Replica
@@ -249,6 +257,8 @@ fn force_timeout(
                     errors,
                     ready_for_client_requests,
                     primary: _,
+                    view_info: _,
+                    round: _,
                 } = minbft.handle_timeout(timeout_type);
                 // collect the responses of the Replica
                 assert!(ready_for_client_requests);
@@ -302,6 +312,8 @@ fn force_timeout_expect_error(
                     errors,
                     ready_for_client_requests,
                     primary: _,
+                    view_info: _,
+                    round: _,
                 } = minbft.handle_timeout(timeout_type);
 
                 assert!(ready_for_client_requests);
@@ -1197,6 +1209,8 @@ fn view_change_multi_view_changes(#[values(4)] n: u64, #[values(1)] checkpoint_p
                             errors: _,
                             ready_for_client_requests: _,
                             primary: _,
+                            view_info: _,
+                            round: _,
                         } = minbfts[id].handle_client_message(
                             ClientId::from_u64(0),
                             DummyPayload(view_change_number, true),
@@ -1227,6 +1241,8 @@ fn view_change_multi_view_changes(#[values(4)] n: u64, #[values(1)] checkpoint_p
                                 errors,
                                 ready_for_client_requests,
                                 primary: _,
+                                view_info: _,
+                                round: _,
                             } = minbfts[id].handle_timeout(*timeout_type);
 
                             assert!(ready_for_client_requests);

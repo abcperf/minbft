@@ -11,7 +11,7 @@ use std::{
 use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 use shared_ids::{ClientId, RequestId};
-use tracing::{debug, warn};
+use tracing::debug;
 use usig::Usig;
 
 use crate::{
@@ -104,6 +104,8 @@ pub(crate) struct RequestProcessor<P: RequestPayload, U: Usig> {
     pub(crate) request_batcher: RequestBatcher<P>,
     /// Used for possibly generating a Checkpoint when sufficient requests have been accepted.
     pub(crate) checkpoint_generator: CheckpointGenerator<P, U>,
+
+    round: u64,
 }
 
 impl<P: RequestPayload, U: Usig> RequestProcessor<P, U>
@@ -122,6 +124,7 @@ where
             currently_processing_reqs: VecDeque::new(),
             request_batcher: RequestBatcher::new(batch_timeout_duration, batch_max_size),
             checkpoint_generator: CheckpointGenerator::new(),
+            round: 0,
         }
     }
 
@@ -197,7 +200,7 @@ where
             }
             // Client messages are ignored when the replica is in the state of changing Views.
             ViewState::ChangeInProgress(in_progress) => {
-                warn!("Ignored possible (if replica is primary) creation of Prepare as replica is in the process of changing views (from: {:?}, to: {:?}).", in_progress.prev_view, in_progress.next_view);
+                debug!("Ignored possible (if replica is primary) creation of Prepare as replica is in the process of changing views (from: {:?}, to: {:?}).", in_progress.prev_view, in_progress.next_view);
             }
         }
         debug!(
@@ -228,6 +231,8 @@ where
         timeout_duration: Duration,
         output: &mut NotReflectedOutput<P, U>,
     ) -> Option<CheckpointContent> {
+        self.round += 1;
+
         debug!("Accepting batch of Prepares ...");
         for request in prepare.request_batch.clone() {
             self.accept_request(request, timeout_duration, output);
@@ -235,6 +240,10 @@ where
         debug!("Accepted batch of Prepares.");
         self.checkpoint_generator
             .generate_checkpoint(&prepare, config)
+    }
+
+    pub(crate) fn round(&self) -> u64 {
+        self.round
     }
 
     /// Accepts the provided request and responds to the respective client.
@@ -261,7 +270,7 @@ where
         output.timeout_request(stop_client_request);
 
         // Update data structure of currently processing requests.
-        // Possibly create a new timeout request with the adjusted duration.
+        // Possibly create a new timeout request with the reset duration.
         let mut start_client_timeout = None;
         while let Some(oldest_req) = self.currently_processing_reqs.front() {
             // Check if the oldest request in the data structure was already accepted.
@@ -276,13 +285,10 @@ where
             match Some(oldest_req.0).cmp(&client_state.last_accepted_req) {
                 Ordering::Greater => {
                     // The oldest request in the data structure has not yet been accepted.
-                    // Send a request to start a timeout for it with the adjusted duration.
-                    let duration = curr_full_timeout_duration
-                        .checked_sub(oldest_req.2.elapsed())
-                        .unwrap_or_else(|| Duration::from_secs(0));
+                    // Send a request to start a timeout for it with the reset duration.
                     start_client_timeout = Some(TimeoutRequest::new_start_client_req(
                         oldest_req.1.client,
-                        duration,
+                        curr_full_timeout_duration,
                     ));
                     break;
                 }
