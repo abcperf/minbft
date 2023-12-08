@@ -146,6 +146,14 @@ where
                     collector_commits: CollectorCommits::new(self.config.t),
                 });
 
+                output.timeout_request(TimeoutRequest::new_stop_any_client_req());
+                if let Some((_, req)) = self.request_processor.currently_processing_all().next() {
+                    output.timeout_request(TimeoutRequest::new_start_client_req(
+                        req.client,
+                        self.current_timeout_duration,
+                    ));
+                }
+
                 if !self.config.me_primary(new_view.next_view) {
                     // Set the counter of the last accepted Prepare temporarily
                     // as the counter of the last sent UsigMessage by the new View.

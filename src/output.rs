@@ -6,6 +6,7 @@ use tracing::{debug, error_span, info};
 
 use usig::{Usig, UsigError};
 
+use crate::timeout::TimeoutAny;
 use crate::{Config, Error};
 
 use crate::{
@@ -144,6 +145,12 @@ where
                     timeout.timeout_type, timeout.duration, timeout.stop_class
                 );
             }
+            TimeoutRequest::StopAny(timeout) => {
+                debug!(
+                    "Output request for stopping timeout (type: {:?}, duration: {:?} ).",
+                    timeout.timeout_type, timeout.duration
+                );
+            }
         }
         self.timeout_requests.push(timeout_request);
     }
@@ -234,6 +241,7 @@ where
 pub enum TimeoutRequest {
     Start(Timeout),
     Stop(Timeout),
+    StopAny(TimeoutAny),
 }
 
 impl TimeoutRequest {
@@ -265,5 +273,10 @@ impl TimeoutRequest {
     /// Creates a new [TimeoutRequest::Stop] for a [Timeout] of type ViewChange.
     pub(crate) fn new_stop_vc_req() -> Self {
         Self::Stop(Timeout::view_change(Duration::from_secs(0)))
+    }
+
+    /// Creates a new [TimeoutRequest::Stop] for a [Timeout] of type Client with the given [ClientId].
+    pub(crate) fn new_stop_any_client_req() -> Self {
+        Self::StopAny(TimeoutAny::client(Duration::from_secs(0)))
     }
 }
