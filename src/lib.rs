@@ -572,7 +572,7 @@ where
     /// use serde::{Serialize, Deserialize};
     /// use anyhow::Result;
     ///
-    /// use minbft::{MinBft, Config, RequestPayload, output::TimeoutRequest::{Start, Stop}};
+    /// use minbft::{MinBft, Config, RequestPayload, output::TimeoutRequest::{Start, Stop, StopAny}};
     /// use shared_ids::{ClientId, RequestId, AnyId};
     /// use usig::noop::UsigNoOp;
     ///
@@ -609,6 +609,9 @@ where
     ///             minbft.handle_timeout(timeout.timeout_type);
     ///         }
     ///         Stop(timeout) => {
+    ///             // if there is already a timeout set of the same type and stop class, stop it
+    ///         }
+    ///         StopAny(timeout) => {
     ///             // if there is already a timeout set of the same type and stop class, stop it
     ///         }
     ///     }
