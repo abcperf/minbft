@@ -180,7 +180,7 @@ fn view_change() {
     assert_eq!(output.errors.len(), 0);
 
     let timeout_requests = Vec::from(output.timeout_requests); // remove once https://github.com/rust-lang/rust/issues/59878 is fixed
-    assert_eq!(timeout_requests.len(), 2);
+    assert_eq!(timeout_requests.len(), 3);
     let mut iter = timeout_requests.clone().into_iter();
     let timeout_request = iter.next().unwrap();
     assert!(matches!(timeout_request, TimeoutRequest::Stop(_)));
@@ -190,6 +190,8 @@ fn view_change() {
     } else {
         unreachable!();
     }
+    let timeout_request = iter.next().unwrap();
+    assert!(matches!(timeout_request, TimeoutRequest::StopAny(_)));
     let timeout_request = iter.next().unwrap();
     assert!(matches!(timeout_request, TimeoutRequest::Start(_)));
     if let TimeoutRequest::Start(timeout) = timeout_request {
@@ -289,7 +291,7 @@ fn view_change_timeout() {
     assert_eq!(output.errors.len(), 0);
 
     let timeout_requests = Vec::from(output.timeout_requests); // remove once https://github.com/rust-lang/rust/issues/59878 is fixed
-    assert_eq!(timeout_requests.len(), 2);
+    assert_eq!(timeout_requests.len(), 3);
     let mut iter = timeout_requests.clone().into_iter();
     let timeout_request = iter.next().unwrap();
     assert!(matches!(timeout_request, TimeoutRequest::Stop(_)));
@@ -299,6 +301,8 @@ fn view_change_timeout() {
     } else {
         unreachable!();
     }
+    let timeout_request = iter.next().unwrap();
+    assert!(matches!(timeout_request, TimeoutRequest::StopAny(_)));
     let timeout_request = iter.next().unwrap();
     assert!(matches!(timeout_request, TimeoutRequest::Start(_)));
     if let TimeoutRequest::Start(timeout) = timeout_request {
