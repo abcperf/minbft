@@ -673,7 +673,7 @@ where
                     debug!("Successfully handled timeout (type: {:?}).", timeout_type);
                 }
                 ViewState::ChangeInProgress(in_progress) => {
-                    warn!("Handling timeout resulted in skipping creation of ReqViewChange: Replica is in progress of changing views (from: {:?}, to: {:?}).", in_progress.prev_view, in_progress.next_view);
+                    debug!("Handling timeout resulted in skipping creation of ReqViewChange: Replica is in progress of changing views (from: {:?}, to: {:?}).", in_progress.prev_view, in_progress.next_view);
                 }
             },
             TimeoutType::ViewChange => match &mut self.view_state {
