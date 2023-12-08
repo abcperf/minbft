@@ -261,7 +261,7 @@ where
         output.timeout_request(stop_client_request);
 
         // Update data structure of currently processing requests.
-        // Possibly create a new timeout request with the adjusted duration.
+        // Possibly create a new timeout request with the reset duration.
         let mut start_client_timeout = None;
         while let Some(oldest_req) = self.currently_processing_reqs.front() {
             // Check if the oldest request in the data structure was already accepted.
@@ -276,13 +276,10 @@ where
             match Some(oldest_req.0).cmp(&client_state.last_accepted_req) {
                 Ordering::Greater => {
                     // The oldest request in the data structure has not yet been accepted.
-                    // Send a request to start a timeout for it with the adjusted duration.
-                    let duration = curr_full_timeout_duration
-                        .checked_sub(oldest_req.2.elapsed())
-                        .unwrap_or_else(|| Duration::from_secs(0));
+                    // Send a request to start a timeout for it with the reset duration.
                     start_client_timeout = Some(TimeoutRequest::new_start_client_req(
                         oldest_req.1.client,
-                        duration,
+                        curr_full_timeout_duration,
                     ));
                     break;
                 }
