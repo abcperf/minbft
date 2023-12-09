@@ -218,7 +218,6 @@ where
     ) -> impl Iterator<Item = (RequestId, &ClientRequest<P>)> {
         self.clients_state
             .values()
-            .into_iter()
             .filter_map(|req| req.currently_processing_req.as_ref())
             .map(|(id, req)| (*id, req))
     }
