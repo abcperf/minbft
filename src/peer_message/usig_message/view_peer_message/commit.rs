@@ -176,6 +176,18 @@ mod test {
         Commit::sign(CommitContent { origin, prepare }, usig).unwrap()
     }
 
+    fn create_config_default(n: NonZeroU64, t: u64, id: ReplicaId) -> Config {
+        Config {
+            n,
+            t,
+            id,
+            batch_timeout: Duration::from_secs(2),
+            max_batch_size: None,
+            initial_timeout_duration: Duration::from_secs(2),
+            checkpoint_period: NonZeroU64::new(2).unwrap(),
+        }
+    }
+
     fn add_attestations(mut usigs: Vec<&mut UsigNoOp>) {
         for i in 0..usigs.len() {
             for j in 0..usigs.len() {
@@ -212,15 +224,7 @@ mod test {
         let usigs = vec![&mut usig_primary, &mut usig_backup];
         add_attestations(usigs);
 
-        let config = Config {
-            n: NonZeroU64::new(3).unwrap(),
-            t: 1,
-            id: id_backup,
-            batch_timeout: Duration::from_secs(2),
-            max_batch_size: None,
-            initial_timeout_duration: Duration::from_secs(2),
-            checkpoint_period: NonZeroU64::new(2).unwrap(),
-        };
+        let config = create_config_default(NonZeroU64::new(3).unwrap(), 1, id_backup);
 
         assert!(commit.validate(&config, &mut usig_primary).is_ok());
         assert!(commit.validate(&config, &mut usig_backup).is_ok());
@@ -237,7 +241,7 @@ mod test {
         let mut usig_primary = UsigNoOp::default();
         let prepare = create_prepare_with_usig(id_primary, view, &mut usig_primary);
 
-        // Create Commit
+        // Create Commit.
         let id_backup = ReplicaId::from_u64(1);
         let mut usig_backup = UsigNoOp::default();
         let commit = create_commit_with_usig(id_primary, prepare, &mut usig_primary);
@@ -247,26 +251,10 @@ mod test {
         add_attestations(usigs);
 
         // Create config of primary.
-        let config_primary = Config {
-            n: NonZeroU64::new(3).unwrap(),
-            t: 1,
-            id: id_primary,
-            batch_timeout: Duration::from_secs(2),
-            max_batch_size: None,
-            initial_timeout_duration: Duration::from_secs(2),
-            checkpoint_period: NonZeroU64::new(2).unwrap(),
-        };
+        let config_primary = create_config_default(NonZeroU64::new(3).unwrap(), 1, id_primary);
 
         // Create config of backup.
-        let config_backup = Config {
-            n: NonZeroU64::new(3).unwrap(),
-            t: 1,
-            id: id_backup,
-            batch_timeout: Duration::from_secs(2),
-            max_batch_size: None,
-            initial_timeout_duration: Duration::from_secs(2),
-            checkpoint_period: NonZeroU64::new(2).unwrap(),
-        };
+        let config_backup = create_config_default(NonZeroU64::new(3).unwrap(), 1, id_backup);
 
         // Check (on both replicas) if the expected error is thrown when
         // validating a commit that originates from the primary.
@@ -297,15 +285,7 @@ mod test {
 
         usig_primary.add_remote_party(id_primary, ());
 
-        let config_primary = Config {
-            n: NonZeroU64::new(3).unwrap(),
-            t: 1,
-            id: id_primary,
-            batch_timeout: Duration::from_secs(2),
-            max_batch_size: None,
-            initial_timeout_duration: Duration::from_secs(2),
-            checkpoint_period: NonZeroU64::new(2).unwrap(),
-        };
+        let config_primary = create_config_default(NonZeroU64::new(3).unwrap(), 1, id_primary);
 
         // Check if the expected error is thrown when
         // validating a commit that originates from an unknown source.
