@@ -126,6 +126,13 @@ mod test {
 
     use super::Commit;
 
+    /// Returns a [Prepare] with a default [UsigNoOp] as [Usig].
+    ///
+    /// # Arguments
+    ///
+    /// * `origin` - The ID of the replica to which the [Prepare] belongs to.
+    ///              It should be the ID of the primary.
+    /// * `view` - The current [View].
     fn create_prepare_default_usig(
         origin: ReplicaId,
         view: View,
@@ -143,6 +150,14 @@ mod test {
         .unwrap()
     }
 
+    /// Returns a [Prepare] with the provided [Usig].
+    ///
+    /// # Arguments
+    ///
+    /// * `origin` - The ID of the replica to which the [Prepare] belongs to.
+    ///              It should be the ID of the primary.
+    /// * `view` - The current [View].
+    /// * `usig` - The [Usig] to be used for signing the [Prepare].
     fn create_prepare_with_usig(
         origin: ReplicaId,
         view: View,
@@ -161,6 +176,13 @@ mod test {
         .unwrap()
     }
 
+    /// Returns a [Commit] with a default [UsigNoOp] as [Usig].
+    ///
+    /// # Arguments
+    ///
+    /// * `origin` - The ID of the replica to which the [Commit] belongs to.
+    ///              It should be the ID of the primary.
+    /// * `prepare` - The [Prepare] to which this [Commit] belongs to.
     fn create_commit_default_usig(
         origin: ReplicaId,
         prepare: Prepare<DummyPayload, Signature>,
@@ -168,6 +190,14 @@ mod test {
         Commit::sign(CommitContent { origin, prepare }, &mut UsigNoOp::default()).unwrap()
     }
 
+    /// Returns a [Commit] with the provided [Usig].
+    ///
+    /// # Arguments
+    ///
+    /// * `origin` - The ID of the backup replica to which the [Commit] belongs
+    ///              to.
+    /// * `prepare` - The [Prepare] to which this [Commit] belongs to.
+    /// * `usig` - The [Usig] to be used for signing the [Commit].
     fn create_commit_with_usig(
         origin: ReplicaId,
         prepare: Prepare<DummyPayload, Signature>,
@@ -176,6 +206,13 @@ mod test {
         Commit::sign(CommitContent { origin, prepare }, usig).unwrap()
     }
 
+    /// Returns a [Config] with default values.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The total number of replicas.
+    /// * `t` - The maximum number of faulty replicas.
+    /// * `id` - The ID of the replica to which this [Config] belongs to.
     fn create_config_default(n: NonZeroU64, t: u64, id: ReplicaId) -> Config {
         Config {
             n,
@@ -188,6 +225,12 @@ mod test {
         }
     }
 
+    /// Adds each [UsigNoOp] to each [UsigNoOp] as a remote party.
+    ///
+    /// # Arguments
+    ///
+    /// * `usigs` - The [UsigNoOp]s that shall be added as a remote party to
+    ///             each other.
     fn add_attestations(mut usigs: Vec<&mut UsigNoOp>) {
         for i in 0..usigs.len() {
             for j in 0..usigs.len() {
