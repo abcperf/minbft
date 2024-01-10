@@ -115,6 +115,7 @@ mod test {
 
     use crate::{
         client_request::{self, RequestBatch},
+        error::InnerError,
         peer_message::usig_message::view_peer_message::{
             commit::CommitContent,
             prepare::{Prepare, PrepareContent},
@@ -226,21 +227,27 @@ mod test {
     }
 
     /// Tests if the validation of an invalid [Commit],
-    /// in which the origin of the [Commit] is the primary, results in an error.
+    /// in which the origin of the [Commit] is the primary, results in the
+    /// expected error.
     #[test]
     fn validate_invalid_commit_primary() {
+        // Create Prepare.
         let id_primary = ReplicaId::from_u64(0);
         let view = View(0);
         let mut usig_primary = UsigNoOp::default();
         let prepare = create_prepare_with_usig(id_primary, view, &mut usig_primary);
 
+        // Create Commit
+        let id_backup = ReplicaId::from_u64(1);
         let mut usig_backup = UsigNoOp::default();
         let commit = create_commit_with_usig(id_primary, prepare, &mut usig_primary);
 
+        // Add attestations.
         let usigs = vec![&mut usig_primary, &mut usig_backup];
         add_attestations(usigs);
 
-        let config = Config {
+        // Create config of primary.
+        let config_primary = Config {
             n: NonZeroU64::new(3).unwrap(),
             t: 1,
             id: id_primary,
@@ -250,8 +257,28 @@ mod test {
             checkpoint_period: NonZeroU64::new(2).unwrap(),
         };
 
-        assert!(commit.validate(&config, &mut usig_primary).is_err());
-        assert!(commit.validate(&config, &mut usig_backup).is_err());
+        // Create config of backup.
+        let config_backup = Config {
+            n: NonZeroU64::new(3).unwrap(),
+            t: 1,
+            id: id_backup,
+            batch_timeout: Duration::from_secs(2),
+            max_batch_size: None,
+            initial_timeout_duration: Duration::from_secs(2),
+            checkpoint_period: NonZeroU64::new(2).unwrap(),
+        };
+
+        // Check (on both replicas) if the expected error is thrown when
+        // validating a commit that originates from the primary.
+        let res_validation_primary = commit.validate(&config_primary, &mut usig_primary);
+        assert!(matches!(
+            res_validation_primary,
+            Err(InnerError::CommitFromPrimary { receiver, primary }) if receiver == id_primary && primary == id_primary));
+
+        let res_validation_backup = commit.validate(&config_backup, &mut usig_backup);
+        assert!(matches!(
+            res_validation_backup,
+                Err(InnerError::CommitFromPrimary { receiver, primary }) if receiver == id_backup && primary == id_primary));
     }
 
     /// Tests if the validation of an invalid [Commit],
