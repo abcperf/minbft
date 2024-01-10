@@ -145,7 +145,7 @@ mod test {
     fn create_prepare_with_usig(
         origin: ReplicaId,
         view: View,
-        usig: &mut UsigNoOp,
+        usig: &mut impl Usig<Signature = Signature>,
     ) -> Prepare<DummyPayload, Signature> {
         Prepare::sign(
             PrepareContent {
@@ -170,17 +170,14 @@ mod test {
     fn create_commit_with_usig(
         origin: ReplicaId,
         prepare: Prepare<DummyPayload, Signature>,
-        usig: &mut UsigNoOp,
+        usig: &mut impl Usig<Signature = Signature>,
     ) -> Commit<DummyPayload, Signature> {
         Commit::sign(CommitContent { origin, prepare }, usig).unwrap()
     }
 
-    fn add_attestations(mut usigs: Vec<UsigNoOp>) {
+    fn add_attestations(mut usigs: Vec<&mut UsigNoOp>) {
         for i in 0..usigs.len() {
             for j in 0..usigs.len() {
-                if i == j {
-                    continue;
-                }
                 usigs[i].add_remote_party(ReplicaId::from_u64(j.try_into().unwrap()), ());
             }
         }
@@ -202,48 +199,30 @@ mod test {
     /// Tests if the validation of a valid [Commit] succeeds.
     #[test]
     fn validate_valid_commit() {
-        let mut usig_0 = UsigNoOp::default();
+        let id_primary = ReplicaId::from_u64(0);
+        let view = View(0);
+        let mut usig_primary = UsigNoOp::default();
+        let prepare = create_prepare_with_usig(id_primary, view, &mut usig_primary);
 
-        let prepare = Prepare::sign(
-            PrepareContent {
-                origin: ReplicaId::from_u64(0),
-                view: View(0),
-                request_batch: RequestBatch::new(Box::<
-                    [client_request::ClientRequest<DummyPayload>; 0],
-                >::new([])),
-            },
-            &mut usig_0,
-        )
-        .unwrap();
+        let id_backup = ReplicaId::from_u64(1);
+        let mut usig_backup = UsigNoOp::default();
+        let commit = create_commit_with_usig(id_backup, prepare, &mut usig_backup);
 
-        let mut usig_1 = UsigNoOp::default();
-
-        usig_0.add_remote_party(ReplicaId::from_u64(0), ());
-        usig_0.add_remote_party(ReplicaId::from_u64(1), ());
-        usig_1.add_remote_party(ReplicaId::from_u64(0), ());
-        usig_1.add_remote_party(ReplicaId::from_u64(1), ());
-
-        let commit = Commit::sign(
-            CommitContent {
-                origin: ReplicaId::from_u64(1),
-                prepare,
-            },
-            &mut usig_1,
-        )
-        .unwrap();
+        let usigs = vec![&mut usig_primary, &mut usig_backup];
+        add_attestations(usigs);
 
         let config = Config {
             n: NonZeroU64::new(3).unwrap(),
             t: 1,
-            id: ReplicaId::from_u64(0),
+            id: id_backup,
             batch_timeout: Duration::from_secs(2),
             max_batch_size: None,
             initial_timeout_duration: Duration::from_secs(2),
             checkpoint_period: NonZeroU64::new(2).unwrap(),
         };
 
-        assert!(commit.validate(&config, &mut usig_1).is_ok());
-        assert!(commit.validate(&config, &mut usig_0).is_ok());
+        assert!(commit.validate(&config, &mut usig_primary).is_ok());
+        assert!(commit.validate(&config, &mut usig_backup).is_ok());
     }
 
     /// Tests if the validation of an invalid [Commit],
