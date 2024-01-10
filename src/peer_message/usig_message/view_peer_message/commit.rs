@@ -210,22 +210,32 @@ mod test {
     }
 
     /// Tests if the validation of a valid [Commit] succeeds.
+    /// A valid [Commit] has to originate from a backup replica, and must
+    /// contain a valid [Prepare].
+    /// Furthermore, its [Usig] signature has to be valid, i.e., the backup
+    /// replica that signed the [Commit] has to have been previously added as
+    /// a known remote party.
     #[test]
     fn validate_valid_commit() {
+        // Create Prepare.
         let id_primary = ReplicaId::from_u64(0);
         let view = View(0);
         let mut usig_primary = UsigNoOp::default();
         let prepare = create_prepare_with_usig(id_primary, view, &mut usig_primary);
 
+        // Create Commit.
         let id_backup = ReplicaId::from_u64(1);
         let mut usig_backup = UsigNoOp::default();
         let commit = create_commit_with_usig(id_backup, prepare, &mut usig_backup);
 
+        // Add attestations.
         let usigs = vec![&mut usig_primary, &mut usig_backup];
         add_attestations(usigs);
 
+        // Create config of backup.
         let config = create_config_default(NonZeroU64::new(3).unwrap(), 1, id_backup);
 
+        // Validate Commit on both replicas.
         assert!(commit.validate(&config, &mut usig_primary).is_ok());
         assert!(commit.validate(&config, &mut usig_backup).is_ok());
     }
@@ -287,8 +297,8 @@ mod test {
 
         let config_primary = create_config_default(NonZeroU64::new(3).unwrap(), 1, id_primary);
 
-        // Check if the expected error is thrown when
-        // validating a commit that originates from an unknown source.
+        // Check if the expected error is thrown when validating a commit that
+        // originates from an unknown source.
         let res_validation_primary = commit.validate(&config_primary, &mut usig_primary);
         assert!(matches!(
             res_validation_primary,
