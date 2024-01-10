@@ -235,7 +235,7 @@ mod test {
         let prepare = create_prepare_with_usig(id_primary, view, &mut usig_primary);
 
         let mut usig_backup = UsigNoOp::default();
-        let commit = create_commit_with_usig(id_primary, prepare, &mut usig_backup);
+        let commit = create_commit_with_usig(id_primary, prepare, &mut usig_primary);
 
         let usigs = vec![&mut usig_primary, &mut usig_backup];
         add_attestations(usigs);
@@ -258,34 +258,18 @@ mod test {
     /// in which the replica is unknown (not previously added as remote party), results in an error.
     #[test]
     fn validate_invalid_commit_unknown_remote_party() {
-        let mut usig_0 = UsigNoOp::default();
+        let id_primary = ReplicaId::from_u64(0);
+        let view = View(0);
+        let mut usig_primary = UsigNoOp::default();
+        let prepare = create_prepare_with_usig(id_primary, view, &mut usig_primary);
 
-        let prepare = Prepare::sign(
-            PrepareContent {
-                origin: ReplicaId::from_u64(0),
-                view: View(0),
-                request_batch: RequestBatch::new(Box::<
-                    [client_request::ClientRequest<DummyPayload>; 0],
-                >::new([])),
-            },
-            &mut usig_0,
-        )
-        .unwrap();
+        let id_backup = ReplicaId::from_u64(1);
+        let mut usig_backup = UsigNoOp::default();
+        let commit = create_commit_with_usig(id_backup, prepare, &mut usig_backup);
 
-        let mut usig_1 = UsigNoOp::default();
-
-        usig_0.add_remote_party(ReplicaId::from_u64(0), ());
-        usig_1.add_remote_party(ReplicaId::from_u64(0), ());
-        usig_1.add_remote_party(ReplicaId::from_u64(1), ());
-
-        let commit = Commit::sign(
-            CommitContent {
-                origin: ReplicaId::from_u64(1),
-                prepare,
-            },
-            &mut usig_1,
-        )
-        .unwrap();
+        usig_primary.add_remote_party(id_primary, ());
+        usig_backup.add_remote_party(id_primary, ());
+        usig_backup.add_remote_party(id_backup, ());
 
         let config = Config {
             n: NonZeroU64::new(3).unwrap(),
@@ -297,7 +281,7 @@ mod test {
             checkpoint_period: NonZeroU64::new(2).unwrap(),
         };
 
-        assert!(commit.validate(&config, &mut usig_1).is_ok());
-        assert!(commit.validate(&config, &mut usig_0).is_err());
+        assert!(commit.validate(&config, &mut usig_primary).is_err());
+        assert!(commit.validate(&config, &mut usig_backup).is_ok());
     }
 }
