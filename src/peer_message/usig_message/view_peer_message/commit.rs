@@ -108,7 +108,10 @@ mod test {
     use std::{num::NonZeroU64, time::Duration};
 
     use shared_ids::{AnyId, ReplicaId};
-    use usig::{noop::UsigNoOp, Usig};
+    use usig::{
+        noop::{Signature, UsigNoOp},
+        Usig,
+    };
 
     use crate::{
         client_request::{self, RequestBatch},
@@ -121,6 +124,51 @@ mod test {
     };
 
     use super::Commit;
+
+    fn create_prepare(origin: ReplicaId, view: View) -> Prepare<DummyPayload, Signature> {
+        Prepare::sign(
+            PrepareContent {
+                origin,
+                view,
+                request_batch: RequestBatch::new(Box::<
+                    [client_request::ClientRequest<DummyPayload>; 0],
+                >::new([])),
+            },
+            &mut UsigNoOp::default(),
+        )
+        .unwrap()
+    }
+
+    fn create_commit(
+        origin: ReplicaId,
+        prepare: Prepare<DummyPayload, Signature>,
+    ) -> Commit<DummyPayload, Signature> {
+        Commit::sign(CommitContent { origin, prepare }, &mut UsigNoOp::default()).unwrap()
+    }
+
+    fn add_attestations(mut usigs: Vec<UsigNoOp>) {
+        for i in 0..usigs.len() {
+            for j in 0..usigs.len() {
+                if i == j {
+                    continue;
+                }
+                usigs[i].add_remote_party(ReplicaId::from_u64(j.try_into().unwrap()), ());
+            }
+        }
+    }
+
+    /// Tests if a reference to the origin of a [Commit] is returned
+    /// when calling [`Commit::as_ref()`].
+    #[test]
+    fn obtain_origin_ref_through_as_ref() {
+        let id_primary = ReplicaId::from_u64(0);
+        let view = View(0);
+        let prepare = create_prepare(id_primary, view);
+
+        let id_backup = ReplicaId::from_u64(1);
+        let commit = create_commit(id_backup, prepare);
+        assert_eq!(commit.as_ref(), &id_backup);
+    }
 
     /// Tests if the validation of a valid [Commit] succeeds.
     #[test]
