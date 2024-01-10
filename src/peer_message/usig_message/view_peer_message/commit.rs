@@ -282,7 +282,8 @@ mod test {
     }
 
     /// Tests if the validation of an invalid [Commit],
-    /// in which the replica is unknown (not previously added as remote party), results in an error.
+    /// in which the origin is unknown (not previously added as remote party),
+    /// results in the expected error.
     #[test]
     fn validate_invalid_commit_unknown_remote_party() {
         let id_primary = ReplicaId::from_u64(0);
@@ -295,20 +296,28 @@ mod test {
         let commit = create_commit_with_usig(id_backup, prepare, &mut usig_backup);
 
         usig_primary.add_remote_party(id_primary, ());
-        usig_backup.add_remote_party(id_primary, ());
-        usig_backup.add_remote_party(id_backup, ());
 
-        let config = Config {
+        let config_primary = Config {
             n: NonZeroU64::new(3).unwrap(),
             t: 1,
-            id: ReplicaId::from_u64(0),
+            id: id_primary,
             batch_timeout: Duration::from_secs(2),
             max_batch_size: None,
             initial_timeout_duration: Duration::from_secs(2),
             checkpoint_period: NonZeroU64::new(2).unwrap(),
         };
 
-        assert!(commit.validate(&config, &mut usig_primary).is_err());
-        assert!(commit.validate(&config, &mut usig_backup).is_ok());
+        // Check if the expected error is thrown when
+        // validating a commit that originates from an unknown source.
+        let res_validation_primary = commit.validate(&config_primary, &mut usig_primary);
+        assert!(matches!(
+            res_validation_primary,
+            Err(InnerError::Usig {
+                usig_error: _,
+                replica,
+                msg_type,
+                origin
+            }) if replica == id_primary && msg_type == "Commit" && origin == id_backup
+        ));
     }
 }
