@@ -125,7 +125,10 @@ mod test {
 
     use super::Commit;
 
-    fn create_prepare(origin: ReplicaId, view: View) -> Prepare<DummyPayload, Signature> {
+    fn create_prepare_default_usig(
+        origin: ReplicaId,
+        view: View,
+    ) -> Prepare<DummyPayload, Signature> {
         Prepare::sign(
             PrepareContent {
                 origin,
@@ -139,11 +142,37 @@ mod test {
         .unwrap()
     }
 
-    fn create_commit(
+    fn create_prepare_with_usig(
+        origin: ReplicaId,
+        view: View,
+        usig: &mut UsigNoOp,
+    ) -> Prepare<DummyPayload, Signature> {
+        Prepare::sign(
+            PrepareContent {
+                origin,
+                view,
+                request_batch: RequestBatch::new(Box::<
+                    [client_request::ClientRequest<DummyPayload>; 0],
+                >::new([])),
+            },
+            usig,
+        )
+        .unwrap()
+    }
+
+    fn create_commit_default_usig(
         origin: ReplicaId,
         prepare: Prepare<DummyPayload, Signature>,
     ) -> Commit<DummyPayload, Signature> {
         Commit::sign(CommitContent { origin, prepare }, &mut UsigNoOp::default()).unwrap()
+    }
+
+    fn create_commit_with_usig(
+        origin: ReplicaId,
+        prepare: Prepare<DummyPayload, Signature>,
+        usig: &mut UsigNoOp,
+    ) -> Commit<DummyPayload, Signature> {
+        Commit::sign(CommitContent { origin, prepare }, usig).unwrap()
     }
 
     fn add_attestations(mut usigs: Vec<UsigNoOp>) {
@@ -163,10 +192,10 @@ mod test {
     fn obtain_origin_ref_through_as_ref() {
         let id_primary = ReplicaId::from_u64(0);
         let view = View(0);
-        let prepare = create_prepare(id_primary, view);
+        let prepare = create_prepare_default_usig(id_primary, view);
 
         let id_backup = ReplicaId::from_u64(1);
-        let commit = create_commit(id_backup, prepare);
+        let commit = create_commit_default_usig(id_backup, prepare);
         assert_eq!(commit.as_ref(), &id_backup);
     }
 
