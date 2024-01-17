@@ -360,4 +360,59 @@ mod test {
 
         assert!(res_vp_validation.is_ok());
     }
+
+    /// Tests if validating a [ViewPeerMessage] that wraps an invalid [Prepare] 
+    /// (origin is not the primary) fails.
+    #[test]
+    fn fail_validation_of_view_peer_message_from_prep_not_primary() {
+        let prep_origin = ReplicaId::from_u64(0);
+        let prep_view = View(1);
+        let mut usig_primary = UsigNoOp::default();
+        let prep = create_prepare_with_usig(prep_origin, prep_view, &mut usig_primary);
+        let view_peer_msg = ViewPeerMessage::Prepare(prep);
+        
+        usig_primary.add_remote_party(prep_origin, ());
+        let config = create_config_default(NonZeroU64::new(3).unwrap(), 1, prep_origin);
+        let res_vp_validation = view_peer_msg.validate(&config, &mut usig_primary);
+
+        assert!(res_vp_validation.is_err());
+    }
+
+    /// Tests if validating a [ViewPeerMessage] that wraps an invalid [Prepare] 
+    /// (origin is not the primary) fails.
+    #[test]
+    fn fail_validation_of_view_peer_message_from_prep_unknown_party() {
+        let prep_origin = ReplicaId::from_u64(0);
+        let prep_view = View(0);
+        let mut usig_primary = UsigNoOp::default();
+        let prep = create_prepare_with_usig(prep_origin, prep_view, &mut usig_primary);
+        let view_peer_msg = ViewPeerMessage::Prepare(prep);
+        
+        let config = create_config_default(NonZeroU64::new(3).unwrap(), 1, prep_origin);
+        let res_vp_validation = view_peer_msg.validate(&config, &mut usig_primary);
+
+        assert!(res_vp_validation.is_err());
+    }
+
+    /// Tests if validating a [ViewPeerMessage] that wraps an invalid [Commit] 
+    /// (origin is not the primary) fails.
+    #[test]
+    fn fail_validation_of_view_peer_message_from_commit_unknown_party() {
+        let prep_origin = ReplicaId::from_u64(0);
+        let prep_view = View(0);
+        let mut usig_primary = UsigNoOp::default();
+        let prep = create_prepare_with_usig(prep_origin, prep_view, &mut usig_primary);        
+
+        let id_backup = ReplicaId::from_u64(1);
+        let mut usig_backup = UsigNoOp::default();
+        let commit = create_commit_with_usig(id_backup, prep, &mut usig_backup);
+
+        let view_peer_msg = ViewPeerMessage::Commit(commit);
+
+        let config = create_config_default(NonZeroU64::new(3).unwrap(), 1, id_backup);
+        let res_vp_validation = view_peer_msg.validate(&config, &mut usig_primary);
+
+        assert!(res_vp_validation.is_err());
+    }
+
 }
