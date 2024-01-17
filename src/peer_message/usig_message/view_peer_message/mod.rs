@@ -90,3 +90,95 @@ impl<P, Sig> ViewPeerMessage<P, Sig> {
         }
     }
 }
+
+#[cfg(test)]
+
+mod test {
+    use shared_ids::{ReplicaId, AnyId};
+    use usig::{noop::{Signature, UsigNoOp}, Usig};
+
+    use crate::{View, tests::DummyPayload, client_request::{RequestBatch, self}};
+
+    use super::{prepare::{Prepare, PrepareContent}, ViewPeerMessage, commit::{Commit, CommitContent}};
+
+
+    /// Returns a [Prepare] with a default [UsigNoOp] as [Usig].
+    ///
+    /// # Arguments
+    ///
+    /// * `origin` - The ID of the replica to which the [Prepare] belongs to.
+    ///              It should be the ID of the primary.
+    /// * `view` - The current [View].
+    pub(crate) fn create_prepare_default_usig(
+        origin: ReplicaId,
+        view: View,
+    ) -> Prepare<DummyPayload, Signature> {
+        Prepare::sign(
+            PrepareContent {
+                origin,
+                view,
+                request_batch: RequestBatch::new(Box::<
+                    [client_request::ClientRequest<DummyPayload>; 0],
+                >::new([])),
+            },
+            &mut UsigNoOp::default(),
+        )
+        .unwrap()
+    }
+
+    /// Returns a [Commit] with a default [UsigNoOp] as [Usig].
+    ///
+    /// # Arguments
+    ///
+    /// * `origin` - The ID of the replica to which the [Commit] belongs to.
+    ///              It should be the ID of the primary.
+    /// * `prepare` - The [Prepare] to which this [Commit] belongs to.
+    pub(crate) fn create_commit_default_usig(
+        origin: ReplicaId,
+        prepare: Prepare<DummyPayload, Signature>,
+    ) -> Commit<DummyPayload, Signature> {
+        Commit::sign(CommitContent { origin, prepare }, &mut UsigNoOp::default()).unwrap()
+    }
+    
+    /// Returns a [Commit] with the provided [Usig].
+    ///
+    /// # Arguments
+    ///
+    /// * `origin` - The ID of the backup replica to which the [Commit] belongs
+    ///              to.
+    /// * `prepare` - The [Prepare] to which this [Commit] belongs to.
+    /// * `usig` - The [Usig] to be used for signing the [Commit].
+    pub(crate) fn create_commit_with_usig(
+        origin: ReplicaId,
+        prepare: Prepare<DummyPayload, Signature>,
+        usig: &mut impl Usig<Signature = Signature>,
+    ) -> Commit<DummyPayload, Signature> {
+        Commit::sign(CommitContent { origin, prepare }, usig).unwrap()
+    }
+
+    /// Creates a [ViewPeerMessage] from a [Prepare] by calling [`from()`]
+    /// and tests if the underlying [Prepare] from the created [ViewPeerMessage]
+    /// matches the passed [Prepare].
+    #[test]
+    fn create_view_peer_message_from_prep() {
+        let prep_origin = ReplicaId::from_u64(0);
+        let prep_view = View(prep_origin.as_u64());
+        let prep = create_prepare_default_usig(prep_origin, prep_view);
+        let view_peer_msg = ViewPeerMessage::from(prep.clone());
+        assert!(matches!(view_peer_msg, ViewPeerMessage::Prepare(prepare) if prep == prepare));
+    }
+
+    /// Creates a [ViewPeerMessage] from a [Commit] by calling [`from()`]
+    /// and tests if the underlying [Commit] from the created [ViewPeerMessage]
+    /// matches the passed [Commit].
+    #[test]
+    fn create_view_peer_message_from_commit() {
+        let prep_origin = ReplicaId::from_u64(0);
+        let prep_view = View(prep_origin.as_u64());
+        let prep = create_prepare_default_usig(prep_origin, prep_view);
+        let commit_origin = ReplicaId::from_u64(1);
+        let commit = create_commit_default_usig(commit_origin, prep);
+        let view_peer_msg = ViewPeerMessage::from(commit.clone());
+        assert!(matches!(view_peer_msg, ViewPeerMessage::Commit(vp_commit) if vp_commit.origin == commit.origin && vp_commit.prepare == commit.prepare));
+    }
+}
