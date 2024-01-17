@@ -95,7 +95,7 @@ impl<P, Sig> ViewPeerMessage<P, Sig> {
 
 mod test {
     use shared_ids::{ReplicaId, AnyId};
-    use usig::{noop::{Signature, UsigNoOp}, Usig};
+    use usig::{noop::{Signature, UsigNoOp}, Usig, Counter};
 
     use crate::{View, tests::DummyPayload, client_request::{RequestBatch, self}};
 
@@ -160,7 +160,7 @@ mod test {
     /// and tests if the underlying [Prepare] from the created [ViewPeerMessage]
     /// matches the passed [Prepare].
     #[test]
-    fn create_view_peer_message_from_prep() {
+    fn view_peer_msg_from_contains_provided_prep() {
         let prep_origin = ReplicaId::from_u64(0);
         let prep_view = View(prep_origin.as_u64());
         let prep = create_prepare_default_usig(prep_origin, prep_view);
@@ -172,7 +172,7 @@ mod test {
     /// and tests if the underlying [Commit] from the created [ViewPeerMessage]
     /// matches the passed [Commit].
     #[test]
-    fn create_view_peer_message_from_commit() {
+    fn view_peer_msg_from_contains_provided_commit() {
         let prep_origin = ReplicaId::from_u64(0);
         let prep_view = View(prep_origin.as_u64());
         let prep = create_prepare_default_usig(prep_origin, prep_view);
@@ -180,5 +180,29 @@ mod test {
         let commit = create_commit_default_usig(commit_origin, prep);
         let view_peer_msg = ViewPeerMessage::from(commit.clone());
         assert!(matches!(view_peer_msg, ViewPeerMessage::Commit(vp_commit) if vp_commit.origin == commit.origin && vp_commit.prepare == commit.prepare));
+    }
+
+    /// Tests if the counter of a [ViewPeerMessage] that wraps a [Prepare] 
+    /// corresponds to the counter of the underlying [Prepare].
+    #[test]
+    fn counter_of_view_peer_message_from_prep() {
+        let prep_origin = ReplicaId::from_u64(0);
+        let prep_view = View(prep_origin.as_u64());
+        let prep = create_prepare_default_usig(prep_origin, prep_view);
+        let view_peer_msg = ViewPeerMessage::Prepare(prep.clone());
+        assert_eq!(view_peer_msg.counter(), prep.counter());
+    }
+
+    /// Tests if the counter of a [ViewPeerMessage] that wraps a [Commit] 
+    /// corresponds to the counter of the underlying [Commit].
+    #[test]
+    fn counter_of_view_peer_message_from_commit() {
+        let prep_origin = ReplicaId::from_u64(0);
+        let prep_view = View(prep_origin.as_u64());
+        let prep = create_prepare_default_usig(prep_origin, prep_view);
+        let commit_origin = ReplicaId::from_u64(1);
+        let commit = create_commit_default_usig(commit_origin, prep);
+        let view_peer_msg = ViewPeerMessage::Commit(commit.clone());
+        assert_eq!(view_peer_msg.counter(), commit.counter());
     }
 }
