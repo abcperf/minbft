@@ -117,38 +117,11 @@ mod test {
         client_request::{self, RequestBatch},
         error::InnerError,
         peer_message::usig_message::view_peer_message::{
-            commit::CommitContent,
-            prepare::{Prepare, PrepareContent},
+            prepare::{Prepare, PrepareContent}, test::{create_prepare_default_usig, create_commit_default_usig, create_commit_with_usig},
         },
         tests::DummyPayload,
         Config, View,
     };
-
-    use super::Commit;
-
-    /// Returns a [Prepare] with a default [UsigNoOp] as [Usig].
-    ///
-    /// # Arguments
-    ///
-    /// * `origin` - The ID of the replica to which the [Prepare] belongs to.
-    ///              It should be the ID of the primary.
-    /// * `view` - The current [View].
-    fn create_prepare_default_usig(
-        origin: ReplicaId,
-        view: View,
-    ) -> Prepare<DummyPayload, Signature> {
-        Prepare::sign(
-            PrepareContent {
-                origin,
-                view,
-                request_batch: RequestBatch::new(Box::<
-                    [client_request::ClientRequest<DummyPayload>; 0],
-                >::new([])),
-            },
-            &mut UsigNoOp::default(),
-        )
-        .unwrap()
-    }
 
     /// Returns a [Prepare] with the provided [Usig].
     ///
@@ -174,36 +147,6 @@ mod test {
             usig,
         )
         .unwrap()
-    }
-
-    /// Returns a [Commit] with a default [UsigNoOp] as [Usig].
-    ///
-    /// # Arguments
-    ///
-    /// * `origin` - The ID of the replica to which the [Commit] belongs to.
-    ///              It should be the ID of the primary.
-    /// * `prepare` - The [Prepare] to which this [Commit] belongs to.
-    fn create_commit_default_usig(
-        origin: ReplicaId,
-        prepare: Prepare<DummyPayload, Signature>,
-    ) -> Commit<DummyPayload, Signature> {
-        Commit::sign(CommitContent { origin, prepare }, &mut UsigNoOp::default()).unwrap()
-    }
-
-    /// Returns a [Commit] with the provided [Usig].
-    ///
-    /// # Arguments
-    ///
-    /// * `origin` - The ID of the backup replica to which the [Commit] belongs
-    ///              to.
-    /// * `prepare` - The [Prepare] to which this [Commit] belongs to.
-    /// * `usig` - The [Usig] to be used for signing the [Commit].
-    fn create_commit_with_usig(
-        origin: ReplicaId,
-        prepare: Prepare<DummyPayload, Signature>,
-        usig: &mut impl Usig<Signature = Signature>,
-    ) -> Commit<DummyPayload, Signature> {
-        Commit::sign(CommitContent { origin, prepare }, usig).unwrap()
     }
 
     /// Returns a [Config] with default values.
