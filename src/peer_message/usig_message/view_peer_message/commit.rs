@@ -105,82 +105,15 @@ impl<P: RequestPayload, Sig: Serialize> Commit<P, Sig> {
 
 #[cfg(test)]
 mod test {
-    use std::{num::NonZeroU64, time::Duration};
+    use std::num::NonZeroU64;
 
     use shared_ids::{AnyId, ReplicaId};
-    use usig::{
-        noop::{Signature, UsigNoOp},
-        Usig,
-    };
+    use usig::{noop::UsigNoOp, Usig};
 
     use crate::{
-        client_request::{self, RequestBatch},
         error::InnerError,
-        peer_message::usig_message::view_peer_message::{
-            prepare::{Prepare, PrepareContent}, test::{create_prepare_default_usig, create_commit_default_usig, create_commit_with_usig},
-        },
-        tests::DummyPayload,
-        Config, View,
+        peer_message::usig_message::view_peer_message::test::{create_prepare_default_usig, create_commit_default_usig, create_commit_with_usig, create_config_default, create_prepare_with_usig, add_attestations}, View,
     };
-
-    /// Returns a [Prepare] with the provided [Usig].
-    ///
-    /// # Arguments
-    ///
-    /// * `origin` - The ID of the replica to which the [Prepare] belongs to.
-    ///              It should be the ID of the primary.
-    /// * `view` - The current [View].
-    /// * `usig` - The [Usig] to be used for signing the [Prepare].
-    fn create_prepare_with_usig(
-        origin: ReplicaId,
-        view: View,
-        usig: &mut impl Usig<Signature = Signature>,
-    ) -> Prepare<DummyPayload, Signature> {
-        Prepare::sign(
-            PrepareContent {
-                origin,
-                view,
-                request_batch: RequestBatch::new(Box::<
-                    [client_request::ClientRequest<DummyPayload>; 0],
-                >::new([])),
-            },
-            usig,
-        )
-        .unwrap()
-    }
-
-    /// Returns a [Config] with default values.
-    ///
-    /// # Arguments
-    ///
-    /// * `n` - The total number of replicas.
-    /// * `t` - The maximum number of faulty replicas.
-    /// * `id` - The ID of the replica to which this [Config] belongs to.
-    fn create_config_default(n: NonZeroU64, t: u64, id: ReplicaId) -> Config {
-        Config {
-            n,
-            t,
-            id,
-            batch_timeout: Duration::from_secs(2),
-            max_batch_size: None,
-            initial_timeout_duration: Duration::from_secs(2),
-            checkpoint_period: NonZeroU64::new(2).unwrap(),
-        }
-    }
-
-    /// Adds each [UsigNoOp] to each [UsigNoOp] as a remote party.
-    ///
-    /// # Arguments
-    ///
-    /// * `usigs` - The [UsigNoOp]s that shall be added as a remote party to
-    ///             each other.
-    fn add_attestations(mut usigs: Vec<&mut UsigNoOp>) {
-        for i in 0..usigs.len() {
-            for j in 0..usigs.len() {
-                usigs[i].add_remote_party(ReplicaId::from_u64(j.try_into().unwrap()), ());
-            }
-        }
-    }
 
     /// Tests if a reference to the origin of a [Commit] is returned
     /// when calling [`Commit::as_ref()`].
