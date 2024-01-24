@@ -149,7 +149,7 @@ mod test {
 
     use crate::{
         client_request::{self, RequestBatch},
-        peer_message::usig_message::view_peer_message::prepare::{Prepare, PrepareContent},
+        peer_message::usig_message::view_peer_message::{prepare::{Prepare, PrepareContent}, test::add_attestations},
         tests::DummyPayload,
         Config, View,
     };
@@ -173,10 +173,7 @@ mod test {
 
         let mut usig_1 = UsigNoOp::default();
 
-        usig_0.add_remote_party(ReplicaId::from_u64(0), ());
-        usig_0.add_remote_party(ReplicaId::from_u64(1), ());
-        usig_1.add_remote_party(ReplicaId::from_u64(0), ());
-        usig_1.add_remote_party(ReplicaId::from_u64(1), ());
+        add_attestations(vec![&mut usig_0, &mut usig_1]);
 
         let config = Config {
             n: NonZeroU64::new(3).unwrap(),
@@ -195,7 +192,7 @@ mod test {
     /// Tests if the validation of an invalid [Prepare],
     /// in which the origin of the [Prepare] is not the primary, results in an error.
     #[test]
-    fn validate_invalid_prepare_not_primary() {
+    fn validate_invalid_prep_not_primary() {
         let mut usig_0 = UsigNoOp::default();
 
         usig_0.add_remote_party(ReplicaId::from_u64(0), ());
@@ -214,10 +211,7 @@ mod test {
 
         let mut usig_1 = UsigNoOp::default();
 
-        usig_0.add_remote_party(ReplicaId::from_u64(0), ());
-        usig_0.add_remote_party(ReplicaId::from_u64(1), ());
-        usig_1.add_remote_party(ReplicaId::from_u64(0), ());
-        usig_1.add_remote_party(ReplicaId::from_u64(1), ());
+        add_attestations(vec![&mut usig_0, &mut usig_1]);
 
         let config = Config {
             n: NonZeroU64::new(3).unwrap(),
