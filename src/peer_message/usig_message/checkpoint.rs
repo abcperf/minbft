@@ -174,11 +174,27 @@ mod test {
     use std::{num::NonZeroU64, time::Duration};
 
     use shared_ids::{AnyId, ReplicaId};
-    use usig::{noop::UsigNoOp, Count, Usig};
+    use usig::{
+        noop::{Signature, UsigNoOp},
+        Count, Usig,
+    };
 
     use crate::Config;
 
-    use super::{Checkpoint, CheckpointCertificate};
+    use super::{Checkpoint, CheckpointCertificate, CheckpointContent};
+
+    fn create_default_checkpoint(origin: ReplicaId) -> Checkpoint<Signature> {
+        Checkpoint::sign(
+            CheckpointContent {
+                origin,
+                state_hash: [0; 64],
+                counter_latest_prep: Count(0),
+                total_amount_accepted_batches: 0,
+            },
+            &mut UsigNoOp::default(),
+        )
+        .unwrap()
+    }
 
     /// Tests if the validation of a [CheckpointCertificate], which does not
     /// contain a sufficient amount of [Checkpoint]s, results in an error.
@@ -463,5 +479,15 @@ mod test {
 
         assert!(cert.validate(&config, &mut usig_0).is_ok());
         assert!(cert.validate(&config, &mut usig_1).is_ok());
+    }
+
+    /// Tests if the reference of a [ViewPeerMessage] that wraps a [Prepare]
+    /// corresponds to the reference of the underlying [Prepare].
+    #[test]
+    fn ref_returns_origin_ref() {
+        let origin = ReplicaId::from_u64(0);
+        let cp = create_default_checkpoint(origin);
+        assert_eq!(cp.origin.as_u64(), origin.as_u64());
+        assert_eq!(cp.as_ref().as_u64(), origin.as_u64());
     }
 }
