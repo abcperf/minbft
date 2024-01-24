@@ -221,19 +221,19 @@ mod test {
     /// and tests if the underlying [Prepare] from the created [ViewPeerMessage]
     /// matches the passed [Prepare].
     #[test]
-    fn view_peer_msg_from_contains_provided_prep() {
+    fn from_prep_create_vp() {
         let prep_origin = ReplicaId::from_u64(0);
         let prep_view = View(prep_origin.as_u64());
         let prep = create_prepare_default_usig(prep_origin, prep_view);
         let view_peer_msg = ViewPeerMessage::from(prep.clone());
-        assert!(matches!(view_peer_msg, ViewPeerMessage::Prepare(prepare) if prep == prepare));
+        assert!(matches!(view_peer_msg, ViewPeerMessage::Prepare(vp_prep) if prep == vp_prep));
     }
 
     /// Creates a [ViewPeerMessage] from a [Commit] by calling [`from()`]
     /// and tests if the underlying [Commit] from the created [ViewPeerMessage]
     /// matches the passed [Commit].
     #[test]
-    fn view_peer_msg_from_contains_provided_commit() {
+    fn from_commit_create_vp() {
         let prep_origin = ReplicaId::from_u64(0);
         let prep_view = View(prep_origin.as_u64());
         let prep = create_prepare_default_usig(prep_origin, prep_view);
@@ -246,7 +246,7 @@ mod test {
     /// Tests if the counter of a [ViewPeerMessage] that wraps a [Prepare] 
     /// corresponds to the counter of the underlying [Prepare].
     #[test]
-    fn counter_of_view_peer_message_from_prep() {
+    fn from_prep_create_vp_check_counter() {
         let prep_origin = ReplicaId::from_u64(0);
         let prep_view = View(prep_origin.as_u64());
         let prep = create_prepare_default_usig(prep_origin, prep_view);
@@ -257,7 +257,7 @@ mod test {
     /// Tests if the counter of a [ViewPeerMessage] that wraps a [Commit] 
     /// corresponds to the counter of the underlying [Commit].
     #[test]
-    fn counter_of_view_peer_message_from_commit() {
+    fn from_commit_create_vp_check_counter() {
         let prep_origin = ReplicaId::from_u64(0);
         let prep_view = View(prep_origin.as_u64());
         let prep = create_prepare_default_usig(prep_origin, prep_view);
@@ -270,7 +270,7 @@ mod test {
     /// Tests if the reference of a [ViewPeerMessage] that wraps a [Prepare] 
     /// corresponds to the reference of the underlying [Prepare].
     #[test]
-    fn ref_of_view_peer_message_from_prep() {
+    fn from_prep_create_vp_check_ref() {
         let prep_origin = ReplicaId::from_u64(0);
         let prep_view = View(prep_origin.as_u64());
         let prep = create_prepare_default_usig(prep_origin, prep_view);
@@ -278,10 +278,10 @@ mod test {
         assert_eq!(view_peer_msg.as_ref(), prep.as_ref());
     }
 
-    /// Tests if the reference of a [ViewPeerMessage] that wraps a [Prepare] 
-    /// corresponds to the reference of the underlying [Prepare].
+    /// Tests if the reference of a [ViewPeerMessage] that wraps a [Commit] 
+    /// corresponds to the reference of the underlying [Commit].
     #[test]
-    fn ref_of_view_peer_message_from_commit() {
+    fn from_commit_create_vp_check_ref() {
         let prep_origin = ReplicaId::from_u64(0);
         let prep_view = View(prep_origin.as_u64());
         let prep = create_prepare_default_usig(prep_origin, prep_view);
@@ -294,7 +294,7 @@ mod test {
     /// Tests if the [View] of a [ViewPeerMessage] that wraps a [Prepare] 
     /// corresponds to the [View] of the underlying [Prepare].
     #[test]
-    fn view_of_view_peer_message_from_prep() {
+    fn from_prep_create_vp_check_view() {
         let prep_origin = ReplicaId::from_u64(0);
         let prep_view = View(prep_origin.as_u64());
         let prep = create_prepare_default_usig(prep_origin, prep_view);
@@ -302,10 +302,10 @@ mod test {
         assert_eq!(view_peer_msg.view(), prep.view);
     }
 
-    /// Tests if the [View]] of a [ViewPeerMessage] that wraps a [Prepare] 
-    /// corresponds to the [View] of the underlying [Prepare].
+    /// Tests if the [View] of a [ViewPeerMessage] that wraps a [Commit] 
+    /// corresponds to the [View] of the underlying [Commit].
     #[test]
-    fn view_of_view_peer_message_from_commit() {
+    fn from_commit_create_vp_check_view() {
         let prep_origin = ReplicaId::from_u64(0);
         let prep_view = View(prep_origin.as_u64());
         let prep = create_prepare_default_usig(prep_origin, prep_view);
@@ -318,28 +318,35 @@ mod test {
     /// Tests if validating a [ViewPeerMessage] that wraps a valid [Prepare] 
     /// succeeds.
     #[test]
-    fn succ_validation_of_view_peer_message_from_prep() {
+    fn validate_valid_vp_prep_msg() {
+        // Create Prepare.
         let prep_origin = ReplicaId::from_u64(0);
         let prep_view = View(prep_origin.as_u64());
         let mut usig_primary = UsigNoOp::default();
         let prep = create_prepare_with_usig(prep_origin, prep_view, &mut usig_primary);
+        
+        // Create ViewPeerMessage from Prepare.
         let view_peer_msg = ViewPeerMessage::Prepare(prep);
         
+        // Add attestation of oneself.
         usig_primary.add_remote_party(prep_origin, ());
+        
+        // Create a default config.
         let config = create_config_default(NonZeroU64::new(3).unwrap(), 1, prep_origin);
+        
+        // Validate ViewPeerMessage using the previously created config and USIG.
         let res_vp_validation = view_peer_msg.validate(&config, &mut usig_primary);
 
         assert!(res_vp_validation.is_ok());
-        
     }
 
     /// Tests if validating a [ViewPeerMessage] that wraps a valid [Commit] 
     /// succeeds.
     #[test]
-    fn succ_validation_of_view_peer_message_from_commit() {
+    fn validate_valid_vp_commit_msg() {
         // Create Prepare.
         let id_primary = ReplicaId::from_u64(0);
-        let view = View(0);
+        let view = View(id_primary.as_u64());
         let mut usig_primary = UsigNoOp::default();
         let prepare = create_prepare_with_usig(id_primary, view, &mut usig_primary);
 
@@ -364,7 +371,7 @@ mod test {
     /// Tests if validating a [ViewPeerMessage] that wraps an invalid [Prepare] 
     /// (origin is not the primary) fails.
     #[test]
-    fn fail_validation_of_view_peer_message_from_prep_not_primary() {
+    fn validate_invalid_vp_prep_msg_not_primary() {
         let prep_origin = ReplicaId::from_u64(0);
         let prep_view = View(1);
         let mut usig_primary = UsigNoOp::default();
@@ -381,25 +388,33 @@ mod test {
     /// Tests if validating a [ViewPeerMessage] that wraps an invalid [Prepare] 
     /// (origin is not the primary) fails.
     #[test]
-    fn fail_validation_of_view_peer_message_from_prep_unknown_party() {
+    fn validate_invalid_vp_prep_msg_unknown_party() {
         let prep_origin = ReplicaId::from_u64(0);
         let prep_view = View(0);
         let mut usig_primary = UsigNoOp::default();
         let prep = create_prepare_with_usig(prep_origin, prep_view, &mut usig_primary);
-        let view_peer_msg = ViewPeerMessage::Prepare(prep);
         
-        let config = create_config_default(NonZeroU64::new(3).unwrap(), 1, prep_origin);
-        let res_vp_validation = view_peer_msg.validate(&config, &mut usig_primary);
+        let id_backup = ReplicaId::from_u64(1);
+        let mut usig_backup = UsigNoOp::default();
 
+        let view_peer_msg = ViewPeerMessage::Prepare(prep);
+
+        let config_primary = create_config_default(NonZeroU64::new(3).unwrap(), 1, prep_origin);
+        let config_backup = create_config_default(NonZeroU64::new(3).unwrap(), 1, id_backup);
+
+        let res_vp_validation = view_peer_msg.validate(&config_primary, &mut usig_primary);
+        assert!(res_vp_validation.is_err());
+
+        let res_vp_validation = view_peer_msg.validate(&config_backup, &mut usig_backup);
         assert!(res_vp_validation.is_err());
     }
 
     /// Tests if validating a [ViewPeerMessage] that wraps an invalid [Commit] 
     /// (origin is not the primary) fails.
     #[test]
-    fn fail_validation_of_view_peer_message_from_commit_unknown_party() {
+    fn validate_invalid_vp_commit_msg_unknown_party() {
         let prep_origin = ReplicaId::from_u64(0);
-        let prep_view = View(0);
+        let prep_view = View(prep_origin.as_u64());
         let mut usig_primary = UsigNoOp::default();
         let prep = create_prepare_with_usig(prep_origin, prep_view, &mut usig_primary);        
 
@@ -409,9 +424,12 @@ mod test {
 
         let view_peer_msg = ViewPeerMessage::Commit(commit);
 
-        let config = create_config_default(NonZeroU64::new(3).unwrap(), 1, id_backup);
-        let res_vp_validation = view_peer_msg.validate(&config, &mut usig_primary);
+        let config_primary = create_config_default(NonZeroU64::new(3).unwrap(), 1, prep_origin);
+        let config_backup = create_config_default(NonZeroU64::new(3).unwrap(), 1, id_backup);
 
+        let res_vp_validation = view_peer_msg.validate(&config_primary, &mut usig_primary);
+        assert!(res_vp_validation.is_err());
+        let res_vp_validation = view_peer_msg.validate(&config_backup, &mut usig_backup);
         assert!(res_vp_validation.is_err());
     }
 
