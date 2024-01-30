@@ -257,27 +257,30 @@ mod test {
     /// Tests if validating a [ViewPeerMessage] that wraps a valid
     /// [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare)
     /// succeeds.
-    #[test]
-    fn validate_valid_vp_prep_msg() {
-        // Create Prepare.
-        let prep_origin = ReplicaId::from_u64(0);
-        let prep_view = View(prep_origin.as_u64());
-        let mut usig_primary = UsigNoOp::default();
-        let prep = create_prepare_with_usig(prep_origin, prep_view, &mut usig_primary);
+    #[rstest]
+    fn validate_valid_vp_prep_msg(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
 
-        // Create ViewPeerMessage from Prepare.
-        let view_peer_msg = ViewPeerMessage::Prepare(prep);
+        for t in 0..n / 2 {
+            // Create Prepare.
+            let mut usig_primary = UsigNoOp::default();
+            let prep = create_random_valid_prepare_with_usig(n_parsed, &mut usig_primary);
+            let id_primary = prep.origin;
 
-        // Add attestation of oneself.
-        usig_primary.add_remote_party(prep_origin, ());
+            // Create ViewPeerMessage from Prepare.
+            let view_peer_msg = ViewPeerMessage::Prepare(prep.clone());
 
-        // Create a default config.
-        let config = create_config_default(NonZeroU64::new(3).unwrap(), 1, prep_origin);
+            // Add attestation of oneself.
+            usig_primary.add_remote_party(id_primary, ());
 
-        // Validate ViewPeerMessage using the previously created config and USIG.
-        let res_vp_validation = view_peer_msg.validate(&config, &mut usig_primary);
+            // Create a default config.
+            let config = create_config_default(n_parsed, t, id_primary);
 
-        assert!(res_vp_validation.is_ok());
+            // Validate ViewPeerMessage using the previously created config and USIG.
+            let res_vp_validation = view_peer_msg.validate(&config, &mut usig_primary);
+
+            assert!(res_vp_validation.is_ok());
+        }
     }
 
     /// Tests if validating a [ViewPeerMessage] that wraps a valid
