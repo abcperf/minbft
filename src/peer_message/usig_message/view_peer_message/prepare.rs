@@ -30,17 +30,22 @@ use crate::{
 };
 
 /// The content of a message of type [Prepare].
-/// The [View] and the batch of client requests to which the Prepare belongs to is needed.
+/// Consists of the [View] and the batch of client requests to which the
+/// [Prepare] belongs to.
 /// Furthermore, the origin that created the [Prepare] is necessary.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct PrepareContent<P> {
+    /// The replica which the [Prepare] originates from.
     pub(crate) origin: ReplicaId,
+    /// The [View] to which the [Prepare] belongs to.
     pub(crate) view: View,
+    /// The [RequestBatch] to which the [Prepare] belongs to.
     pub(crate) request_batch: RequestBatch<P>,
 }
 
 impl<P> AsRef<ReplicaId> for PrepareContent<P> {
-    /// Referencing [PrepareContent] returns a reference to the origin set in the [PrepareContent].
+    /// Referencing [PrepareContent] returns a reference to the origin set in
+    /// the [PrepareContent].
     fn as_ref(&self) -> &ReplicaId {
         &self.origin
     }
