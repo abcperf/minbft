@@ -267,7 +267,7 @@ pub(crate) fn create_random_valid_prepare_with_usig(
     let id_prim: u64 = rng.gen_range(0..n.into());
 
     // Create Prepare.
-    let id_primary = ReplicaId::from_u64(dbg!(id_prim % n));
+    let id_primary = ReplicaId::from_u64(id_prim % n);
     let view = View(id_prim);
 
     create_prepare_with_usig(id_primary, view, usig)
@@ -317,13 +317,24 @@ pub(crate) fn create_random_valid_commit_with_usig(
     prepare: Prepare<DummyPayload, Signature>,
     usig: &mut impl Usig<Signature = Signature>,
 ) -> Commit<DummyPayload, Signature> {
+    let id_backup = get_random_backup_replica_id(n, prepare.origin);
+    create_commit_with_usig(id_backup, prepare, usig)
+}
+
+/// Returns a random valid backup [ReplicaId].
+///
+/// # Arguments
+///
+/// * `n` - The amount of peers that communicate with each other.
+/// * `id_primary` - The [ReplicaId] of the current primary. The generated
+///                  backup [ReplicaId] should differ from it.
+pub(crate) fn get_random_backup_replica_id(n: NonZeroU64, id_primary: ReplicaId) -> ReplicaId {
     let mut rng = rand::thread_rng();
     let mut id_bp: u64 = rng.gen_range(0..n.into());
-    if prepare.origin.as_u64() == id_bp {
+    if id_primary.as_u64() == id_bp {
         id_bp = (id_bp + 1) % n;
     }
-    let id_backup = ReplicaId::from_u64(dbg!(id_bp % n));
-    create_commit_with_usig(id_backup, prepare, usig)
+    ReplicaId::from_u64(id_bp % n)
 }
 
 /// Returns a [Config] with default values.
