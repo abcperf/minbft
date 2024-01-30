@@ -18,7 +18,7 @@ use anyhow::Result;
 use blake2::digest::Update;
 use serde::{Deserialize, Serialize};
 use shared_ids::ReplicaId;
-use tracing::{debug, error, trace};
+use tracing::{error, trace};
 use usig::Usig;
 
 use crate::{
@@ -106,11 +106,11 @@ impl<P: RequestPayload, Sig: Serialize> Commit<P, Sig> {
         trace!("Verifying signature of Commit ({self}) ...");
         self.verify(usig).map_or_else(|usig_error| {
             error!(
-                "Failed validating Commit (self): Signature of Commit is invalid. For further information see output.");
+                "Failed validating Commit ({self}): Signature of Commit is invalid. For further information see output.");
             Err(InnerError::parse_usig_error(usig_error, config.id, "Commit", self.origin))
         }, |v| {
-            trace!("Successfully verified signature of Commit (origin: {:?}, Prepare: [origin: {:?}, view: {:?}]).", self.origin, self.prepare.origin, self.prepare.view);
-            trace!("Successfully validated Commit (origin: {:?}, Prepare: [origin: {:?}, view: {:?}]).", self.origin, self.prepare.origin, self.prepare.view);
+            trace!("Successfully verified signature of Commit ({self}).");
+            trace!("Successfully validated Commit ({self}).");
             Ok(v)
         })
     }
