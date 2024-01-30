@@ -7,7 +7,7 @@
 //! The second part is its signature, as [Commit]s must be signed by a USIG.
 //! For further explanation to why these messages (alongside other ones) must be
 //! signed by a USIG,
-//! see the paper "Efficient Byzantine Fault Tolerance" by Veronese et al.
+//! refer to the paper "Efficient Byzantine Fault Tolerance" by Veronese et al.
 //! A [Commit] is broadcast by a backup replica, i.e., all replicas besides the
 //! current primary,
 //! in response to a received [Prepare] (only sent by the current primary).
