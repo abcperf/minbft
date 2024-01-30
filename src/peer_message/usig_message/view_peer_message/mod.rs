@@ -1,6 +1,7 @@
 //! Defines a message of type [ViewPeerMessage].
 //! Such messages are either of inner type [Prepare] or [Commit].
-//! For further explanation of the inner types, see the specific documentation.
+//! For further explanation of the inner types, refer to the specific
+//! documentation.
 
 pub(crate) mod commit;
 pub(crate) mod prepare;
