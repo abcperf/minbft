@@ -105,10 +105,11 @@ mod test {
     use usig::{noop::UsigNoOp, Counter, Usig};
 
     use crate::{
+        peer_message::InnerError,
         tests::{
-            add_attestations, create_config_default, create_prepare_with_usig,
-            create_random_valid_commit_with_usig, create_random_valid_prepare_with_usig,
-            get_random_backup_replica_id,
+            add_attestations, create_commit_with_usig, create_config_default,
+            create_prepare_with_usig, create_random_valid_commit_with_usig,
+            create_random_valid_prepare_with_usig, get_random_backup_replica_id,
         },
         View,
     };
@@ -377,6 +378,52 @@ mod test {
 
             let res_vp_validation = view_peer_msg.validate(&config_backup, &mut usig_peer);
             assert!(res_vp_validation.is_err());
+        }
+    }
+
+    /// Tests if validating a [ViewPeerMessage] that wraps an invalid
+    /// [Commit](crate::peer_message::usig_message::view_peer_message::Commit)
+    /// (origin is the primary) fails.
+    #[rstest]
+    fn validate_invalid_vp_commit_msg_primary(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+
+        for t in 0..n / 2 {
+            let mut usig_primary = UsigNoOp::default();
+            let prepare = create_random_valid_prepare_with_usig(n_parsed, &mut usig_primary);
+            let id_primary = prepare.origin;
+
+            let commit = create_commit_with_usig(id_primary, prepare, &mut usig_primary);
+
+            let view_peer_msg = ViewPeerMessage::Commit(commit);
+
+            let id_backup = get_random_backup_replica_id(n_parsed, id_primary);
+            let mut usig_backup = UsigNoOp::default();
+
+            // Add attestations.
+            let usigs = vec![
+                (id_primary, &mut usig_primary),
+                (id_backup, &mut usig_backup),
+            ];
+            add_attestations(usigs);
+
+            // Create config of primary.
+            let config_primary = create_config_default(n_parsed, t, id_primary);
+
+            // Create config of backup.
+            let config_backup = create_config_default(n_parsed, t, id_backup);
+
+            // Check (on both replicas) if the expected error is thrown when
+            // validating a commit that originates from the primary.
+            let res_validation_primary = view_peer_msg.validate(&config_primary, &mut usig_primary);
+            assert!(matches!(
+            res_validation_primary,
+            Err(InnerError::CommitFromPrimary { receiver, primary }) if receiver == id_primary && primary == id_primary));
+
+            let res_validation_backup = view_peer_msg.validate(&config_backup, &mut usig_backup);
+            assert!(matches!(
+            res_validation_backup,
+                Err(InnerError::CommitFromPrimary { receiver, primary }) if receiver == id_backup && primary == id_primary));
         }
     }
 
