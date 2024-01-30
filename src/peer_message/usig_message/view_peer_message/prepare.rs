@@ -76,7 +76,8 @@ impl<P: RequestPayload, Sig: Serialize> fmt::Display for Prepare<P, Sig> {
 }
 
 impl<P, Sig: Counter> PartialEq for Prepare<P, Sig> {
-    /// Returns true if the counters of the [Prepare]s are equal, otherwise false.
+    /// Returns true if the counters of the [Prepare]s are equal, otherwise
+    /// false.
     fn eq(&self, other: &Self) -> bool {
         self.counter().eq(&other.counter())
     }
