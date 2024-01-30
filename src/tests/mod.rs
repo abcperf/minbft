@@ -305,10 +305,11 @@ pub(crate) fn create_config_default(n: NonZeroU64, t: u64, id: ReplicaId) -> Con
 ///
 /// * `usigs` - The [UsigNoOp]s that shall be added as a remote party to
 ///             each other.
-pub(crate) fn add_attestations(mut usigs: Vec<&mut UsigNoOp>) {
+pub(crate) fn add_attestations(mut usigs: Vec<(ReplicaId, &mut UsigNoOp)>) {
     for i in 0..usigs.len() {
         for j in 0..usigs.len() {
-            usigs[i].add_remote_party(ReplicaId::from_u64(j.try_into().unwrap()), ());
+            let peer_id = usigs[j].0;
+            usigs[i].1.add_remote_party(peer_id, ());
         }
     }
 }

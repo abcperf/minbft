@@ -165,9 +165,11 @@ mod test {
     fn validate_valid_prepare() {
         let mut usig_0 = UsigNoOp::default();
 
+        let origin = ReplicaId::from_u64(0);
+
         let prepare = Prepare::sign(
             PrepareContent {
-                origin: ReplicaId::from_u64(0),
+                origin,
                 view: View(0),
                 request_batch: RequestBatch::new(Box::<
                     [client_request::ClientRequest<DummyPayload>; 0],
@@ -177,9 +179,10 @@ mod test {
         )
         .unwrap();
 
+        let backup = ReplicaId::from_u64(1);
         let mut usig_1 = UsigNoOp::default();
 
-        add_attestations(vec![&mut usig_0, &mut usig_1]);
+        add_attestations(vec![(origin, &mut usig_0), (backup, &mut usig_1)]);
 
         let config = Config {
             n: NonZeroU64::new(3).unwrap(),
@@ -203,9 +206,11 @@ mod test {
 
         usig_0.add_remote_party(ReplicaId::from_u64(0), ());
 
+        let origin = ReplicaId::from_u64(1);
+
         let prepare = Prepare::sign(
             PrepareContent {
-                origin: ReplicaId::from_u64(1),
+                origin,
                 view: View(0),
                 request_batch: RequestBatch::new(Box::<
                     [client_request::ClientRequest<DummyPayload>; 0],
@@ -215,9 +220,10 @@ mod test {
         )
         .unwrap();
 
+        let peer_id = ReplicaId::from_u64(0);
         let mut usig_1 = UsigNoOp::default();
 
-        add_attestations(vec![&mut usig_0, &mut usig_1]);
+        add_attestations(vec![(origin, &mut usig_0), (peer_id, &mut usig_1)]);
 
         let config = Config {
             n: NonZeroU64::new(3).unwrap(),

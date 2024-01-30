@@ -120,6 +120,7 @@ impl<P: RequestPayload, Sig: Serialize> Commit<P, Sig> {
 mod test {
     use std::num::NonZeroU64;
 
+    use rstest::rstest;
     use shared_ids::{AnyId, ReplicaId};
     use usig::{noop::UsigNoOp, Usig};
 
@@ -132,8 +133,10 @@ mod test {
         View,
     };
 
-    /// Tests if a reference to the origin of a [Commit] is returned
-    /// when calling [`Commit::as_ref()`].
+    use rand::Rng;
+
+    /// Tests if a reference to the origin of a [Commit](crate::peer_message::usig_message::view_peer_message::Commit)
+    /// is returned when calling [`Commit::as_ref()`].
     #[test]
     fn obtain_origin_ref_through_as_ref() {
         let id_primary = ReplicaId::from_u64(0);
@@ -145,40 +148,47 @@ mod test {
         assert_eq!(commit.as_ref(), &id_backup);
     }
 
-    /// Tests if the validation of a valid [Commit] succeeds.
-    /// A valid [Commit] has to originate from a backup replica, and must
-    /// contain a valid [Prepare].
-    /// Furthermore, its [Usig] signature has to be valid, i.e., the backup
-    /// replica that signed the [Commit] has to have been previously added as
-    /// a known remote party.
-    #[test]
-    fn validate_valid_commit() {
-        // Create Prepare.
-        let id_primary = ReplicaId::from_u64(0);
-        let view = View(0);
-        let mut usig_primary = UsigNoOp::default();
-        let prepare = create_prepare_with_usig(id_primary, view, &mut usig_primary);
+    /// Tests if the validation of a valid [Commit](crate::peer_message::usig_message::view_peer_message::Commit)
+    /// succeeds.
+    #[rstest]
+    fn validate_valid_commit(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        for t in 0..n / 2 {
+            let mut rng = rand::thread_rng();
+            let id_prim: u64 = rng.gen_range(0..n);
 
-        // Create Commit.
-        let id_backup = ReplicaId::from_u64(1);
-        let mut usig_backup = UsigNoOp::default();
-        let commit = create_commit_with_usig(id_backup, prepare, &mut usig_backup);
+            // Create Prepare.
+            let id_primary = ReplicaId::from_u64(dbg!(id_prim % n));
+            let view = View(id_prim);
+            let mut usig_primary = UsigNoOp::default();
+            let prepare = create_prepare_with_usig(id_primary, view, &mut usig_primary);
 
-        // Add attestations.
-        let usigs = vec![&mut usig_primary, &mut usig_backup];
-        add_attestations(usigs);
+            // Create Commit.
+            let mut id_bp: u64 = rng.gen_range(0..n);
+            if id_prim == id_bp {
+                id_bp = (id_bp + 1) % n;
+            }
+            let id_backup = ReplicaId::from_u64(dbg!(id_bp % n));
+            let mut usig_backup = UsigNoOp::default();
+            let commit = create_commit_with_usig(id_backup, prepare, &mut usig_backup);
 
-        // Create config of backup.
-        let config = create_config_default(NonZeroU64::new(3).unwrap(), 1, id_backup);
+            // Add attestations.
+            let usigs = vec![
+                (id_primary, &mut usig_primary),
+                (id_backup, &mut usig_backup),
+            ];
+            add_attestations(usigs);
 
-        // Validate Commit on both replicas.
-        assert!(commit.validate(&config, &mut usig_primary).is_ok());
-        assert!(commit.validate(&config, &mut usig_backup).is_ok());
+            // Create config of backup.
+            let config_bp = create_config_default(NonZeroU64::new(n).unwrap(), dbg!(t), id_backup);
+
+            assert!(commit.validate(&config_bp, &mut usig_primary).is_ok());
+            assert!(commit.validate(&config_bp, &mut usig_backup).is_ok());
+        }
     }
 
-    /// Tests if the validation of an invalid [Commit],
-    /// in which the origin of the [Commit] is the primary, results in the
-    /// expected error.
+    /// Tests if the validation of an invalid [Commit](crate::peer_message::usig_message::view_peer_message::Commit),
+    /// in which the origin of the [Commit](crate::peer_message::usig_message::view_peer_message::Commit)
+    /// is the primary, results in the expected error.
     #[test]
     fn validate_invalid_commit_primary() {
         // Create Prepare.
@@ -193,7 +203,10 @@ mod test {
         let commit = create_commit_with_usig(id_primary, prepare, &mut usig_primary);
 
         // Add attestations.
-        let usigs = vec![&mut usig_primary, &mut usig_backup];
+        let usigs = vec![
+            (id_primary, &mut usig_primary),
+            (id_backup, &mut usig_backup),
+        ];
         add_attestations(usigs);
 
         // Create config of primary.

@@ -254,7 +254,10 @@ mod test {
         let view_peer_msg: ViewPeerMessage<_, Signature> = ViewPeerMessage::Commit(commit);
 
         // Add attestations.
-        let usigs = vec![&mut usig_primary, &mut usig_backup];
+        let usigs = vec![
+            (id_primary, &mut usig_primary),
+            (id_backup, &mut usig_backup),
+        ];
         add_attestations(usigs);
 
         // Create config of backup.
