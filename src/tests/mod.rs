@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use shared_ids::{AnyId, ClientId, RequestId};
 use std::{
@@ -250,6 +251,28 @@ pub(crate) fn create_prepare_with_usig(
     .unwrap()
 }
 
+/// Returns a valid [Prepare] with a random origin and with the provided USIG.
+///
+/// # Arguments
+///
+/// * `n` - The amount of peers that communicate with each other.
+///         It implicitly defines the range from which a random [ReplicaId]
+///         can be chosen (0 .. n - 1).
+/// * `usig` - The [Usig] to be used for signing the [Prepare].
+pub(crate) fn create_random_valid_prepare_with_usig(
+    n: NonZeroU64,
+    usig: &mut impl Usig<Signature = Signature>,
+) -> Prepare<DummyPayload, Signature> {
+    let mut rng = rand::thread_rng();
+    let id_prim: u64 = rng.gen_range(0..n.into());
+
+    // Create Prepare.
+    let id_primary = ReplicaId::from_u64(dbg!(id_prim % n));
+    let view = View(id_prim);
+
+    create_prepare_with_usig(id_primary, view, usig)
+}
+
 /// Returns a [Commit] with a default [UsigNoOp] as [Usig].
 ///
 /// # Arguments
@@ -278,6 +301,29 @@ pub(crate) fn create_commit_with_usig(
     usig: &mut impl Usig<Signature = Signature>,
 ) -> Commit<DummyPayload, Signature> {
     Commit::sign(CommitContent { origin, prepare }, usig).unwrap()
+}
+
+/// Returns a valid [Commit] with a random origin and with the provided USIG.
+///
+/// # Arguments
+///
+/// * `n` - The amount of peers that communicate with each other.
+///         It implicitly defines the range from which a random [ReplicaId]
+///         can be chosen (0 .. n - 1).
+/// * `prepare` - The [Prepare] to which this [Commit] belongs to.
+/// * `usig` - The [Usig] to be used for signing the [Commit].
+pub(crate) fn create_random_valid_commit_with_usig(
+    n: NonZeroU64,
+    prepare: Prepare<DummyPayload, Signature>,
+    usig: &mut impl Usig<Signature = Signature>,
+) -> Commit<DummyPayload, Signature> {
+    let mut rng = rand::thread_rng();
+    let mut id_bp: u64 = rng.gen_range(0..n.into());
+    if prepare.origin.as_u64() == id_bp {
+        id_bp = (id_bp + 1) % n;
+    }
+    let id_backup = ReplicaId::from_u64(dbg!(id_bp % n));
+    create_commit_with_usig(id_backup, prepare, usig)
 }
 
 /// Returns a [Config] with default values.

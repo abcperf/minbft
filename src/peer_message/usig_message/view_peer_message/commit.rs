@@ -129,11 +129,10 @@ mod test {
         tests::{
             add_attestations, create_commit_default_usig, create_commit_with_usig,
             create_config_default, create_prepare_default_usig, create_prepare_with_usig,
+            create_random_valid_commit_with_usig, create_random_valid_prepare_with_usig,
         },
         View,
     };
-
-    use rand::Rng;
 
     /// Tests if a reference to the origin of a [Commit](crate::peer_message::usig_message::view_peer_message::Commit)
     /// is returned when calling [`Commit::as_ref()`].
@@ -152,34 +151,25 @@ mod test {
     /// succeeds.
     #[rstest]
     fn validate_valid_commit(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+
         for t in 0..n / 2 {
-            let mut rng = rand::thread_rng();
-            let id_prim: u64 = rng.gen_range(0..n);
-
-            // Create Prepare.
-            let id_primary = ReplicaId::from_u64(dbg!(id_prim % n));
-            let view = View(id_prim);
             let mut usig_primary = UsigNoOp::default();
-            let prepare = create_prepare_with_usig(id_primary, view, &mut usig_primary);
+            let prepare = create_random_valid_prepare_with_usig(n_parsed, &mut usig_primary);
 
-            // Create Commit.
-            let mut id_bp: u64 = rng.gen_range(0..n);
-            if id_prim == id_bp {
-                id_bp = (id_bp + 1) % n;
-            }
-            let id_backup = ReplicaId::from_u64(dbg!(id_bp % n));
             let mut usig_backup = UsigNoOp::default();
-            let commit = create_commit_with_usig(id_backup, prepare, &mut usig_backup);
+            let commit =
+                create_random_valid_commit_with_usig(n_parsed, prepare.clone(), &mut usig_backup);
 
             // Add attestations.
             let usigs = vec![
-                (id_primary, &mut usig_primary),
-                (id_backup, &mut usig_backup),
+                (prepare.origin, &mut usig_primary),
+                (commit.origin, &mut usig_backup),
             ];
             add_attestations(usigs);
 
             // Create config of backup.
-            let config_bp = create_config_default(NonZeroU64::new(n).unwrap(), dbg!(t), id_backup);
+            let config_bp = create_config_default(n_parsed, t, commit.origin);
 
             assert!(commit.validate(&config_bp, &mut usig_primary).is_ok());
             assert!(commit.validate(&config_bp, &mut usig_backup).is_ok());
