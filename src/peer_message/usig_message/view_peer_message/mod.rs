@@ -355,26 +355,29 @@ mod test {
 
     /// Tests if validating a [ViewPeerMessage] that wraps an invalid [Prepare]
     /// (origin is not the primary) fails.
-    #[test]
-    fn validate_invalid_vp_prep_msg_unknown_party() {
-        let prep_origin = ReplicaId::from_u64(0);
-        let prep_view = View(0);
-        let mut usig_primary = UsigNoOp::default();
-        let prep = create_prepare_with_usig(prep_origin, prep_view, &mut usig_primary);
+    #[rstest]
+    fn validate_invalid_vp_prep_msg_unknown_party(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
 
-        let id_backup = ReplicaId::from_u64(1);
-        let mut usig_backup = UsigNoOp::default();
+        for t in 0..n / 2 {
+            let mut usig_primary = UsigNoOp::default();
+            let prep = create_random_valid_prepare_with_usig(n_parsed, &mut usig_primary);
+            let id_primary = prep.origin;
 
-        let view_peer_msg = ViewPeerMessage::Prepare(prep);
+            let mut usig_peer = UsigNoOp::default();
+            let id_peer = get_random_backup_replica_id(n_parsed, id_primary);
 
-        let config_primary = create_config_default(NonZeroU64::new(3).unwrap(), 1, prep_origin);
-        let config_backup = create_config_default(NonZeroU64::new(3).unwrap(), 1, id_backup);
+            let view_peer_msg = ViewPeerMessage::Prepare(prep);
 
-        let res_vp_validation = view_peer_msg.validate(&config_primary, &mut usig_primary);
-        assert!(res_vp_validation.is_err());
+            let config_primary = create_config_default(n_parsed, t, id_primary);
+            let config_backup = create_config_default(n_parsed, t, id_peer);
 
-        let res_vp_validation = view_peer_msg.validate(&config_backup, &mut usig_backup);
-        assert!(res_vp_validation.is_err());
+            let res_vp_validation = view_peer_msg.validate(&config_primary, &mut usig_primary);
+            assert!(res_vp_validation.is_err());
+
+            let res_vp_validation = view_peer_msg.validate(&config_backup, &mut usig_peer);
+            assert!(res_vp_validation.is_err());
+        }
     }
 
     /// Tests if validating a [ViewPeerMessage] that wraps an invalid [Commit]
