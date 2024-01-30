@@ -99,6 +99,7 @@ impl<P, Sig> ViewPeerMessage<P, Sig> {
 mod test {
     use std::num::NonZeroU64;
 
+    use rand::Rng;
     use rstest::rstest;
     use shared_ids::{AnyId, ReplicaId};
     use usig::{noop::UsigNoOp, Counter, Usig};
@@ -107,7 +108,7 @@ mod test {
         tests::{
             add_attestations, create_commit_with_usig, create_config_default,
             create_prepare_with_usig, create_random_valid_commit_with_usig,
-            create_random_valid_prepare_with_usig,
+            create_random_valid_prepare_with_usig, get_random_backup_replica_id,
         },
         View,
     };
@@ -318,19 +319,38 @@ mod test {
     /// Tests if validating a [ViewPeerMessage] that wraps an invalid
     /// [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare)
     /// (origin is not the primary) fails.
-    #[test]
-    fn validate_invalid_vp_prep_msg_not_primary() {
-        let prep_origin = ReplicaId::from_u64(0);
-        let prep_view = View(1);
-        let mut usig_primary = UsigNoOp::default();
-        let prep = create_prepare_with_usig(prep_origin, prep_view, &mut usig_primary);
-        let view_peer_msg = ViewPeerMessage::Prepare(prep);
+    #[rstest]
+    fn validate_invalid_vp_prep_msg_not_primary(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
 
-        usig_primary.add_remote_party(prep_origin, ());
-        let config = create_config_default(NonZeroU64::new(3).unwrap(), 1, prep_origin);
-        let res_vp_validation = view_peer_msg.validate(&config, &mut usig_primary);
+        for t in 0..n / 2 {
+            let mut rng = rand::thread_rng();
+            let id_prim = rng.gen_range(0..n);
+            let id_primary = ReplicaId::from_u64(id_prim);
 
-        assert!(res_vp_validation.is_err());
+            let mut usig_primary = UsigNoOp::default();
+            usig_primary.add_remote_party(ReplicaId::from_u64(id_prim), ());
+
+            let origin = get_random_backup_replica_id(n_parsed, id_primary);
+            let mut usig_peer = UsigNoOp::default();
+
+            let prep = create_prepare_with_usig(origin, View(id_prim), &mut usig_primary);
+
+            let view_peer_msg = ViewPeerMessage::Prepare(prep);
+
+            usig_primary.add_remote_party(origin, ());
+            usig_peer.add_remote_party(origin, ());
+            usig_peer.add_remote_party(id_primary, ());
+
+            let config_origin = create_config_default(n_parsed, t, origin);
+            let config_primary = create_config_default(n_parsed, t, id_primary);
+
+            let res_vp_validation = view_peer_msg.validate(&config_origin, &mut usig_peer);
+            assert!(res_vp_validation.is_err());
+
+            let res_vp_validation = view_peer_msg.validate(&config_primary, &mut usig_primary);
+            assert!(res_vp_validation.is_err());
+        }
     }
 
     /// Tests if validating a [ViewPeerMessage] that wraps an invalid [Prepare]
