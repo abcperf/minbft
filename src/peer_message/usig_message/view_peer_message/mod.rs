@@ -131,9 +131,11 @@ mod test {
         assert!(matches!(view_peer_msg, ViewPeerMessage::Prepare(vp_prep) if prep == vp_prep));
     }
 
-    /// Creates a [ViewPeerMessage] from a [Commit] by calling [`from()`]
-    /// and tests if the underlying [Commit] from the created [ViewPeerMessage]
-    /// matches the passed [Commit](crate::peer_message::usig_message::view_peer_message::Commit).
+    /// Creates a [ViewPeerMessage] from a [Commit](crate::peer_message::usig_message::view_peer_message::Commit)
+    /// by calling [`from()`] and tests if the underlying
+    /// [Commit](crate::peer_message::usig_message::view_peer_message::Commit)
+    /// from the created [ViewPeerMessage] matches the passed
+    /// [Commit](crate::peer_message::usig_message::view_peer_message::Commit).
     #[test]
     fn from_commit_create_vp() {
         let prep_origin = ReplicaId::from_u64(0);
