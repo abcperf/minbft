@@ -94,128 +94,23 @@ impl<P, Sig> ViewPeerMessage<P, Sig> {
 #[cfg(test)]
 
 mod test {
-    use std::{num::NonZeroU64, time::Duration};
+    use std::num::NonZeroU64;
 
-    use shared_ids::{ReplicaId, AnyId};
-    use usig::{noop::{Signature, UsigNoOp}, Usig, Counter};
+    use shared_ids::{AnyId, ReplicaId};
+    use usig::{
+        noop::{Signature, UsigNoOp},
+        Counter, Usig,
+    };
 
-    use crate::{View, tests::DummyPayload, client_request::{RequestBatch, self}, Config};
+    use crate::{
+        tests::common::{
+            add_attestations, create_commit_default_usig, create_commit_with_usig,
+            create_config_default, create_prepare_default_usig, create_prepare_with_usig,
+        },
+        View,
+    };
 
-    use super::{prepare::{Prepare, PrepareContent}, ViewPeerMessage, commit::{Commit, CommitContent}};
-
-
-    /// Returns a [Prepare] with a default [UsigNoOp] as [Usig].
-    ///
-    /// # Arguments
-    ///
-    /// * `origin` - The ID of the replica to which the [Prepare] belongs to.
-    ///              It should be the ID of the primary.
-    /// * `view` - The current [View].
-    pub(crate) fn create_prepare_default_usig(
-        origin: ReplicaId,
-        view: View,
-    ) -> Prepare<DummyPayload, Signature> {
-        Prepare::sign(
-            PrepareContent {
-                origin,
-                view,
-                request_batch: RequestBatch::new(Box::<
-                    [client_request::ClientRequest<DummyPayload>; 0],
-                >::new([])),
-            },
-            &mut UsigNoOp::default(),
-        )
-        .unwrap()
-    }
-
-    /// Returns a [Prepare] with the provided [Usig].
-    ///
-    /// # Arguments
-    ///
-    /// * `origin` - The ID of the replica to which the [Prepare] belongs to.
-    ///              It should be the ID of the primary.
-    /// * `view` - The current [View].
-    /// * `usig` - The [Usig] to be used for signing the [Prepare].
-    pub(crate) fn create_prepare_with_usig(
-        origin: ReplicaId,
-        view: View,
-        usig: &mut impl Usig<Signature = Signature>,
-    ) -> Prepare<DummyPayload, Signature> {
-        Prepare::sign(
-            PrepareContent {
-                origin,
-                view,
-                request_batch: RequestBatch::new(Box::<
-                    [client_request::ClientRequest<DummyPayload>; 0],
-                >::new([])),
-            },
-            usig,
-        )
-        .unwrap()
-    }
-
-    /// Returns a [Commit] with a default [UsigNoOp] as [Usig].
-    ///
-    /// # Arguments
-    ///
-    /// * `origin` - The ID of the replica to which the [Commit] belongs to.
-    ///              It should be the ID of the primary.
-    /// * `prepare` - The [Prepare] to which this [Commit] belongs to.
-    pub(crate) fn create_commit_default_usig(
-        origin: ReplicaId,
-        prepare: Prepare<DummyPayload, Signature>,
-    ) -> Commit<DummyPayload, Signature> {
-        Commit::sign(CommitContent { origin, prepare }, &mut UsigNoOp::default()).unwrap()
-    }
-    
-    /// Returns a [Commit] with the provided [Usig].
-    ///
-    /// # Arguments
-    ///
-    /// * `origin` - The ID of the backup replica to which the [Commit] belongs
-    ///              to.
-    /// * `prepare` - The [Prepare] to which this [Commit] belongs to.
-    /// * `usig` - The [Usig] to be used for signing the [Commit].
-    pub(crate) fn create_commit_with_usig(
-        origin: ReplicaId,
-        prepare: Prepare<DummyPayload, Signature>,
-        usig: &mut impl Usig<Signature = Signature>,
-    ) -> Commit<DummyPayload, Signature> {
-        Commit::sign(CommitContent { origin, prepare }, usig).unwrap()
-    }
-
-    /// Returns a [Config] with default values.
-    ///
-    /// # Arguments
-    ///
-    /// * `n` - The total number of replicas.
-    /// * `t` - The maximum number of faulty replicas.
-    /// * `id` - The ID of the replica to which this [Config] belongs to.
-    pub(crate) fn create_config_default(n: NonZeroU64, t: u64, id: ReplicaId) -> Config {
-        Config {
-            n,
-            t,
-            id,
-            batch_timeout: Duration::from_secs(2),
-            max_batch_size: None,
-            initial_timeout_duration: Duration::from_secs(2),
-            checkpoint_period: NonZeroU64::new(2).unwrap(),
-        }
-    }
-
-    /// Adds each [UsigNoOp] to each [UsigNoOp] as a remote party.
-    ///
-    /// # Arguments
-    ///
-    /// * `usigs` - The [UsigNoOp]s that shall be added as a remote party to
-    ///             each other.
-    pub(crate) fn add_attestations(mut usigs: Vec<&mut UsigNoOp>) {
-        for i in 0..usigs.len() {
-            for j in 0..usigs.len() {
-                usigs[i].add_remote_party(ReplicaId::from_u64(j.try_into().unwrap()), ());
-            }
-        }
-    }
+    use super::ViewPeerMessage;
 
     /// Creates a [ViewPeerMessage] from a [Prepare] by calling [`from()`]
     /// and tests if the underlying [Prepare] from the created [ViewPeerMessage]
@@ -240,10 +135,12 @@ mod test {
         let commit_origin = ReplicaId::from_u64(1);
         let commit = create_commit_default_usig(commit_origin, prep);
         let view_peer_msg = ViewPeerMessage::from(commit.clone());
-        assert!(matches!(view_peer_msg, ViewPeerMessage::Commit(vp_commit) if vp_commit.origin == commit.origin && vp_commit.prepare == commit.prepare));
+        assert!(
+            matches!(view_peer_msg, ViewPeerMessage::Commit(vp_commit) if vp_commit.origin == commit.origin && vp_commit.prepare == commit.prepare)
+        );
     }
 
-    /// Tests if the counter of a [ViewPeerMessage] that wraps a [Prepare] 
+    /// Tests if the counter of a [ViewPeerMessage] that wraps a [Prepare]
     /// corresponds to the counter of the underlying [Prepare].
     #[test]
     fn from_prep_create_vp_check_counter() {
@@ -254,7 +151,7 @@ mod test {
         assert_eq!(view_peer_msg.counter(), prep.counter());
     }
 
-    /// Tests if the counter of a [ViewPeerMessage] that wraps a [Commit] 
+    /// Tests if the counter of a [ViewPeerMessage] that wraps a [Commit]
     /// corresponds to the counter of the underlying [Commit].
     #[test]
     fn from_commit_create_vp_check_counter() {
@@ -267,7 +164,7 @@ mod test {
         assert_eq!(view_peer_msg.counter(), commit.counter());
     }
 
-    /// Tests if the reference of a [ViewPeerMessage] that wraps a [Prepare] 
+    /// Tests if the reference of a [ViewPeerMessage] that wraps a [Prepare]
     /// corresponds to the reference of the underlying [Prepare].
     #[test]
     fn from_prep_create_vp_check_ref() {
@@ -278,7 +175,7 @@ mod test {
         assert_eq!(view_peer_msg.as_ref(), prep.as_ref());
     }
 
-    /// Tests if the reference of a [ViewPeerMessage] that wraps a [Commit] 
+    /// Tests if the reference of a [ViewPeerMessage] that wraps a [Commit]
     /// corresponds to the reference of the underlying [Commit].
     #[test]
     fn from_commit_create_vp_check_ref() {
@@ -291,7 +188,7 @@ mod test {
         assert_eq!(view_peer_msg.as_ref(), commit.as_ref());
     }
 
-    /// Tests if the [View] of a [ViewPeerMessage] that wraps a [Prepare] 
+    /// Tests if the [View] of a [ViewPeerMessage] that wraps a [Prepare]
     /// corresponds to the [View] of the underlying [Prepare].
     #[test]
     fn from_prep_create_vp_check_view() {
@@ -302,7 +199,7 @@ mod test {
         assert_eq!(view_peer_msg.view(), prep.view);
     }
 
-    /// Tests if the [View] of a [ViewPeerMessage] that wraps a [Commit] 
+    /// Tests if the [View] of a [ViewPeerMessage] that wraps a [Commit]
     /// corresponds to the [View] of the underlying [Commit].
     #[test]
     fn from_commit_create_vp_check_view() {
@@ -315,7 +212,7 @@ mod test {
         assert_eq!(view_peer_msg.view(), commit.prepare.view);
     }
 
-    /// Tests if validating a [ViewPeerMessage] that wraps a valid [Prepare] 
+    /// Tests if validating a [ViewPeerMessage] that wraps a valid [Prepare]
     /// succeeds.
     #[test]
     fn validate_valid_vp_prep_msg() {
@@ -324,23 +221,23 @@ mod test {
         let prep_view = View(prep_origin.as_u64());
         let mut usig_primary = UsigNoOp::default();
         let prep = create_prepare_with_usig(prep_origin, prep_view, &mut usig_primary);
-        
+
         // Create ViewPeerMessage from Prepare.
         let view_peer_msg = ViewPeerMessage::Prepare(prep);
-        
+
         // Add attestation of oneself.
         usig_primary.add_remote_party(prep_origin, ());
-        
+
         // Create a default config.
         let config = create_config_default(NonZeroU64::new(3).unwrap(), 1, prep_origin);
-        
+
         // Validate ViewPeerMessage using the previously created config and USIG.
         let res_vp_validation = view_peer_msg.validate(&config, &mut usig_primary);
 
         assert!(res_vp_validation.is_ok());
     }
 
-    /// Tests if validating a [ViewPeerMessage] that wraps a valid [Commit] 
+    /// Tests if validating a [ViewPeerMessage] that wraps a valid [Commit]
     /// succeeds.
     #[test]
     fn validate_valid_vp_commit_msg() {
@@ -368,7 +265,7 @@ mod test {
         assert!(res_vp_validation.is_ok());
     }
 
-    /// Tests if validating a [ViewPeerMessage] that wraps an invalid [Prepare] 
+    /// Tests if validating a [ViewPeerMessage] that wraps an invalid [Prepare]
     /// (origin is not the primary) fails.
     #[test]
     fn validate_invalid_vp_prep_msg_not_primary() {
@@ -377,7 +274,7 @@ mod test {
         let mut usig_primary = UsigNoOp::default();
         let prep = create_prepare_with_usig(prep_origin, prep_view, &mut usig_primary);
         let view_peer_msg = ViewPeerMessage::Prepare(prep);
-        
+
         usig_primary.add_remote_party(prep_origin, ());
         let config = create_config_default(NonZeroU64::new(3).unwrap(), 1, prep_origin);
         let res_vp_validation = view_peer_msg.validate(&config, &mut usig_primary);
@@ -385,7 +282,7 @@ mod test {
         assert!(res_vp_validation.is_err());
     }
 
-    /// Tests if validating a [ViewPeerMessage] that wraps an invalid [Prepare] 
+    /// Tests if validating a [ViewPeerMessage] that wraps an invalid [Prepare]
     /// (origin is not the primary) fails.
     #[test]
     fn validate_invalid_vp_prep_msg_unknown_party() {
@@ -393,7 +290,7 @@ mod test {
         let prep_view = View(0);
         let mut usig_primary = UsigNoOp::default();
         let prep = create_prepare_with_usig(prep_origin, prep_view, &mut usig_primary);
-        
+
         let id_backup = ReplicaId::from_u64(1);
         let mut usig_backup = UsigNoOp::default();
 
@@ -409,14 +306,14 @@ mod test {
         assert!(res_vp_validation.is_err());
     }
 
-    /// Tests if validating a [ViewPeerMessage] that wraps an invalid [Commit] 
+    /// Tests if validating a [ViewPeerMessage] that wraps an invalid [Commit]
     /// (origin is not the primary) fails.
     #[test]
     fn validate_invalid_vp_commit_msg_unknown_party() {
         let prep_origin = ReplicaId::from_u64(0);
         let prep_view = View(prep_origin.as_u64());
         let mut usig_primary = UsigNoOp::default();
-        let prep = create_prepare_with_usig(prep_origin, prep_view, &mut usig_primary);        
+        let prep = create_prepare_with_usig(prep_origin, prep_view, &mut usig_primary);
 
         let id_backup = ReplicaId::from_u64(1);
         let mut usig_backup = UsigNoOp::default();
@@ -432,5 +329,4 @@ mod test {
         let res_vp_validation = view_peer_msg.validate(&config_backup, &mut usig_backup);
         assert!(res_vp_validation.is_err());
     }
-
 }

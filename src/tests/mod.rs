@@ -12,6 +12,7 @@ use super::*;
 use shared_ids::ClientId;
 use usig::noop::UsigNoOp;
 
+pub(crate) mod common;
 mod multi;
 mod normal;
 mod viewchange;

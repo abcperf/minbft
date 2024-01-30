@@ -125,7 +125,7 @@ mod test {
 
     use crate::{
         error::InnerError,
-        peer_message::usig_message::view_peer_message::test::{
+        tests::common::{
             add_attestations, create_commit_default_usig, create_commit_with_usig,
             create_config_default, create_prepare_default_usig, create_prepare_with_usig,
         },
