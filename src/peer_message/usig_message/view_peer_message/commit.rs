@@ -36,14 +36,14 @@ pub(crate) struct CommitContent<P, Sig> {
 }
 
 impl<P, Sig> AsRef<ReplicaId> for CommitContent<P, Sig> {
-    /// Referencing [CommitContent] returns a reference to the origin set in the [CommitContent].
+    /// Referencing [CommitContent] returns a reference to its origin.
     fn as_ref(&self) -> &ReplicaId {
         &self.origin
     }
 }
 
 impl<P: Serialize, Sig: Serialize> UsigSignable for CommitContent<P, Sig> {
-    /// Hashes the content of a message of type Commit.
+    /// Hashes the content of a [Commit].
     /// Required for signing and verifying a message of type [Commit].
     fn hash_content<H: Update>(&self, hasher: &mut H) {
         let encoded = bincode::serialize(self).unwrap();
@@ -52,12 +52,11 @@ impl<P: Serialize, Sig: Serialize> UsigSignable for CommitContent<P, Sig> {
 }
 
 /// The message of type [Commit].
-/// [Commit]s consist of their content and must be signed by a USIG.
-/// Such a message is broadcast by a replica (other than the current primary)
-/// in response to a received Prepare (only sent by the current primary).
+/// A [Commit] consists, inter alia, of its content and must be signed by a
+/// USIG.
+/// Such a message is broadcast by a backup replica in response to a received
+/// [Prepare] (only sent by the current primary).
 /// They can and should be validated.
-/// For further explanation regarding the content of the module including [Commit], see the documentation of the module itself.
-/// For further explanation regarding the use of [Commit]s, see the documentation of [crate::MinBft].
 pub(crate) type Commit<P, Sig> = UsigSigned<CommitContent<P, Sig>, Sig>;
 
 impl<P: RequestPayload, Sig: Serialize> Commit<P, Sig> {
