@@ -19,7 +19,7 @@ use anyhow::Result;
 use blake2::digest::Update;
 use serde::{Deserialize, Serialize};
 use shared_ids::ReplicaId;
-use tracing::{debug, error, trace};
+use tracing::{error, trace};
 use usig::{Counter, Usig};
 
 use crate::{
@@ -154,93 +154,72 @@ impl<P: RequestPayload, Sig> Prepare<P, Sig> {
 mod test {
     use std::{num::NonZeroU64, time::Duration};
 
+    use rand::Rng;
+    use rstest::rstest;
     use shared_ids::{AnyId, ReplicaId};
     use usig::{noop::UsigNoOp, Usig};
 
     use crate::{
         client_request::{self, RequestBatch},
         peer_message::usig_message::view_peer_message::prepare::{Prepare, PrepareContent},
-        tests::{add_attestations, DummyPayload},
+        tests::{
+            add_attestations, create_config_default, create_prepare_with_usig,
+            create_random_valid_prepare_with_usig, get_random_backup_replica_id, DummyPayload,
+        },
         Config, View,
     };
 
     /// Tests if the validation of a valid [Prepare] succeeds.
-    #[test]
-    fn validate_valid_prepare() {
-        let mut usig_0 = UsigNoOp::default();
+    #[rstest]
+    fn validate_valid_prepare(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
 
-        let origin = ReplicaId::from_u64(0);
+        for t in 0..n / 2 {
+            let mut usig_primary = UsigNoOp::default();
+            let prepare = create_random_valid_prepare_with_usig(n_parsed, &mut usig_primary);
 
-        let prepare = Prepare::sign(
-            PrepareContent {
-                origin,
-                view: View(0),
-                request_batch: RequestBatch::new(Box::<
-                    [client_request::ClientRequest<DummyPayload>; 0],
-                >::new([])),
-            },
-            &mut usig_0,
-        )
-        .unwrap();
+            let backup = ReplicaId::from_u64(1);
+            let mut usig_backup = UsigNoOp::default();
 
-        let backup = ReplicaId::from_u64(1);
-        let mut usig_1 = UsigNoOp::default();
+            add_attestations(vec![
+                (prepare.origin, &mut usig_primary),
+                (backup, &mut usig_backup),
+            ]);
 
-        add_attestations(vec![(origin, &mut usig_0), (backup, &mut usig_1)]);
+            let config = create_config_default(n_parsed, t, prepare.origin);
 
-        let config = Config {
-            n: NonZeroU64::new(3).unwrap(),
-            t: 1,
-            id: ReplicaId::from_u64(0),
-            batch_timeout: Duration::from_secs(2),
-            max_batch_size: None,
-            initial_timeout_duration: Duration::from_secs(2),
-            checkpoint_period: NonZeroU64::new(2).unwrap(),
-        };
-
-        assert!(prepare.validate(&config, &mut usig_1).is_ok());
-        assert!(prepare.validate(&config, &mut usig_0).is_ok());
+            assert!(prepare.validate(&config, &mut usig_backup).is_ok());
+            assert!(prepare.validate(&config, &mut usig_primary).is_ok());
+        }
     }
 
     /// Tests if the validation of an invalid [Prepare],
-    /// in which the origin of the [Prepare] is not the primary, results in an error.
-    #[test]
-    fn validate_invalid_prep_not_primary() {
-        let mut usig_0 = UsigNoOp::default();
+    /// in which the origin of the [Prepare] is not the primary, results in an
+    /// error.
+    #[rstest]
+    fn validate_invalid_prep_not_primary(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
 
-        usig_0.add_remote_party(ReplicaId::from_u64(0), ());
+        for t in 0..n / 2 {
+            let mut rng = rand::thread_rng();
+            let id_prim = rng.gen_range(0..n);
+            let id_primary = ReplicaId::from_u64(id_prim);
 
-        let origin = ReplicaId::from_u64(1);
+            let mut usig_primary = UsigNoOp::default();
+            usig_primary.add_remote_party(ReplicaId::from_u64(id_prim), ());
 
-        let prepare = Prepare::sign(
-            PrepareContent {
-                origin,
-                view: View(0),
-                request_batch: RequestBatch::new(Box::<
-                    [client_request::ClientRequest<DummyPayload>; 0],
-                >::new([])),
-            },
-            &mut usig_0,
-        )
-        .unwrap();
+            let origin = get_random_backup_replica_id(n_parsed, id_primary);
+            let mut usig_peer = UsigNoOp::default();
 
-        let peer_id = ReplicaId::from_u64(0);
-        let mut usig_1 = UsigNoOp::default();
+            let prepare = create_prepare_with_usig(origin, View(id_prim), &mut usig_primary);
 
-        add_attestations(vec![(origin, &mut usig_0), (peer_id, &mut usig_1)]);
+            add_attestations(vec![(origin, &mut usig_primary), (origin, &mut usig_peer)]);
 
-        let config = Config {
-            n: NonZeroU64::new(3).unwrap(),
-            t: 1,
-            id: ReplicaId::from_u64(0),
-            batch_timeout: Duration::from_secs(2),
-            max_batch_size: None,
-            initial_timeout_duration: Duration::from_secs(2),
-            checkpoint_period: NonZeroU64::new(2).unwrap(),
-        };
+            let config = create_config_default(n_parsed, t, id_primary);
 
-        assert!(prepare.validate(&config, &mut usig_0).is_err());
-        assert!(prepare.validate(&config, &mut usig_1).is_err());
+            assert!(prepare.validate(&config, &mut usig_primary).is_err());
+            assert!(prepare.validate(&config, &mut usig_peer).is_err());
+        }
     }
 
     /// Tests if the validation of an invalid [Prepare],
