@@ -1,12 +1,15 @@
 //! Defines a message of type [Commit].
 //! A [Commit] consists of two main parts.
 //! The first part is its content, the [CommitContent].
-//! It contains the origin of the [Commit], i.e., the ID of the replica ([ReplicaId]) which created the [Commit].
+//! It contains the origin of the [Commit], i.e., the ID of the replica
+//! ([ReplicaId]) which created the [Commit].
 //! Moreover, it contains the [Prepare] to which the [Commit] belongs to.
 //! The second part is its signature, as [Commit]s must be signed by a USIG.
-//! For further explanation to why these messages (alongside other ones) must be signed by a USIG,
+//! For further explanation to why these messages (alongside other ones) must be
+//! signed by a USIG,
 //! see the paper "Efficient Byzantine Fault Tolerance" by Veronese et al.
-//! A [Commit] is broadcast by a backup replica, i.e., all replicas besides the current primary,
+//! A [Commit] is broadcast by a backup replica, i.e., all replicas besides the
+//! current primary,
 //! in response to a received [Prepare] (only sent by the current primary).
 
 use anyhow::Result;
@@ -26,7 +29,8 @@ use super::prepare::Prepare;
 
 /// The content of a message of type [Commit].
 /// Consists of the [Prepare] to which the [Commit] belongs to.
-/// Furthermore, the ID of the backup replica that created the [Commit] is necessary.
+/// Furthermore, the ID of the backup replica that created the [Commit] is
+/// necessary.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct CommitContent<P, Sig> {
     /// The replica which the [Commit] originates from.
@@ -62,7 +66,8 @@ pub(crate) type Commit<P, Sig> = UsigSigned<CommitContent<P, Sig>, Sig>;
 impl<P: RequestPayload, Sig: Serialize> Commit<P, Sig> {
     /// Validates a message of type [Commit].
     /// Following conditions must be met for the [Commit] to be valid:
-    ///     (1) The [Commit] must originate from a replica other than the current primary.
+    ///     (1) The [Commit] must originate from a replica other than the
+    ///         current primary.
     ///     (2) The [Prepare] must be valid (for further explanation regarding
     ///         the validation of [Prepare]s see the equally named function).
     ///     (3) Additionally, the signature of the [Commit] must be verified.
