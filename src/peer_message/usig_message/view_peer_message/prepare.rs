@@ -19,7 +19,7 @@ use anyhow::Result;
 use blake2::digest::Update;
 use serde::{Deserialize, Serialize};
 use shared_ids::ReplicaId;
-use tracing::{debug, error};
+use tracing::{debug, error, trace};
 use usig::{Counter, Usig};
 
 use crate::{
@@ -69,7 +69,7 @@ impl<P: Serialize> UsigSignable for PrepareContent<P> {
 /// [Prepare]s can and should be validated.
 pub(crate) type Prepare<P, Sig> = UsigSigned<PrepareContent<P>, Sig>;
 
-impl<P: RequestPayload, Sig: Serialize> fmt::Display for Prepare<P, Sig> {
+impl<P: RequestPayload, Sig> fmt::Display for Prepare<P, Sig> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "(origin: {0}, view: {1})", self.origin, self.view)
     }
@@ -103,7 +103,8 @@ impl<P: RequestPayload, Sig> Prepare<P, Sig> {
     /// Validates a message of type [Prepare].
     /// Following conditions must be met for the [Prepare] to be valid:
     ///     (1) The [Prepare] must originate from the current primary.
-    ///     (2) The batch of requests to which the [Prepare] belongs to must be valid.
+    ///     (2) The batch of requests to which the [Prepare] belongs to must be
+    ///         valid.
     ///         In other words, each batched request must be valid.
     ///     (3) Additionally, the signature of the [Prepare] must be verified.
     pub(crate) fn validate(
@@ -111,14 +112,13 @@ impl<P: RequestPayload, Sig> Prepare<P, Sig> {
         config: &Config,
         usig: &mut impl Usig<Signature = Sig>,
     ) -> Result<(), InnerError> {
-        debug!(
-            "Validating Prepare (origin: {:?}, view: {:?})...",
-            self.origin, self.view
-        );
+        trace!("Validating Prepare ({self})...");
+
+        // Check for condition (1).
         if !config.is_primary(self.view, self.origin) {
             error!(
-                "Failed validating Prepare (origin: {:?}, view: {:?}): Prepare originates from a backup replica.",
-                self.origin, self.view
+                "Failed validating Prepare ({self}): Prepare originates from 
+            a backup replica."
             );
             return Err(InnerError::PrepareFromBackup {
                 receiver: config.id,
@@ -126,29 +126,25 @@ impl<P: RequestPayload, Sig> Prepare<P, Sig> {
                 view: self.view,
             });
         }
-        debug!(
-            "Successfully validated Prepare (origin: {:?}, view: {:?}).",
-            self.origin, self.view
-        );
+
+        // Check for condition (2).
         self.request_batch
             .validate()
             .map_err(|_| InnerError::RequestInPrepare {
                 receiver: config.id,
                 origin: self.origin,
             })?;
-        debug!(
-            "Verifying signature of Prepare (origin: {:?}, view: {:?}) ...",
-            self.origin, self.view
-        );
+
+        // Check for condition (3).
+        trace!("Verifying signature of Prepare ({self}) ...");
         self.verify(usig).map_or_else(|usig_error| {
             error!(
-                "Failed validating Prepare (origin: {:?}, view: {:?}): Signature of Prepare is invalid. For further information see output.",
-                self.origin, self.view
+                "Failed validating Prepare ({self}): Signature of Prepare is invalid. For further information see output."
             );
             Err(InnerError::parse_usig_error(usig_error, config.id, "Prepare", self.origin))
         }, |v| {
-            debug!("Successfully verified signature of Prepare (origin: {:?}, view: {:?}).", self.origin, self.view);
-            debug!("Successfully validated Prepare (origin: {:?}, view: {:?}).", self.origin, self.view);
+            trace!("Successfully verified signature of Prepare ({self}).");
+            trace!("Successfully validated Prepare ({self}).");
             Ok(v)
         })
     }
