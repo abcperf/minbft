@@ -25,8 +25,8 @@ use crate::{
 use super::prepare::Prepare;
 
 /// The content of a message of type [Commit].
-/// The prepare to which the [Commit] belongs to is needed.
-/// Furthermore, the ID of the Replica that created the [Commit] is necessary.
+/// Consists of the [Prepare] to which the [Commit] belongs to.
+/// Furthermore, the ID of the backup replica that created the [Commit] is necessary.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct CommitContent<P, Sig> {
     /// The replica which the [Commit] originates from.
