@@ -1,13 +1,13 @@
 //! Defines a message of type [Commit].
 //! A [Commit] consists of two main parts.
 //! The first part is its content, the [CommitContent].
-//! It contains the ID of the replica ([ReplicaId]) which created the [Commit].
+//! It contains the origin of the [Commit], i.e., the ID of the replica ([ReplicaId]) which created the [Commit].
 //! Moreover, it contains the [Prepare] to which the [Commit] belongs to.
 //! The second part is its signature, as [Commit]s must be signed by a USIG.
 //! For further explanation to why these messages (alongside other ones) must be signed by a USIG,
 //! see the paper "Efficient Byzantine Fault Tolerance" by Veronese et al.
-//! A [Commit] is broadcast by a replica (other than the current primary)
-//! in response to a received Prepare (only sent by the current primary).
+//! A [Commit] is broadcast by a backup replica, i.e., all replicas besides the current primary,
+//! in response to a received [Prepare] (only sent by the current primary).
 
 use anyhow::Result;
 use blake2::digest::Update;
@@ -112,7 +112,11 @@ mod test {
 
     use crate::{
         error::InnerError,
-        peer_message::usig_message::view_peer_message::test::{create_prepare_default_usig, create_commit_default_usig, create_commit_with_usig, create_config_default, create_prepare_with_usig, add_attestations}, View,
+        peer_message::usig_message::view_peer_message::test::{
+            add_attestations, create_commit_default_usig, create_commit_with_usig,
+            create_config_default, create_prepare_default_usig, create_prepare_with_usig,
+        },
+        View,
     };
 
     /// Tests if a reference to the origin of a [Commit] is returned
