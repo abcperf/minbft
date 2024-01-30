@@ -354,8 +354,10 @@ mod test {
         }
     }
 
-    /// Tests if validating a [ViewPeerMessage] that wraps an invalid [Prepare]
-    /// (origin is not the primary) fails.
+    /// Tests if validating a [ViewPeerMessage] that wraps an invalid
+    /// [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare)
+    /// in which the replica is unknown (not previously added as remote party),
+    /// results in an error.
     #[rstest]
     fn validate_invalid_vp_prep_msg_unknown_party(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
@@ -427,8 +429,10 @@ mod test {
         }
     }
 
-    /// Tests if validating a [ViewPeerMessage] that wraps an invalid [Commit]
-    /// (origin is not the primary) fails.
+    /// Tests if validating a [ViewPeerMessage] that wraps an invalid
+    /// [Commit](crate::peer_message::usig_message::view_peer_message::Commit)
+    /// in which the replica is unknown (not previously added as remote party),
+    /// results in an error.
     #[rstest]
     fn validate_invalid_vp_commit_msg_unknown_party(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
