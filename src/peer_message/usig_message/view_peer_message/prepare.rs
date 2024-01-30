@@ -156,7 +156,7 @@ mod test {
     use crate::{
         client_request::{self, RequestBatch},
         peer_message::usig_message::view_peer_message::prepare::{Prepare, PrepareContent},
-        tests::{common::add_attestations, DummyPayload},
+        tests::{add_attestations, DummyPayload},
         Config, View,
     };
 

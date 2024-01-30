@@ -1,11 +1,13 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     client_request::RequestBatch,
+    peer_message::usig_message::UsigMessageV,
     peer_message::{
         usig_message::new_view::NewView, usig_message::new_view::NewViewCertificate,
         usig_message::new_view::NewViewContent,
     },
+    Error, PeerMessage, ViewState,
 };
 use rstest::rstest;
 
@@ -573,9 +575,7 @@ fn validation_other_replicas_cannot_send_new_view(
             .get_mut(index_other_non_primary as usize)
             .unwrap()
             .sent_usig_msgs
-            .push(peer_message::usig_message::UsigMessageV::NewView(
-                msg.clone(),
-            ));
+            .push(UsigMessageV::NewView(msg.clone()));
 
         let new_view_msg = ValidatedPeerMessage::from(msg).into();
 

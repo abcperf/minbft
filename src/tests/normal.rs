@@ -1,4 +1,4 @@
-use crate::peer_message::usig_message::view_peer_message::ViewPeerMessage;
+use crate::peer_message::usig_message::{view_peer_message::ViewPeerMessage, UsigMessage};
 
 use super::*;
 

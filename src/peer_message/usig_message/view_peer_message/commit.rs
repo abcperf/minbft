@@ -125,7 +125,7 @@ mod test {
 
     use crate::{
         error::InnerError,
-        tests::common::{
+        tests::{
             add_attestations, create_commit_default_usig, create_commit_with_usig,
             create_config_default, create_prepare_default_usig, create_prepare_with_usig,
         },
