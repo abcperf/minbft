@@ -152,7 +152,7 @@ impl<P: RequestPayload, Sig> Prepare<P, Sig> {
 
 #[cfg(test)]
 mod test {
-    use std::{num::NonZeroU64, time::Duration};
+    use std::num::NonZeroU64;
 
     use rand::Rng;
     use rstest::rstest;
@@ -160,16 +160,15 @@ mod test {
     use usig::{noop::UsigNoOp, Usig};
 
     use crate::{
-        client_request::{self, RequestBatch},
-        peer_message::usig_message::view_peer_message::prepare::{Prepare, PrepareContent},
         tests::{
             add_attestations, create_config_default, create_prepare_with_usig,
-            create_random_valid_prepare_with_usig, get_random_backup_replica_id, DummyPayload,
+            create_random_valid_prepare_with_usig, get_random_backup_replica_id,
         },
-        Config, View,
+        View,
     };
 
-    /// Tests if the validation of a valid [Prepare] succeeds.
+    /// Tests if the validation of a valid [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare)
+    /// succeeds.
     #[rstest]
     fn validate_valid_prepare(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
@@ -193,9 +192,9 @@ mod test {
         }
     }
 
-    /// Tests if the validation of an invalid [Prepare],
-    /// in which the origin of the [Prepare] is not the primary, results in an
-    /// error.
+    /// Tests if the validation of an invalid [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare),
+    /// in which the origin of the [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare)
+    /// is not the primary, results in an error.
     #[rstest]
     fn validate_invalid_prep_not_primary(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
@@ -222,41 +221,32 @@ mod test {
         }
     }
 
-    /// Tests if the validation of an invalid [Prepare],
-    /// in which the replica is unknown (not previously added as remote party), results in an error.
-    #[test]
-    fn validate_invalid_prepare_unknown_remote_party() {
-        let mut usig_0 = UsigNoOp::default();
+    /// Tests if the validation of an invalid [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare),
+    /// in which the replica is unknown (not previously added as remote party),
+    /// results in an error.
+    #[rstest]
+    fn validate_invalid_prepare_unknown_remote_party(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
 
-        let prepare = Prepare::sign(
-            PrepareContent {
-                origin: ReplicaId::from_u64(1),
-                view: View(1),
-                request_batch: RequestBatch::new(Box::<
-                    [client_request::ClientRequest<DummyPayload>; 0],
-                >::new([])),
-            },
-            &mut usig_0,
-        )
-        .unwrap();
+        for t in 0..n / 2 {
+            let mut usig_primary = UsigNoOp::default();
+            let prepare = create_random_valid_prepare_with_usig(n_parsed, &mut usig_primary);
+            let id_primary = prepare.origin;
 
-        let mut usig_1 = UsigNoOp::default();
+            let mut usig_peer = UsigNoOp::default();
+            let id_peer = get_random_backup_replica_id(n_parsed, id_primary);
 
-        usig_0.add_remote_party(ReplicaId::from_u64(0), ());
-        usig_1.add_remote_party(ReplicaId::from_u64(0), ());
-        usig_1.add_remote_party(ReplicaId::from_u64(1), ());
+            usig_primary.add_remote_party(id_peer, ());
+            usig_peer.add_remote_party(id_peer, ());
+            usig_peer.add_remote_party(id_primary, ());
 
-        let config = Config {
-            n: NonZeroU64::new(3).unwrap(),
-            t: 1,
-            id: ReplicaId::from_u64(0),
-            batch_timeout: Duration::from_secs(2),
-            max_batch_size: None,
-            initial_timeout_duration: Duration::from_secs(2),
-            checkpoint_period: NonZeroU64::new(2).unwrap(),
-        };
+            let config_peer = create_config_default(n_parsed, t, id_peer);
+            let config_primary = create_config_default(n_parsed, t, id_primary);
 
-        assert!(prepare.validate(&config, &mut usig_1).is_ok());
-        assert!(prepare.validate(&config, &mut usig_0).is_err());
+            assert!(prepare.validate(&config_peer, &mut usig_peer).is_ok());
+            assert!(prepare
+                .validate(&config_primary, &mut usig_primary)
+                .is_err());
+        }
     }
 }
