@@ -15,6 +15,7 @@
 
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
+use std::fmt;
 use std::time::Duration;
 use std::{cmp::Ord, collections::HashSet, fmt::Debug, ops::Add};
 
@@ -101,6 +102,12 @@ impl Add<u64> for View {
     /// Defines the addition of a view with an unsigned integer.
     fn add(self, rhs: u64) -> Self::Output {
         Self(self.0 + rhs)
+    }
+}
+
+impl fmt::Display for View {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({0})", self.0)
     }
 }
 
