@@ -110,7 +110,7 @@ mod test {
         tests::{
             add_attestations, create_commit_default_usig, create_commit_with_usig,
             create_config_default, create_prepare_default_usig, create_prepare_with_usig,
-            create_random_valid_prepare_with_usig,
+            create_random_valid_commit_with_usig, create_random_valid_prepare_with_usig,
         },
         View,
     };
@@ -136,13 +136,16 @@ mod test {
     /// [Commit](crate::peer_message::usig_message::view_peer_message::Commit)
     /// from the created [ViewPeerMessage] matches the passed
     /// [Commit](crate::peer_message::usig_message::view_peer_message::Commit).
-    #[test]
-    fn from_commit_create_vp() {
-        let prep_origin = ReplicaId::from_u64(0);
-        let prep_view = View(prep_origin.as_u64());
-        let prep = create_prepare_default_usig(prep_origin, prep_view);
-        let commit_origin = ReplicaId::from_u64(1);
-        let commit = create_commit_default_usig(commit_origin, prep);
+    #[rstest]
+    fn from_commit_create_vp(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+
+        let mut usig_primary = UsigNoOp::default();
+        let prep = create_random_valid_prepare_with_usig(n_parsed, &mut usig_primary);
+
+        let mut usig_backup = UsigNoOp::default();
+        let commit = create_random_valid_commit_with_usig(n_parsed, prep, &mut usig_backup);
+
         let view_peer_msg = ViewPeerMessage::from(commit.clone());
         assert!(
             matches!(view_peer_msg, ViewPeerMessage::Commit(vp_commit) if vp_commit.origin == commit.origin && vp_commit.prepare == commit.prepare)
