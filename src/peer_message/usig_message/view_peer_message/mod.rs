@@ -39,7 +39,8 @@ impl<P, Sig> From<Commit<P, Sig>> for ViewPeerMessage<P, Sig> {
 }
 
 impl<P, Sig: Counter> Counter for ViewPeerMessage<P, Sig> {
-    /// Returns the USIG counter of the [ViewPeerMessage] (either the USIG counter of the [Prepare] or of the [Commit]).
+    /// Returns the USIG counter of the [ViewPeerMessage] (either the USIG
+    /// counter of the [Prepare] or of the [Commit]).
     fn counter(&self) -> Count {
         match self {
             ViewPeerMessage::Prepare(prepare) => prepare.counter(),
@@ -49,7 +50,8 @@ impl<P, Sig: Counter> Counter for ViewPeerMessage<P, Sig> {
 }
 
 impl<P, Sig> AsRef<ReplicaId> for ViewPeerMessage<P, Sig> {
-    /// Referencing [ViewPeerMessage] returns a reference of its inner types (either of the [Prepare] or of the [Commit]).
+    /// Referencing [ViewPeerMessage] returns a reference of its inner types
+    /// (either of the [Prepare] or of the [Commit]).
     fn as_ref(&self) -> &ReplicaId {
         match self {
             ViewPeerMessage::Prepare(prepare) => prepare.as_ref(),
@@ -113,9 +115,9 @@ mod test {
 
     use super::ViewPeerMessage;
 
-    /// Creates a [ViewPeerMessage] from a [Prepare] by calling [`from()`]
-    /// and tests if the underlying [Prepare] from the created [ViewPeerMessage]
-    /// matches the passed [Prepare].
+    /// Creates a [ViewPeerMessage] from a [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare)
+    /// by calling [`from()`] and tests if the underlying [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare)
+    /// from the created [ViewPeerMessage] matches the passed [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare) .
     #[test]
     fn from_prep_create_vp() {
         let prep_origin = ReplicaId::from_u64(0);
@@ -127,7 +129,7 @@ mod test {
 
     /// Creates a [ViewPeerMessage] from a [Commit] by calling [`from()`]
     /// and tests if the underlying [Commit] from the created [ViewPeerMessage]
-    /// matches the passed [Commit].
+    /// matches the passed [Commit](crate::peer_message::usig_message::view_peer_message::Commit).
     #[test]
     fn from_commit_create_vp() {
         let prep_origin = ReplicaId::from_u64(0);
@@ -141,8 +143,10 @@ mod test {
         );
     }
 
-    /// Tests if the counter of a [ViewPeerMessage] that wraps a [Prepare]
-    /// corresponds to the counter of the underlying [Prepare].
+    /// Tests if the counter of a [ViewPeerMessage] that wraps a
+    /// [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare)
+    /// corresponds to the counter of the underlying
+    /// [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare).
     #[test]
     fn from_prep_create_vp_check_counter() {
         let prep_origin = ReplicaId::from_u64(0);
@@ -152,8 +156,10 @@ mod test {
         assert_eq!(view_peer_msg.counter(), prep.counter());
     }
 
-    /// Tests if the counter of a [ViewPeerMessage] that wraps a [Commit]
-    /// corresponds to the counter of the underlying [Commit].
+    /// Tests if the counter of a [ViewPeerMessage] that wraps a
+    /// [Commit](crate::peer_message::usig_message::view_peer_message::Commit)
+    /// corresponds to the counter of the underlying
+    /// [Commit](crate::peer_message::usig_message::view_peer_message::Commit).
     #[test]
     fn from_commit_create_vp_check_counter() {
         let prep_origin = ReplicaId::from_u64(0);
@@ -165,8 +171,10 @@ mod test {
         assert_eq!(view_peer_msg.counter(), commit.counter());
     }
 
-    /// Tests if the reference of a [ViewPeerMessage] that wraps a [Prepare]
-    /// corresponds to the reference of the underlying [Prepare].
+    /// Tests if the reference of a [ViewPeerMessage] that wraps a
+    /// [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare)
+    /// corresponds to the reference of the underlying
+    /// [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare) .
     #[test]
     fn from_prep_create_vp_check_ref() {
         let prep_origin = ReplicaId::from_u64(0);
@@ -176,8 +184,10 @@ mod test {
         assert_eq!(view_peer_msg.as_ref(), prep.as_ref());
     }
 
-    /// Tests if the reference of a [ViewPeerMessage] that wraps a [Commit]
-    /// corresponds to the reference of the underlying [Commit].
+    /// Tests if the reference of a [ViewPeerMessage] that wraps a
+    /// [Commit](crate::peer_message::usig_message::view_peer_message::Commit)
+    /// corresponds to the reference of the underlying
+    /// [Commit](crate::peer_message::usig_message::view_peer_message::Commit) .
     #[test]
     fn from_commit_create_vp_check_ref() {
         let prep_origin = ReplicaId::from_u64(0);
@@ -189,8 +199,10 @@ mod test {
         assert_eq!(view_peer_msg.as_ref(), commit.as_ref());
     }
 
-    /// Tests if the [View] of a [ViewPeerMessage] that wraps a [Prepare]
-    /// corresponds to the [View] of the underlying [Prepare].
+    /// Tests if the [View] of a [ViewPeerMessage] that wraps a
+    /// [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare)
+    /// corresponds to the [View] of the underlying
+    /// [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare).
     #[test]
     fn from_prep_create_vp_check_view() {
         let prep_origin = ReplicaId::from_u64(0);
@@ -200,7 +212,8 @@ mod test {
         assert_eq!(view_peer_msg.view(), prep.view);
     }
 
-    /// Tests if the [View] of a [ViewPeerMessage] that wraps a [Commit]
+    /// Tests if the [View] of a [ViewPeerMessage] that wraps a
+    /// [Commit](crate::peer_message::usig_message::view_peer_message::Commit)
     /// corresponds to the [View] of the underlying [Commit].
     #[test]
     fn from_commit_create_vp_check_view() {
@@ -213,7 +226,8 @@ mod test {
         assert_eq!(view_peer_msg.view(), commit.prepare.view);
     }
 
-    /// Tests if validating a [ViewPeerMessage] that wraps a valid [Prepare]
+    /// Tests if validating a [ViewPeerMessage] that wraps a valid
+    /// [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare)
     /// succeeds.
     #[test]
     fn validate_valid_vp_prep_msg() {
@@ -238,7 +252,8 @@ mod test {
         assert!(res_vp_validation.is_ok());
     }
 
-    /// Tests if validating a [ViewPeerMessage] that wraps a valid [Commit]
+    /// Tests if validating a [ViewPeerMessage] that wraps a valid
+    /// [Commit](crate::peer_message::usig_message::view_peer_message::Commit)
     /// succeeds.
     #[test]
     fn validate_valid_vp_commit_msg() {
@@ -269,7 +284,8 @@ mod test {
         assert!(res_vp_validation.is_ok());
     }
 
-    /// Tests if validating a [ViewPeerMessage] that wraps an invalid [Prepare]
+    /// Tests if validating a [ViewPeerMessage] that wraps an invalid
+    /// [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare)
     /// (origin is not the primary) fails.
     #[test]
     fn validate_invalid_vp_prep_msg_not_primary() {
