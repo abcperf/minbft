@@ -99,6 +99,7 @@ impl<P, Sig> ViewPeerMessage<P, Sig> {
 mod test {
     use std::num::NonZeroU64;
 
+    use rstest::rstest;
     use shared_ids::{AnyId, ReplicaId};
     use usig::{
         noop::{Signature, UsigNoOp},
@@ -109,6 +110,7 @@ mod test {
         tests::{
             add_attestations, create_commit_default_usig, create_commit_with_usig,
             create_config_default, create_prepare_default_usig, create_prepare_with_usig,
+            create_random_valid_prepare_with_usig,
         },
         View,
     };
@@ -118,11 +120,13 @@ mod test {
     /// Creates a [ViewPeerMessage] from a [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare)
     /// by calling [`from()`] and tests if the underlying [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare)
     /// from the created [ViewPeerMessage] matches the passed [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare) .
-    #[test]
-    fn from_prep_create_vp() {
-        let prep_origin = ReplicaId::from_u64(0);
-        let prep_view = View(prep_origin.as_u64());
-        let prep = create_prepare_default_usig(prep_origin, prep_view);
+    #[rstest]
+    fn from_prep_create_vp(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+
+        let mut usig_primary = UsigNoOp::default();
+        let prep = create_random_valid_prepare_with_usig(n_parsed, &mut usig_primary);
+
         let view_peer_msg = ViewPeerMessage::from(prep.clone());
         assert!(matches!(view_peer_msg, ViewPeerMessage::Prepare(vp_prep) if prep == vp_prep));
     }
