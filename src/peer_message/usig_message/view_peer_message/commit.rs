@@ -12,11 +12,13 @@
 //! current primary,
 //! in response to a received [Prepare] (only sent by the current primary).
 
+use core::fmt;
+
 use anyhow::Result;
 use blake2::digest::Update;
 use serde::{Deserialize, Serialize};
 use shared_ids::ReplicaId;
-use tracing::{debug, error};
+use tracing::{debug, error, trace};
 use usig::Usig;
 
 use crate::{
@@ -56,29 +58,38 @@ impl<P: Serialize, Sig: Serialize> UsigSignable for CommitContent<P, Sig> {
 }
 
 /// The message of type [Commit].
-/// A [Commit] consists, inter alia, of its content and must be signed by a
+/// A [Commit] consists of, inter alia, its content and must be signed by a
 /// USIG.
 /// Such a message is broadcast by a backup replica in response to a received
 /// [Prepare] (only sent by the current primary).
 /// They can and should be validated.
 pub(crate) type Commit<P, Sig> = UsigSigned<CommitContent<P, Sig>, Sig>;
 
+impl<P: RequestPayload, Sig: Serialize> fmt::Display for Commit<P, Sig> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "(origin: {0}, prepare: {1})", self.origin, self.prepare)
+    }
+}
+
 impl<P: RequestPayload, Sig: Serialize> Commit<P, Sig> {
     /// Validates a message of type [Commit].
     /// Following conditions must be met for the [Commit] to be valid:
-    ///     (1) The [Commit] must originate from a replica other than the
-    ///         current primary.
+    ///     (1) The [Commit] must originate from a backup replica, i.a. a
+    ///         replica other than the current primary.
     ///     (2) The [Prepare] must be valid (for further explanation regarding
     ///         the validation of [Prepare]s see the equally named function).
-    ///     (3) Additionally, the signature of the [Commit] must be verified.
+    ///     (3) Additionally, the USIG signature of the [Commit] must be
+    ///         valid.
     pub(crate) fn validate(
         &self,
         config: &Config,
         usig: &mut impl Usig<Signature = Sig>,
     ) -> Result<(), InnerError> {
-        debug!(
+        trace!(
             "Validating Commit (origin: {:?}, Prepare: [origin: {:?}, view: {:?}]) ...",
-            self.origin, self.prepare.origin, self.prepare.view
+            self.origin,
+            self.prepare.origin,
+            self.prepare.view
         );
         if self.origin == self.prepare.origin {
             error!("Failed validating Commit (origin: {:?}, Prepare: [origin: {:?}, view: {:?}]): Commit originates from Primary. For further information see output", self.origin, self.prepare.origin, self.prepare.view);
