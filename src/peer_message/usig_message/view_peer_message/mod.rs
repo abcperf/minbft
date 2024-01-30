@@ -224,12 +224,15 @@ mod test {
     /// [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare)
     /// corresponds to the [View] of the underlying
     /// [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare).
-    #[test]
-    fn from_prep_create_vp_check_view() {
-        let prep_origin = ReplicaId::from_u64(0);
-        let prep_view = View(prep_origin.as_u64());
-        let prep = create_prepare_default_usig(prep_origin, prep_view);
+    #[rstest]
+    fn from_prep_create_vp_check_view(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+
+        let mut usig_primary = UsigNoOp::default();
+        let prep = create_random_valid_prepare_with_usig(n_parsed, &mut usig_primary);
+
         let view_peer_msg = ViewPeerMessage::Prepare(prep.clone());
+
         assert_eq!(view_peer_msg.view(), prep.view);
     }
 
