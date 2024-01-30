@@ -1,14 +1,17 @@
 //! Defines a message of type [Prepare].
 //! A [Prepare] consists of two main parts.
 //! The first part is its content, the [PrepareContent].
-//! It contains the ID of the replica ([ReplicaId]) which created the [Prepare].
+//! It contains the origin of the [Prepare], i.e., the ID of the replica
+//! ([ReplicaId]) which created the [Prepare].
 //! Moreover, it contains the [View] to which the [Prepare] belongs to.
-//! Furthermore, it contains the batch of requests ([RequestBatch]) to which it belongs to.
+//! Furthermore, it contains the batch of requests ([RequestBatch]) to which it
+//! belongs to.
 //! The second part is its signature, as [Prepare]s must be signed by a USIG.
-//! For further explanation to why these messages (alongside other ones) must be signed by a USIG,
-//! see the paper "Efficient Byzantine Fault Tolerance" by Veronese et al.
-//! A [Prepare] is broadcast by the current primary (no other replicas are allowed to send a [Prepare]).
-//! in response to a received client request.
+//! For further explanation to why these messages (alongside other ones) must be
+//! signed by a USIG,
+//! refer to the paper "Efficient Byzantine Fault Tolerance" by Veronese et al.
+//! A [Prepare] is broadcast by the current primary (no other replicas are
+//! allowed to send a [Prepare]) in response to a received client request.
 
 use std::{cmp::Ordering, fmt};
 
