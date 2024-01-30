@@ -10,7 +10,7 @@
 //! A [Prepare] is broadcast by the current primary (no other replicas are allowed to send a [Prepare]).
 //! in response to a received client request.
 
-use std::cmp::Ordering;
+use std::{cmp::Ordering, fmt};
 
 use anyhow::Result;
 use blake2::digest::Update;
@@ -61,6 +61,12 @@ impl<P: Serialize> UsigSignable for PrepareContent<P> {
 /// For further explanation regarding the content of the module including [Prepare], see the documentation of the module itself.
 /// For further explanation regarding the use of [Prepare]s, see the documentation of [crate::MinBft].
 pub(crate) type Prepare<P, Sig> = UsigSigned<PrepareContent<P>, Sig>;
+
+impl<P: RequestPayload, Sig: Serialize> fmt::Display for Prepare<P, Sig> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "(origin: {0}, view: {1})", self.origin, self.view)
+    }
+}
 
 impl<P, Sig: Counter> PartialEq for Prepare<P, Sig> {
     /// Returns true if the counters of the [Prepare]s are equal, otherwise false.
@@ -149,7 +155,10 @@ mod test {
 
     use crate::{
         client_request::{self, RequestBatch},
-        peer_message::usig_message::view_peer_message::{prepare::{Prepare, PrepareContent}, test::add_attestations},
+        peer_message::usig_message::view_peer_message::{
+            prepare::{Prepare, PrepareContent},
+            test::add_attestations,
+        },
         tests::DummyPayload,
         Config, View,
     };
