@@ -101,16 +101,13 @@ mod test {
 
     use rstest::rstest;
     use shared_ids::{AnyId, ReplicaId};
-    use usig::{
-        noop::{Signature, UsigNoOp},
-        Counter, Usig,
-    };
+    use usig::{noop::UsigNoOp, Counter, Usig};
 
     use crate::{
         tests::{
             add_attestations, create_commit_with_usig, create_config_default,
-            create_prepare_default_usig, create_prepare_with_usig,
-            create_random_valid_commit_with_usig, create_random_valid_prepare_with_usig,
+            create_prepare_with_usig, create_random_valid_commit_with_usig,
+            create_random_valid_prepare_with_usig,
         },
         View,
     };
@@ -286,33 +283,36 @@ mod test {
     /// Tests if validating a [ViewPeerMessage] that wraps a valid
     /// [Commit](crate::peer_message::usig_message::view_peer_message::Commit)
     /// succeeds.
-    #[test]
-    fn validate_valid_vp_commit_msg() {
-        // Create Prepare.
-        let id_primary = ReplicaId::from_u64(0);
-        let view = View(id_primary.as_u64());
-        let mut usig_primary = UsigNoOp::default();
-        let prepare = create_prepare_with_usig(id_primary, view, &mut usig_primary);
+    #[rstest]
+    fn validate_valid_vp_commit_msg(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
 
-        // Create Commit.
-        let id_backup = ReplicaId::from_u64(1);
-        let mut usig_backup = UsigNoOp::default();
-        let commit = create_commit_with_usig(id_backup, prepare, &mut usig_backup);
-        let view_peer_msg: ViewPeerMessage<_, Signature> = ViewPeerMessage::Commit(commit);
+        for t in 0..n / 2 {
+            // Create Prepare.
+            let mut usig_primary = UsigNoOp::default();
+            let prep = create_random_valid_prepare_with_usig(n_parsed, &mut usig_primary);
+            let id_primary = prep.origin;
 
-        // Add attestations.
-        let usigs = vec![
-            (id_primary, &mut usig_primary),
-            (id_backup, &mut usig_backup),
-        ];
-        add_attestations(usigs);
+            // Create Commit.
+            let mut usig_backup = UsigNoOp::default();
+            let commit = create_random_valid_commit_with_usig(n_parsed, prep, &mut usig_backup);
+            let id_backup = commit.origin;
+            let view_peer_msg = ViewPeerMessage::Commit(commit.clone());
 
-        // Create config of backup.
-        let config = create_config_default(NonZeroU64::new(3).unwrap(), 1, id_backup);
+            // Add attestations.
+            let usigs = vec![
+                (id_primary, &mut usig_primary),
+                (id_backup, &mut usig_backup),
+            ];
+            add_attestations(usigs);
 
-        let res_vp_validation = view_peer_msg.validate(&config, &mut usig_primary);
+            // Create config of backup.
+            let config = create_config_default(n_parsed, t, id_backup);
 
-        assert!(res_vp_validation.is_ok());
+            let res_vp_validation = view_peer_msg.validate(&config, &mut usig_primary);
+
+            assert!(res_vp_validation.is_ok());
+        }
     }
 
     /// Tests if validating a [ViewPeerMessage] that wraps an invalid
