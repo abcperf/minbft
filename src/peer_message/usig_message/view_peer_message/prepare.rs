@@ -61,13 +61,12 @@ impl<P: Serialize> UsigSignable for PrepareContent<P> {
 }
 
 /// The message of type [Prepare].
-/// [Prepare]s consist of their content and must be signed by a USIG.
-/// Such a message is broadcast by the current primary
-/// in response to a received client request.
-/// Only the primary is allowed to create a [Prepare] and broadcast it.
+/// [Prepare]s consist of their content ([PrepareContent]) and must be signed by
+/// a USIG.
+/// Such a message is broadcast by the current primary in response to a received
+/// client request.
+/// Only the current primary is allowed to create a [Prepare] and broadcast it.
 /// [Prepare]s can and should be validated.
-/// For further explanation regarding the content of the module including [Prepare], see the documentation of the module itself.
-/// For further explanation regarding the use of [Prepare]s, see the documentation of [crate::MinBft].
 pub(crate) type Prepare<P, Sig> = UsigSigned<PrepareContent<P>, Sig>;
 
 impl<P: RequestPayload, Sig: Serialize> fmt::Display for Prepare<P, Sig> {
