@@ -1,14 +1,21 @@
 //! Defines a message of type [Checkpoint].
 //! A [Checkpoint] consists of two main parts.
 //! The first part is its content.
-//! It contains the ID of the replica ([ReplicaId]) which created the [Checkpoint].
-//! Moreover, it contains the hash of the [crate::MinBft]'state, i.e. the [CheckpointHash].
-//! Furthermore, it contains the counter of the most recently accepted [crate::Prepare] by the replica.
-//! The second part is its signature, as [Checkpoint]s must be signed by a USIG.
+//! It contains the origin of the [Checkpoint], i.e., the ID of the replica
+//! ([ReplicaId]) which created the [Checkpoint].
+//! Moreover, it contains the hash of the [crate::MinBft]'s state, i.e. the
+//! [CheckpointHash].
+//! Furthermore, it contains the counter of the most recently accepted
+//! [crate::Prepare] by the replica.
+//! It also keeps track of the total amount of accepted batches until this
+//! [Checkpoint].
+//! The second part is its USIG signature.
 //! In our implementation, [Checkpoint]s are USIG signed - this seems to differ
 //! from the paper "Efficient Byzantine Fault Tolerance" by Veronese et al.
-//! A [Checkpoint] is broadcast by a replica when enough client requests have been accepted.
-//! For further explanation, see the documentation in [crate::MinBft] or the paper "Efficient Byzantine Fault-Tolerance" by Veronese et al.
+//! A [Checkpoint] is broadcast by a replica when enough client requests have
+//! been accepted.
+//! For further explanation, refer to the documentation in [crate::MinBft] or
+//! the paper "Efficient Byzantine Fault-Tolerance" by Veronese et al.
 
 use std::collections::HashSet;
 
@@ -33,12 +40,12 @@ pub(crate) type CheckpointHash = [u8; 64];
 pub(crate) struct CheckpointContent {
     /// Used for keeping track of which replica created the message of type Checkpoint.
     pub(crate) origin: ReplicaId,
+    /// The counter of the most recently accepted Prepare.
+    pub(crate) counter_latest_prep: Count,
     /// The hash of the MinBft's state.
     /// All replicas must have equal state.
     #[serde_as(as = "serde_with::Bytes")]
     pub(crate) state_hash: CheckpointHash,
-    /// The counter of the most recently accepted Prepare.
-    pub(crate) counter_latest_prep: Count,
     /// Keeps count of the total amount of accepted batches until this Checkpoint.
     pub(crate) total_amount_accepted_batches: u64,
 }
