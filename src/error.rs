@@ -43,6 +43,14 @@ pub(super) enum InnerError {
         origin: ReplicaId,
     },
     /// A replica's (the given receiver) attempt to validate a CheckpointCertificate
+    /// from the given origin failed since not all checkpoint messages agree on
+    /// the same counter of the latest accepted prepare.
+    #[error("replica's ({receiver:?}) validation of the checkpoint certificate from {origin:?} failed since not all checkpoint messages agree on the same counter of the latest accepted Prepare")]
+    CheckpointCertNotAllSameLatestPrep {
+        receiver: ReplicaId,
+        origin: ReplicaId,
+    },
+    /// A replica's (the given receiver) attempt to validate a CheckpointCertificate
     /// from the given origin failed since it not all checkpoint messages originate from a different replica.
     #[error("replica's ({receiver:?}) validation of the checkpoint certificate from {origin:?} failed since not all checkpoint messages originate from a different replica")]
     CheckpointCertNotAllDifferentOrigin {
@@ -223,6 +231,9 @@ impl From<InnerError> for Error {
                 Error::CheckpointCert { receiver, origin }
             }
             InnerError::CheckpointCertNotAllSameStateHash { receiver, origin } => {
+                Error::CheckpointCert { receiver, origin }
+            }
+            InnerError::CheckpointCertNotAllSameLatestPrep { receiver, origin } => {
                 Error::CheckpointCert { receiver, origin }
             }
             InnerError::CheckpointCertNotAllDifferentOrigin { receiver, origin } => {
