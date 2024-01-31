@@ -108,22 +108,28 @@ impl<Sig: Serialize> Checkpoint<Sig> {
     }
 }
 
-/// The (stable) certificate containing a set of valid messages of type [Checkpoint].
-/// The certificate must contain at least t + 1 [Checkpoint]s (for further explanation regarding t, see [crate::Config]).
-/// They have to originate from different replicas.
-/// Aditionally, they have to share the same [CheckpointHash] and [Count].
-/// See above for further explanation regarding the struct fields.
+/// The (stable) certificate containing a set of valid messages of type
+/// [Checkpoint].
+/// Following conditions must be met for the certificate to become stable:
+///     (1) The certificate must contain at least `t + 1` [Checkpoint]s
+///         (for further explanation regarding t, see [crate::Config]).
+///     (2) They have to originate from different replicas.
+///     (3) They have to share the same [CheckpointHash]
+///     (4) They have to share the same [Count].
+/// If a certificate does not (yet) meet all aforementioned conditions, it is
+/// refered to as non-stable until the conditions are met.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct CheckpointCertificate<Sig> {
     /// The message of type [Checkpoint] created by the replica itself.
     /// In its details, the struct differs from the paper.
-    /// Reason: We have to clear all messages from the replica's message_log
-    ///         that have a counter lower than the counter of its [Checkpoint].
+    /// Reason: We have to clear all messages from the replica's log of sent
+    ///         messages that have a counter lower than the counter of its
+    ///         [Checkpoint].
     ///         By saving at this stage the replica's own [Checkpoint],
-    ///         we can safely remove all no longer necessary messages.
-    ///         (counters from one replica are in no relation with counters from other replicas)
+    ///         we can safely remove all aforementioned messages.
     pub(crate) my_checkpoint: Checkpoint<Sig>,
-    /// All other messages of type [Checkpoint] apart from the replica's own [Checkpoint].
+    /// All other messages of type [Checkpoint] apart from the replica's own
+    /// [Checkpoint].
     pub(crate) other_checkpoints: Vec<Checkpoint<Sig>>,
 }
 
