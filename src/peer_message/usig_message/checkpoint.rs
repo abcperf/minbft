@@ -53,7 +53,7 @@ pub(crate) struct CheckpointContent {
 }
 
 impl AsRef<ReplicaId> for CheckpointContent {
-    /// Referencing CheckpointContent returns a reference to the origin in the CheckpointContent.
+    /// Referencing [CheckpointContent] returns a reference to the origin in the CheckpointContent.
     fn as_ref(&self) -> &ReplicaId {
         &self.origin
     }
@@ -70,11 +70,10 @@ impl UsigSignable for CheckpointContent {
 
 /// The message of type [Checkpoint].
 /// [Checkpoint]s consist of their content and must be signed by a USIG.
-/// Such a message is broadcast by a replica in response to having accepted a sufficient amount of client requests
-/// (for further explanation, see [crate::Config], [crate::request_processor::RequestProcessor]).
+/// Such a message is broadcast by a replica in response to having accepted a
+/// sufficient amount of client requests (for further explanation, refer to
+/// [crate::Config], [crate::request_processor::RequestProcessor]).
 /// [Checkpoint]s can and should be validated.
-/// For further explanation regarding the content of the module including [Checkpoint], see the documentation of the module itself.
-/// For further explanation regarding the use of [Checkpoint]s, see the documentation of [crate::MinBft].
 pub(crate) type Checkpoint<Sig> = UsigSigned<CheckpointContent, Sig>;
 
 impl<Sig: Serialize> Checkpoint<Sig> {
