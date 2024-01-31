@@ -11,13 +11,16 @@ use std::{
 use shared_ids::ReplicaId;
 use usig::{
     noop::{Signature, UsigNoOp},
-    Usig,
+    Count, Usig,
 };
 
 use crate::{
     client_request::{self, RequestBatch},
     output::TimeoutRequest,
-    peer_message::usig_message::view_peer_message::commit::{Commit, CommitContent},
+    peer_message::usig_message::{
+        checkpoint::{Checkpoint, CheckpointContent},
+        view_peer_message::commit::{Commit, CommitContent},
+    },
     timeout::StopClass,
     Config, MinBft, Output, RequestPayload, ValidatedPeerMessage, View,
 };
@@ -369,4 +372,22 @@ pub(crate) fn add_attestations(mut usigs: Vec<(ReplicaId, &mut UsigNoOp)>) {
             usigs[i].1.add_remote_party(peer_id, ());
         }
     }
+}
+
+/// Creates a default [Checkpoint] with the provided [ReplicaId] as origin.
+///
+/// # Arguments
+///
+/// * `origin` - The ID of the replica to which the [Checkpoint] belongs to.
+pub(crate) fn create_default_checkpoint(origin: ReplicaId) -> Checkpoint<Signature> {
+    Checkpoint::sign(
+        CheckpointContent {
+            origin,
+            state_hash: [0; 64],
+            counter_latest_prep: Count(0),
+            total_amount_accepted_batches: 0,
+        },
+        &mut UsigNoOp::default(),
+    )
+    .unwrap()
 }

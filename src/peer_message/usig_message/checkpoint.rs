@@ -236,27 +236,11 @@ mod test {
     use std::{num::NonZeroU64, time::Duration};
 
     use shared_ids::{AnyId, ReplicaId};
-    use usig::{
-        noop::{Signature, UsigNoOp},
-        Count, Usig,
-    };
+    use usig::{noop::UsigNoOp, Count, Usig};
 
-    use crate::Config;
+    use crate::{tests::create_default_checkpoint, Config};
 
-    use super::{Checkpoint, CheckpointCertificate, CheckpointContent};
-
-    fn create_default_checkpoint(origin: ReplicaId) -> Checkpoint<Signature> {
-        Checkpoint::sign(
-            CheckpointContent {
-                origin,
-                state_hash: [0; 64],
-                counter_latest_prep: Count(0),
-                total_amount_accepted_batches: 0,
-            },
-            &mut UsigNoOp::default(),
-        )
-        .unwrap()
-    }
+    use super::{Checkpoint, CheckpointCertificate};
 
     /// Tests if the validation of a [CheckpointCertificate], which does not
     /// contain a sufficient amount of [Checkpoint]s, results in an error.
