@@ -24,7 +24,7 @@ use anyhow::Result;
 use blake2::digest::Update;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use tracing::{debug, error, trace};
+use tracing::{error, trace};
 use usig::{Count, Usig};
 
 use crate::{error::InnerError, Config, ReplicaId};
@@ -112,10 +112,10 @@ impl<Sig: Serialize> Checkpoint<Sig> {
 /// [Checkpoint].
 /// Following conditions must be met for the certificate to become stable:
 ///     (1) The certificate must contain at least `t + 1` [Checkpoint]s
-///         (for further explanation regarding t, see [crate::Config]).
+///         (for further explanation regarding `t`, see [crate::Config]).
 ///     (2) They have to originate from different replicas.
 ///     (3) They have to share the same [CheckpointHash]
-///     (4) They have to share the same [Count].
+///     (4) They have to share the same counter of the latest accepted prepare.
 /// If a certificate does not (yet) meet all aforementioned conditions, it is
 /// refered to as non-stable until the conditions are met.
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -135,13 +135,23 @@ pub(crate) struct CheckpointCertificate<Sig> {
 
 impl<Sig: Serialize> CheckpointCertificate<Sig> {
     /// Validates the [CheckpointCertificate].
-    /// See below for the different steps regarding the validation.
+    /// Following conditions must be met for the certificate to be considered
+    /// valid:
+    ///     (1) The certificate must contain at least `t + 1` [Checkpoint]s
+    ///         (for further explanation regarding `t`, see [crate::Config]).
+    ///     (2) They have to originate from different replicas.
+    ///     (3) They have to share the same [CheckpointHash].
+    ///     (4) They have to share the same counter of the latest accepted
+    ///         prepare.
+    ///     (5) Their USIG signatures have to be valid.
     pub(crate) fn validate(
         &self,
         config: &Config,
         usig: &mut impl Usig<Signature = Sig>,
     ) -> Result<(), InnerError> {
-        debug!("Validating checkpoint certificate (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}) ...", self.my_checkpoint.origin, self.my_checkpoint.counter_latest_prep, self.my_checkpoint.total_amount_accepted_batches);
+        trace!("Validating checkpoint certificate (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}) ...", self.my_checkpoint.origin, self.my_checkpoint.counter_latest_prep, self.my_checkpoint.total_amount_accepted_batches);
+
+        // Check for condition (1).
         // Assures that the CheckpointCertificate contains at least t + 1 messages of type Checkpoint,
         // (one of them is implicitly the Checkpoint of the origin of the CheckpointCertificate).
         if (self.other_checkpoints.len() as u64) < config.t {
@@ -152,19 +162,7 @@ impl<Sig: Serialize> CheckpointCertificate<Sig> {
             });
         }
 
-        // Assures that the CheckpointHash of the messages of type Checkpoint
-        // are equal to the CheckpointHash of the replica's own Checkpoint
-        // (and are therefore all equal).
-        for other in &self.other_checkpoints {
-            if self.my_checkpoint.state_hash != other.state_hash {
-                error!("Failed validating checkpoint certificate (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}): Not all checkpoints contained in certificate have the same state hash. For further information see output.", self.my_checkpoint.origin, self.my_checkpoint.counter_latest_prep, self.my_checkpoint.total_amount_accepted_batches);
-                return Err(InnerError::CheckpointCertNotAllSameStateHash {
-                    receiver: config.id,
-                    origin: self.my_checkpoint.origin,
-                });
-            }
-        }
-
+        // Check for condition (2).
         // Assures that all Checkpoints originate from different replicas.
         let mut origins = HashSet::new();
         origins.insert(self.my_checkpoint.origin);
@@ -178,8 +176,47 @@ impl<Sig: Serialize> CheckpointCertificate<Sig> {
             }
         }
 
+        // Check for condition (3).
+        // Assures that the CheckpointHash of the messages of type Checkpoint
+        // is equal to the CheckpointHash of the replica's own Checkpoint
+        // (and are therefore all equal).
+        for other in &self.other_checkpoints {
+            if self.my_checkpoint.state_hash != other.state_hash {
+                error!(
+                    "Failed validating checkpoint certificate ({0}): Not all 
+                checkpoints contained in certificate agree on the same state 
+                hash. For further information see output.",
+                    self.my_checkpoint
+                );
+                return Err(InnerError::CheckpointCertNotAllSameStateHash {
+                    receiver: config.id,
+                    origin: self.my_checkpoint.origin,
+                });
+            }
+        }
+
+        // Check for condition (4).
+        // Assures that the all checkpoints agree on the counter of the latest
+        // accepted prepare.
+        for other in &self.other_checkpoints {
+            if self.my_checkpoint.counter_latest_prep != other.counter_latest_prep {
+                error!(
+                    "Failed validating checkpoint certificate ({0}): Not all 
+                checkpoints contained in certificate agree on the same counter 
+                of the latest accepted prepare. For further information see 
+                output.",
+                    self.my_checkpoint
+                );
+                return Err(InnerError::CheckpointCertNotAllSameLatestPrep {
+                    receiver: config.id,
+                    origin: self.my_checkpoint.origin,
+                });
+            }
+        }
+
+        // Check for condition (5).
         // Assures the signatures of all Checkpoints are valid.
-        debug!("Validating checkpoints contained in certificate (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}) ...", self.my_checkpoint.origin, self.my_checkpoint.counter_latest_prep, self.my_checkpoint.total_amount_accepted_batches);
+        trace!("Validating checkpoints contained in certificate (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}) ...", self.my_checkpoint.origin, self.my_checkpoint.counter_latest_prep, self.my_checkpoint.total_amount_accepted_batches);
         self.my_checkpoint.validate(config, usig)?;
         for msg in &self.other_checkpoints {
             match msg.validate(config, usig) {
@@ -187,8 +224,8 @@ impl<Sig: Serialize> CheckpointCertificate<Sig> {
                 Err(e) => return Err(e),
             }
         }
-        debug!("Successfully validated checkpoints contained in certificate (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}).", self.my_checkpoint.origin, self.my_checkpoint.counter_latest_prep, self.my_checkpoint.total_amount_accepted_batches);
-        debug!("Successfully validated checkpoint certificate (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}).", self.my_checkpoint.origin, self.my_checkpoint.counter_latest_prep, self.my_checkpoint.total_amount_accepted_batches);
+        trace!("Successfully validated checkpoints contained in certificate (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}).", self.my_checkpoint.origin, self.my_checkpoint.counter_latest_prep, self.my_checkpoint.total_amount_accepted_batches);
+        trace!("Successfully validated checkpoint certificate (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}).", self.my_checkpoint.origin, self.my_checkpoint.counter_latest_prep, self.my_checkpoint.total_amount_accepted_batches);
         Ok(())
     }
 }
