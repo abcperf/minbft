@@ -32,21 +32,23 @@ use super::signed::{UsigSignable, UsigSigned};
 
 pub(crate) type CheckpointHash = [u8; 64];
 
-/// The content of a message of type Checkpoint.
-/// The hash of the state of the Checkpoint is needed.
-/// Furthermore, the origin that created the Checkpoint is necessary.
+/// The content of a message of type [Checkpoint].
+/// Consists of the hash of the state of the [crate::MinBft].
+/// Furthermore, the origin that created the [Checkpoint] is necessary.
 #[serde_as]
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct CheckpointContent {
-    /// Used for keeping track of which replica created the message of type Checkpoint.
+    /// Used for keeping track of which replica created the message of type
+    /// Checkpoint.
     pub(crate) origin: ReplicaId,
-    /// The counter of the most recently accepted Prepare.
+    /// The counter of the most recently accepted [Prepare].
     pub(crate) counter_latest_prep: Count,
-    /// The hash of the MinBft's state.
+    /// The hash of the [crate::MinBft]'s state.
     /// All replicas must have equal state.
     #[serde_as(as = "serde_with::Bytes")]
     pub(crate) state_hash: CheckpointHash,
-    /// Keeps count of the total amount of accepted batches until this Checkpoint.
+    /// Keeps count of the total amount of accepted batches until this
+    /// [Checkpoint].
     pub(crate) total_amount_accepted_batches: u64,
 }
 
