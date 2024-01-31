@@ -17,13 +17,14 @@
 //! For further explanation, refer to the documentation in [crate::MinBft] or
 //! the paper "Efficient Byzantine Fault-Tolerance" by Veronese et al.
 
+use core::fmt;
 use std::collections::HashSet;
 
 use anyhow::Result;
 use blake2::digest::Update;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use tracing::{debug, error};
+use tracing::{debug, error, trace};
 use usig::{Count, Usig};
 
 use crate::{error::InnerError, Config, ReplicaId};
@@ -76,6 +77,16 @@ impl UsigSignable for CheckpointContent {
 /// [Checkpoint]s can and should be validated.
 pub(crate) type Checkpoint<Sig> = UsigSigned<CheckpointContent, Sig>;
 
+impl<Sig> fmt::Display for Checkpoint<Sig> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "(origin: {0}, counter of latest prepare: {1}, total amount accepted batches: {2})",
+            self.origin, self.counter_latest_prep, self.total_amount_accepted_batches
+        )
+    }
+}
+
 impl<Sig: Serialize> Checkpoint<Sig> {
     /// Validates a message of type [Checkpoint].
     /// The signature of the [Checkpoint] must be verified.
@@ -84,14 +95,14 @@ impl<Sig: Serialize> Checkpoint<Sig> {
         config: &Config,
         usig: &mut impl Usig<Signature = Sig>,
     ) -> Result<(), InnerError> {
-        debug!("Validating Checkpoint (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}) ...", self.origin, self.counter_latest_prep, self.total_amount_accepted_batches);
-        debug!("Verifying signature of Checkpoint (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}) ...", self.origin, self.counter_latest_prep, self.total_amount_accepted_batches);
+        trace!("Validating Checkpoint (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}) ...", self.origin, self.counter_latest_prep, self.total_amount_accepted_batches);
+        trace!("Verifying signature of Checkpoint (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}) ...", self.origin, self.counter_latest_prep, self.total_amount_accepted_batches);
         self.verify(usig).map_or_else(|usig_error| {
             error!("Failed validating Checkpoint (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}): Verification of the signature failed.", self.origin, self.counter_latest_prep, self.total_amount_accepted_batches);
             Err(InnerError::parse_usig_error(usig_error, config.id, "Checkpoint", self.origin))
         }, |v| {
-            debug!("Successfully verified signature of Checkpoint (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}).", self.origin, self.counter_latest_prep, self.total_amount_accepted_batches);
-            debug!("Successfully validated Checkpoint (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}) ...", self.origin, self.counter_latest_prep, self.total_amount_accepted_batches);
+            trace!("Successfully verified signature of Checkpoint (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}).", self.origin, self.counter_latest_prep, self.total_amount_accepted_batches);
+            trace!("Successfully validated Checkpoint (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}) ...", self.origin, self.counter_latest_prep, self.total_amount_accepted_batches);
             Ok(v)
         })
     }
