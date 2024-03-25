@@ -177,9 +177,7 @@ where
                     // After the new View sends and receives the message of type NewView,
                     // it sends Prepares for the client requests that had not yet been accepted by the previous View.
                     for (_, req) in self.request_processor.currently_processing_all() {
-                        if !requests_to_batch.iter().any(|e| e.id() == req.id()) {
-                            requests_to_batch.push(req.clone());
-                        }
+                        requests_to_batch.push(req.clone());
                     }
 
                     // Send Prepares in a batch.
