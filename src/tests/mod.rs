@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use rand::Rng;
+use rand::{distributions::Uniform, Rng};
 use serde::{Deserialize, Serialize};
 use shared_ids::{AnyId, ClientId, RequestId};
 use std::{
@@ -18,7 +18,7 @@ use crate::{
     client_request::{self, RequestBatch},
     output::TimeoutRequest,
     peer_message::usig_message::{
-        checkpoint::{Checkpoint, CheckpointContent},
+        checkpoint::{Checkpoint, CheckpointContent, CheckpointHash},
         view_peer_message::commit::{Commit, CommitContent},
     },
     timeout::StopClass,
@@ -390,4 +390,12 @@ pub(crate) fn create_default_checkpoint(origin: ReplicaId) -> Checkpoint<Signatu
         &mut UsigNoOp::default(),
     )
     .unwrap()
+}
+
+pub(crate) fn create_random_state_hash() -> CheckpointHash {
+    let mut rng = rand::thread_rng();
+    let range = Uniform::<u8>::new(0, 255);
+
+    let vals: Vec<u8> = (0..64).map(|_| rng.sample(range)).collect();
+    vals.try_into().unwrap()
 }
