@@ -42,7 +42,7 @@ pub(crate) struct CheckpointContent {
     /// Used for keeping track of which replica created the message of type
     /// Checkpoint.
     pub(crate) origin: ReplicaId,
-    /// The counter of the most recently accepted [Prepare].
+    /// The counter of the most recently accepted [crate::Prepare].
     pub(crate) counter_latest_prep: Count,
     /// The hash of the [crate::MinBft]'s state.
     /// All replicas must have equal state.
@@ -54,7 +54,8 @@ pub(crate) struct CheckpointContent {
 }
 
 impl AsRef<ReplicaId> for CheckpointContent {
-    /// Referencing [CheckpointContent] returns a reference to the origin in the CheckpointContent.
+    /// Referencing [CheckpointContent] returns a reference to the origin in the
+    /// CheckpointContent.
     fn as_ref(&self) -> &ReplicaId {
         &self.origin
     }
@@ -81,30 +82,75 @@ impl<Sig> fmt::Display for Checkpoint<Sig> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "(origin: {0}, counter of latest prepare: {1}, total amount accepted batches: {2})",
-            self.origin, self.counter_latest_prep, self.total_amount_accepted_batches
+            "(origin: {0}, counter of latest prepare: {1}, total amount accepted 
+            batches: {2})",
+            self.origin, self.counter_latest_prep.0, self.total_amount_accepted_batches
         )
     }
 }
 
 impl<Sig: Serialize> Checkpoint<Sig> {
     /// Validates a message of type [Checkpoint].
-    /// The signature of the [Checkpoint] must be verified.
+    /// To validate it, its USIG signature must be verified.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - The [Config] of the algorithm.
+    /// * `usig` - The [USIG] signature that should be a valid one for the
+    ///            [Checkpoint] message.
     pub(crate) fn validate(
         &self,
         config: &Config,
         usig: &mut impl Usig<Signature = Sig>,
     ) -> Result<(), InnerError> {
-        trace!("Validating Checkpoint (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}) ...", self.origin, self.counter_latest_prep, self.total_amount_accepted_batches);
-        trace!("Verifying signature of Checkpoint (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}) ...", self.origin, self.counter_latest_prep, self.total_amount_accepted_batches);
-        self.verify(usig).map_or_else(|usig_error| {
-            error!("Failed validating Checkpoint (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}): Verification of the signature failed.", self.origin, self.counter_latest_prep, self.total_amount_accepted_batches);
-            Err(InnerError::parse_usig_error(usig_error, config.id, "Checkpoint", self.origin))
-        }, |v| {
-            trace!("Successfully verified signature of Checkpoint (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}).", self.origin, self.counter_latest_prep, self.total_amount_accepted_batches);
-            trace!("Successfully validated Checkpoint (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}) ...", self.origin, self.counter_latest_prep, self.total_amount_accepted_batches);
-            Ok(v)
-        })
+        trace!(
+            "Validating Checkpoint (origin: {:?}, counter of latest accepted 
+            Prepare: {:?}, amount accepted batches: {:?}) ...",
+            self.origin,
+            self.counter_latest_prep,
+            self.total_amount_accepted_batches
+        );
+        trace!(
+            "Verifying signature of Checkpoint (origin: {:?}, counter of 
+            latest accepted Prepare: {:?}, amount accepted batches: {:?}) ...",
+            self.origin,
+            self.counter_latest_prep,
+            self.total_amount_accepted_batches
+        );
+        self.verify(usig).map_or_else(
+            |usig_error| {
+                error!(
+                    "Failed validating Checkpoint (origin: {:?}, counter of 
+                latest accepted Prepare: {:?}, amount accepted batches: {:?}): 
+                Verification of the signature failed.",
+                    self.origin, self.counter_latest_prep, self.total_amount_accepted_batches
+                );
+                Err(InnerError::parse_usig_error(
+                    usig_error,
+                    config.id,
+                    "Checkpoint",
+                    self.origin,
+                ))
+            },
+            |v| {
+                trace!(
+                    "Successfully verified signature of Checkpoint (origin: {:?}, 
+                counter of latest accepted Prepare: {:?}, amount accepted 
+                batches: {:?}).",
+                    self.origin,
+                    self.counter_latest_prep,
+                    self.total_amount_accepted_batches
+                );
+                trace!(
+                    "Successfully validated Checkpoint (origin: {:?}, counter of 
+                latest accepted Prepare: {:?}, amount accepted batches: {:?}) ...",
+                    self.origin,
+                    self.counter_latest_prep,
+                    self.total_amount_accepted_batches
+                );
+                Ok(v)
+            },
+        )
     }
 }
 
@@ -114,8 +160,8 @@ impl<Sig: Serialize> Checkpoint<Sig> {
 ///     (1) The certificate must contain at least `t + 1` [Checkpoint]s
 ///         (for further explanation regarding `t`, see [crate::Config]).
 ///     (2) They have to originate from different replicas.
-///     (3) They have to share the same [CheckpointHash]
-///     (4) They have to share the same counter of the latest accepted prepare.
+///     (3) They have to share the same [CheckpointHash].
+///     (4) They have to share the same counter of the latest accepted [crate::Prepare].
 /// If a certificate does not (yet) meet all aforementioned conditions, it is
 /// refered to as non-stable until the conditions are met.
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -144,18 +190,39 @@ impl<Sig: Serialize> CheckpointCertificate<Sig> {
     ///     (4) They have to share the same counter of the latest accepted
     ///         prepare.
     ///     (5) Their USIG signatures have to be valid.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - The [Config] of the algorithm.
+    /// * `usig` - The [USIG] signature that should be a valid one for the
+    ///            [Checkpoint] messages.
     pub(crate) fn validate(
         &self,
         config: &Config,
         usig: &mut impl Usig<Signature = Sig>,
     ) -> Result<(), InnerError> {
-        trace!("Validating checkpoint certificate (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}) ...", self.my_checkpoint.origin, self.my_checkpoint.counter_latest_prep, self.my_checkpoint.total_amount_accepted_batches);
+        trace!(
+            "Validating checkpoint certificate (origin: {:?}, counter of 
+            latest accepted Prepare: {:?}, amount accepted batches: {:?}) ...",
+            self.my_checkpoint.origin,
+            self.my_checkpoint.counter_latest_prep,
+            self.my_checkpoint.total_amount_accepted_batches
+        );
 
         // Check for condition (1).
-        // Assures that the CheckpointCertificate contains at least t + 1 messages of type Checkpoint,
-        // (one of them is implicitly the Checkpoint of the origin of the CheckpointCertificate).
+        // Assures that the CheckpointCertificate contains at least `t + 1`
+        // messages of type Checkpoint, (one of them is implicitly the
+        // Checkpoint of the origin of the CheckpointCertificate).
         if (self.other_checkpoints.len() as u64) < config.t {
-            error!("Failed validating checkpoint certificate (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}): Checkpoint certificate does not contain sufficient checkpoints. For further information see output.", self.my_checkpoint.origin, self.my_checkpoint.counter_latest_prep, self.my_checkpoint.total_amount_accepted_batches);
+            error!(
+                "Failed validating checkpoint certificate (origin: {:?}, 
+                counter of latest accepted Prepare: {:?}, amount accepted 
+                batches: {:?}): Checkpoint certificate does not contain 
+                sufficient checkpoints. For further information see output.",
+                self.my_checkpoint.origin,
+                self.my_checkpoint.counter_latest_prep,
+                self.my_checkpoint.total_amount_accepted_batches
+            );
             return Err(InnerError::CheckpointCertNotSufficientMsgs {
                 receiver: config.id,
                 origin: self.my_checkpoint.origin,
@@ -168,7 +235,16 @@ impl<Sig: Serialize> CheckpointCertificate<Sig> {
         origins.insert(self.my_checkpoint.origin);
         for msg in &self.other_checkpoints {
             if !origins.insert(msg.origin) {
-                error!("Failed validating checkpoint certificate (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}): Not all checkpoints contained in certificate originate from different replicas. For further information see output.", self.my_checkpoint.origin, self.my_checkpoint.counter_latest_prep, self.my_checkpoint.total_amount_accepted_batches);
+                error!(
+                    "Failed validating checkpoint certificate (origin: {:?}, 
+                    counter of latest accepted Prepare: {:?}, amount accepted 
+                    batches: {:?}): Not all checkpoints contained in certificate 
+                    originate from different replicas. For further information 
+                    see output.",
+                    self.my_checkpoint.origin,
+                    self.my_checkpoint.counter_latest_prep,
+                    self.my_checkpoint.total_amount_accepted_batches
+                );
                 return Err(InnerError::CheckpointCertNotAllDifferentOrigin {
                     receiver: config.id,
                     origin: self.my_checkpoint.origin,
@@ -216,7 +292,13 @@ impl<Sig: Serialize> CheckpointCertificate<Sig> {
 
         // Check for condition (5).
         // Assures the signatures of all Checkpoints are valid.
-        trace!("Validating checkpoints contained in certificate (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}) ...", self.my_checkpoint.origin, self.my_checkpoint.counter_latest_prep, self.my_checkpoint.total_amount_accepted_batches);
+        trace!(
+            "Validating checkpoints contained in certificate (origin: {:?}, 
+            counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}) ...",
+            self.my_checkpoint.origin,
+            self.my_checkpoint.counter_latest_prep,
+            self.my_checkpoint.total_amount_accepted_batches
+        );
         self.my_checkpoint.validate(config, usig)?;
         for msg in &self.other_checkpoints {
             match msg.validate(config, usig) {
@@ -224,8 +306,21 @@ impl<Sig: Serialize> CheckpointCertificate<Sig> {
                 Err(e) => return Err(e),
             }
         }
-        trace!("Successfully validated checkpoints contained in certificate (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}).", self.my_checkpoint.origin, self.my_checkpoint.counter_latest_prep, self.my_checkpoint.total_amount_accepted_batches);
-        trace!("Successfully validated checkpoint certificate (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}).", self.my_checkpoint.origin, self.my_checkpoint.counter_latest_prep, self.my_checkpoint.total_amount_accepted_batches);
+        trace!(
+            "Successfully validated checkpoints contained in certificate 
+        (origin: {:?}, counter of latest accepted Prepare: {:?}, amount accepted 
+            batches: {:?}).",
+            self.my_checkpoint.origin,
+            self.my_checkpoint.counter_latest_prep,
+            self.my_checkpoint.total_amount_accepted_batches
+        );
+        trace!(
+            "Successfully validated checkpoint certificate (origin: {:?}, 
+            counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}).",
+            self.my_checkpoint.origin,
+            self.my_checkpoint.counter_latest_prep,
+            self.my_checkpoint.total_amount_accepted_batches
+        );
         Ok(())
     }
 }
@@ -235,10 +330,15 @@ impl<Sig: Serialize> CheckpointCertificate<Sig> {
 mod test {
     use std::{num::NonZeroU64, time::Duration};
 
+    use rand::Rng;
     use shared_ids::{AnyId, ReplicaId};
     use usig::{noop::UsigNoOp, Count, Usig};
 
-    use crate::{tests::create_default_checkpoint, Config};
+    use crate::{
+        error::InnerError,
+        tests::{create_default_checkpoint, create_random_state_hash},
+        Config,
+    };
 
     use super::{Checkpoint, CheckpointCertificate};
 
@@ -248,12 +348,18 @@ mod test {
     fn validate_cert_not_enough_msgs() {
         let mut usig_0 = UsigNoOp::default();
 
+        let mut rng = rand::thread_rng();
+        let rand_counter_last_prep: u64 = rng.gen();
+        let rand_total_accepted_batches: u64 = rng.gen();
+
+        let state_hash = create_random_state_hash();
+
         let my_checkpoint = Checkpoint::sign(
             super::CheckpointContent {
                 origin: ReplicaId::from_u64(0),
-                state_hash: [0; 64],
-                counter_latest_prep: Count(0),
-                total_amount_accepted_batches: 0,
+                state_hash,
+                counter_latest_prep: Count(rand_counter_last_prep),
+                total_amount_accepted_batches: rand_total_accepted_batches,
             },
             &mut usig_0,
         )
@@ -269,9 +375,9 @@ mod test {
         let other_checkpoint = Checkpoint::sign(
             super::CheckpointContent {
                 origin: ReplicaId::from_u64(1),
-                state_hash: [0; 64],
-                counter_latest_prep: Count(0),
-                total_amount_accepted_batches: 0,
+                state_hash,
+                counter_latest_prep: Count(rand_counter_last_prep),
+                total_amount_accepted_batches: rand_total_accepted_batches,
             },
             &mut usig_1,
         )
@@ -279,10 +385,20 @@ mod test {
 
         let other_checkpoints = vec![other_checkpoint];
 
-        let config = Config {
+        let config_origin = Config {
             n: NonZeroU64::new(5).unwrap(),
             t: 2,
             id: ReplicaId::from_u64(0),
+            batch_timeout: Duration::from_secs(2),
+            max_batch_size: None,
+            initial_timeout_duration: Duration::from_secs(2),
+            checkpoint_period: NonZeroU64::new(2).unwrap(),
+        };
+
+        let config_other = Config {
+            n: NonZeroU64::new(5).unwrap(),
+            t: 2,
+            id: ReplicaId::from_u64(1),
             batch_timeout: Duration::from_secs(2),
             max_batch_size: None,
             initial_timeout_duration: Duration::from_secs(2),
@@ -294,15 +410,21 @@ mod test {
             other_checkpoints,
         };
 
-        assert!(cert.validate(&config, &mut usig_0).is_err());
-        assert!(cert.validate(&config, &mut usig_1).is_err());
-        // assert!(matches!(
-        //     cert.validate(&config, &mut usig_1).err().unwrap(),
-        //     InnerError::CheckpointCertNotSufficientMsgs {
-        //         receiver: ReplicaId::from_u64(0),
-        //         origin: ReplicaId::from_u64(1),
-        //     },
-        // ));
+        assert!(cert.validate(&config_origin, &mut usig_0).is_err());
+
+        assert!(matches!(
+            cert.validate(&config_origin, &mut usig_0).err().unwrap(),
+            InnerError::CheckpointCertNotSufficientMsgs { receiver, origin }
+            if receiver == ReplicaId::from_u64(0) && origin == ReplicaId::from_u64(0),
+        ));
+
+        assert!(cert.validate(&config_other, &mut usig_1).is_err());
+
+        assert!(matches!(
+            cert.validate(&config_other, &mut usig_1).err().unwrap(),
+            InnerError::CheckpointCertNotSufficientMsgs { receiver, origin }
+            if receiver == ReplicaId::from_u64(1) && origin == ReplicaId::from_u64(0),
+        ));
     }
 
     /// Tests if the validation of a [CheckpointCertificate], in which all
@@ -311,12 +433,16 @@ mod test {
     fn validate_cert_not_all_same_state_hash() {
         let mut usig_0 = UsigNoOp::default();
 
+        let mut rng = rand::thread_rng();
+        let rand_counter_last_prep: u64 = rng.gen();
+        let rand_total_accepted_batches: u64 = rng.gen();
+
         let my_checkpoint = Checkpoint::sign(
             super::CheckpointContent {
                 origin: ReplicaId::from_u64(0),
                 state_hash: [0; 64],
-                counter_latest_prep: Count(0),
-                total_amount_accepted_batches: 0,
+                counter_latest_prep: Count(rand_counter_last_prep),
+                total_amount_accepted_batches: rand_total_accepted_batches,
             },
             &mut usig_0,
         )
@@ -333,8 +459,8 @@ mod test {
             super::CheckpointContent {
                 origin: ReplicaId::from_u64(1),
                 state_hash: [1; 64],
-                counter_latest_prep: Count(0),
-                total_amount_accepted_batches: 0,
+                counter_latest_prep: Count(rand_counter_last_prep),
+                total_amount_accepted_batches: rand_total_accepted_batches,
             },
             &mut usig_1,
         )
@@ -342,10 +468,20 @@ mod test {
 
         let other_checkpoints = vec![other_checkpoint];
 
-        let config = Config {
+        let config_origin = Config {
             n: NonZeroU64::new(3).unwrap(),
             t: 1,
             id: ReplicaId::from_u64(0),
+            batch_timeout: Duration::from_secs(2),
+            max_batch_size: None,
+            initial_timeout_duration: Duration::from_secs(2),
+            checkpoint_period: NonZeroU64::new(2).unwrap(),
+        };
+
+        let config_other = Config {
+            n: NonZeroU64::new(3).unwrap(),
+            t: 1,
+            id: ReplicaId::from_u64(1),
             batch_timeout: Duration::from_secs(2),
             max_batch_size: None,
             initial_timeout_duration: Duration::from_secs(2),
@@ -357,8 +493,21 @@ mod test {
             other_checkpoints,
         };
 
-        assert!(cert.validate(&config, &mut usig_0).is_err());
-        assert!(cert.validate(&config, &mut usig_1).is_err());
+        assert!(cert.validate(&config_origin, &mut usig_0).is_err());
+
+        assert!(matches!(
+            cert.validate(&config_origin, &mut usig_0).err().unwrap(),
+            InnerError::CheckpointCertNotAllSameStateHash { receiver, origin }
+            if receiver == ReplicaId::from_u64(0) && origin == ReplicaId::from_u64(0),
+        ));
+
+        assert!(cert.validate(&config_other, &mut usig_1).is_err());
+
+        assert!(matches!(
+            cert.validate(&config_other, &mut usig_1).err().unwrap(),
+            InnerError::CheckpointCertNotAllSameStateHash { receiver, origin }
+            if receiver == ReplicaId::from_u64(1) && origin == ReplicaId::from_u64(0),
+        ));
     }
 
     /// Tests if the validation of a [CheckpointCertificate], in which not all
@@ -367,12 +516,18 @@ mod test {
     fn validate_cert_not_all_different_origins() {
         let mut usig_0 = UsigNoOp::default();
 
+        let mut rng = rand::thread_rng();
+        let rand_counter_last_prep: u64 = rng.gen();
+        let rand_total_accepted_batches: u64 = rng.gen();
+
+        let state_hash = create_random_state_hash();
+
         let my_checkpoint = Checkpoint::sign(
             super::CheckpointContent {
                 origin: ReplicaId::from_u64(0),
-                state_hash: [0; 64],
-                counter_latest_prep: Count(0),
-                total_amount_accepted_batches: 0,
+                state_hash,
+                counter_latest_prep: Count(rand_counter_last_prep),
+                total_amount_accepted_batches: rand_total_accepted_batches,
             },
             &mut usig_0,
         )
@@ -388,9 +543,9 @@ mod test {
         let other_checkpoint = Checkpoint::sign(
             super::CheckpointContent {
                 origin: ReplicaId::from_u64(0),
-                state_hash: [0; 64],
-                counter_latest_prep: Count(0),
-                total_amount_accepted_batches: 0,
+                state_hash,
+                counter_latest_prep: Count(rand_counter_last_prep),
+                total_amount_accepted_batches: rand_total_accepted_batches,
             },
             &mut usig_1,
         )
@@ -414,7 +569,12 @@ mod test {
         };
 
         assert!(cert.validate(&config, &mut usig_0).is_err());
-        assert!(cert.validate(&config, &mut usig_1).is_err());
+
+        assert!(matches!(
+            cert.validate(&config, &mut usig_0).err().unwrap(),
+            InnerError::CheckpointCertNotAllDifferentOrigin { receiver, origin }
+            if receiver == ReplicaId::from_u64(0) && origin == ReplicaId::from_u64(0),
+        ));
     }
 
     /// Tests if the validation of a [CheckpointCertificate], in which not all
@@ -423,12 +583,18 @@ mod test {
     fn validate_cert_checkpoint_invalid_usig() {
         let mut usig_0 = UsigNoOp::default();
 
+        let mut rng = rand::thread_rng();
+        let rand_counter_last_prep: u64 = rng.gen();
+        let rand_total_accepted_batches: u64 = rng.gen();
+
+        let state_hash = create_random_state_hash();
+
         let my_checkpoint = Checkpoint::sign(
             super::CheckpointContent {
                 origin: ReplicaId::from_u64(0),
-                state_hash: [0; 64],
-                counter_latest_prep: Count(0),
-                total_amount_accepted_batches: 0,
+                state_hash,
+                counter_latest_prep: Count(rand_counter_last_prep),
+                total_amount_accepted_batches: rand_total_accepted_batches,
             },
             &mut usig_0,
         )
@@ -443,9 +609,9 @@ mod test {
         let other_checkpoint = Checkpoint::sign(
             super::CheckpointContent {
                 origin: ReplicaId::from_u64(1),
-                state_hash: [0; 64],
-                counter_latest_prep: Count(0),
-                total_amount_accepted_batches: 0,
+                state_hash,
+                counter_latest_prep: Count(rand_counter_last_prep),
+                total_amount_accepted_batches: rand_total_accepted_batches,
             },
             &mut usig_1,
         )
@@ -453,7 +619,17 @@ mod test {
 
         let other_checkpoints = vec![other_checkpoint];
 
-        let config = Config {
+        let config_origin = Config {
+            n: NonZeroU64::new(3).unwrap(),
+            t: 1,
+            id: ReplicaId::from_u64(0),
+            batch_timeout: Duration::from_secs(2),
+            max_batch_size: None,
+            initial_timeout_duration: Duration::from_secs(2),
+            checkpoint_period: NonZeroU64::new(2).unwrap(),
+        };
+
+        let config_other = Config {
             n: NonZeroU64::new(3).unwrap(),
             t: 1,
             id: ReplicaId::from_u64(0),
@@ -468,21 +644,36 @@ mod test {
             other_checkpoints,
         };
 
-        assert!(cert.validate(&config, &mut usig_0).is_ok());
-        assert!(cert.validate(&config, &mut usig_1).is_err());
+        assert!(cert.validate(&config_origin, &mut usig_0).is_ok());
+
+        assert!(cert.validate(&config_other, &mut usig_1).is_err());
+
+        // TODO: Is this expected?
+        // assert!(matches!(
+        //     cert.validate(&config_other, &mut usig_1).err().unwrap(),
+        //     InnerError::Usig { usig_error: _, replica, msg_type, origin }
+        //     if replica == ReplicaId::from_u64(1) && origin == ReplicaId::from_u64(0) && msg_type == "Checkpoint",
+        // ));
     }
 
-    /// Tests if the validation of a valid [CheckpointCertificate] succeeds.
+    /// Tests if the validation of a [CheckpointCertificate], in which not all
+    /// [Checkpoint]s contain the same counter of the last Prepare, results in
+    /// an error.
     #[test]
-    fn validate_cert_valid() {
+    fn validate_cert_checkpoint_invalid_latest_prep() {
         let mut usig_0 = UsigNoOp::default();
+
+        let mut rng = rand::thread_rng();
+        let rand_total_accepted_batches: u64 = rng.gen();
+
+        let state_hash = create_random_state_hash();
 
         let my_checkpoint = Checkpoint::sign(
             super::CheckpointContent {
                 origin: ReplicaId::from_u64(0),
-                state_hash: [0; 64],
+                state_hash,
                 counter_latest_prep: Count(0),
-                total_amount_accepted_batches: 0,
+                total_amount_accepted_batches: rand_total_accepted_batches,
             },
             &mut usig_0,
         )
@@ -498,9 +689,93 @@ mod test {
         let other_checkpoint = Checkpoint::sign(
             super::CheckpointContent {
                 origin: ReplicaId::from_u64(1),
-                state_hash: [0; 64],
-                counter_latest_prep: Count(0),
-                total_amount_accepted_batches: 0,
+                state_hash,
+                counter_latest_prep: Count(1),
+                total_amount_accepted_batches: rand_total_accepted_batches,
+            },
+            &mut usig_1,
+        )
+        .unwrap();
+
+        let other_checkpoints = vec![other_checkpoint];
+
+        let config_origin = Config {
+            n: NonZeroU64::new(3).unwrap(),
+            t: 1,
+            id: ReplicaId::from_u64(0),
+            batch_timeout: Duration::from_secs(2),
+            max_batch_size: None,
+            initial_timeout_duration: Duration::from_secs(2),
+            checkpoint_period: NonZeroU64::new(2).unwrap(),
+        };
+
+        let config_other = Config {
+            n: NonZeroU64::new(3).unwrap(),
+            t: 1,
+            id: ReplicaId::from_u64(1),
+            batch_timeout: Duration::from_secs(2),
+            max_batch_size: None,
+            initial_timeout_duration: Duration::from_secs(2),
+            checkpoint_period: NonZeroU64::new(2).unwrap(),
+        };
+
+        let cert = CheckpointCertificate {
+            my_checkpoint,
+            other_checkpoints,
+        };
+
+        assert!(cert.validate(&config_origin, &mut usig_0).is_err());
+
+        assert!(matches!(
+            cert.validate(&config_origin, &mut usig_0).err().unwrap(),
+            InnerError::CheckpointCertNotAllSameLatestPrep { receiver, origin }
+            if receiver == ReplicaId::from_u64(0) && origin == ReplicaId::from_u64(0),
+        ));
+
+        assert!(cert.validate(&config_other, &mut usig_1).is_err());
+
+        assert!(matches!(
+            cert.validate(&config_other, &mut usig_1).err().unwrap(),
+            InnerError::CheckpointCertNotAllSameLatestPrep { receiver, origin }
+            if receiver == ReplicaId::from_u64(1) && origin == ReplicaId::from_u64(0),
+        ));
+    }
+
+    /// Tests if the validation of a valid [CheckpointCertificate] succeeds.
+    #[test]
+    fn validate_cert_valid() {
+        let mut usig_0 = UsigNoOp::default();
+
+        let mut rng = rand::thread_rng();
+        let rand_counter_last_prep: u64 = rng.gen();
+        let rand_total_accepted_batches: u64 = rng.gen();
+
+        let state_hash = create_random_state_hash();
+
+        let my_checkpoint = Checkpoint::sign(
+            super::CheckpointContent {
+                origin: ReplicaId::from_u64(0),
+                state_hash,
+                counter_latest_prep: Count(rand_counter_last_prep),
+                total_amount_accepted_batches: rand_total_accepted_batches,
+            },
+            &mut usig_0,
+        )
+        .unwrap();
+
+        let mut usig_1 = UsigNoOp::default();
+
+        usig_0.add_remote_party(ReplicaId::from_u64(0), ());
+        usig_0.add_remote_party(ReplicaId::from_u64(1), ());
+        usig_1.add_remote_party(ReplicaId::from_u64(0), ());
+        usig_1.add_remote_party(ReplicaId::from_u64(1), ());
+
+        let other_checkpoint = Checkpoint::sign(
+            super::CheckpointContent {
+                origin: ReplicaId::from_u64(1),
+                state_hash,
+                counter_latest_prep: Count(rand_counter_last_prep),
+                total_amount_accepted_batches: rand_total_accepted_batches,
             },
             &mut usig_1,
         )
@@ -527,8 +802,8 @@ mod test {
         assert!(cert.validate(&config, &mut usig_1).is_ok());
     }
 
-    /// Tests if the reference of a [ViewPeerMessage] that wraps a [Prepare]
-    /// corresponds to the reference of the underlying [Prepare].
+    /// Tests if the reference of a [ViewPeerMessage] that wraps a [crate::Prepare]
+    /// corresponds to the reference of the underlying [crate::Prepare].
     #[test]
     fn ref_returns_origin_ref() {
         let origin = ReplicaId::from_u64(0);
