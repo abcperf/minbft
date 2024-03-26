@@ -73,6 +73,12 @@ impl<P: RequestPayload, Sig: Serialize> ViewPeerMessage<P, Sig> {
     /// Validates the [ViewPeerMessage].
     /// Essentially, the inner type of the [ViewPeerMessage] is validated.
     /// An [InnerError] is returned when the validation is unsuccessful.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - The [Config] of the algorithm.
+    /// * `usig` - The USIG signature that should be a valid one for this
+    ///            [ViewPeerMessage].
     pub(crate) fn validate(
         &self,
         config: &Config,
