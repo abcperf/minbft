@@ -80,6 +80,12 @@ impl<P: RequestPayload, Sig: Serialize> Commit<P, Sig> {
     ///         the validation of [Prepare]s see the equally named function).
     ///     (3) Additionally, the USIG signature of the [Commit] must be
     ///         valid.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - The [Config] of the algorithm.
+    /// * `usig` - The USIG signature that should be a valid one for this
+    ///            [Commit] message.
     pub(crate) fn validate(
         &self,
         config: &Config,
