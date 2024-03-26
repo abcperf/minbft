@@ -106,7 +106,13 @@ impl<P: RequestPayload, Sig> Prepare<P, Sig> {
     ///     (2) The batch of requests to which the [Prepare] belongs to must be
     ///         valid.
     ///         In other words, each batched request must be valid.
-    ///     (3) Additionally, the signature of the [Prepare] must be verified.
+    ///     (3) Additionally, the signature of the [Prepare] must be verified.    ///
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - The [Config] of the algorithm.
+    /// * `usig` - The USIG signature that should be a valid one for this
+    ///            [Prepare] message.
     pub(crate) fn validate(
         &self,
         config: &Config,
