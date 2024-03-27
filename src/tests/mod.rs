@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use shared_ids::{AnyId, ClientId, RequestId};
 use std::{
     collections::HashMap,
+    marker::PhantomData,
     num::NonZeroU64,
     time::{Duration, Instant},
 };
@@ -19,6 +20,7 @@ use crate::{
     output::TimeoutRequest,
     peer_message::usig_message::{
         checkpoint::{Checkpoint, CheckpointContent, CheckpointHash},
+        view_change::{ViewChange, ViewChangeContent, ViewChangeVariantLog},
         view_peer_message::commit::{Commit, CommitContent},
     },
     timeout::StopClass,
@@ -392,10 +394,69 @@ pub(crate) fn create_default_checkpoint(origin: ReplicaId) -> Checkpoint<Signatu
     .unwrap()
 }
 
+/// Creates a random state hash for a [Checkpoint].
 pub(crate) fn create_random_state_hash() -> CheckpointHash {
     let mut rng = rand::thread_rng();
     let range = Uniform::<u8>::new(0, 255);
 
     let vals: Vec<u8> = (0..64).map(|_| rng.sample(range)).collect();
     vals.try_into().unwrap()
+}
+
+/// Returns a [ViewChange] with a default [Usig], no cert, and with an empty
+/// message log.
+///
+/// # Arguments
+///
+/// * `origin` - The ID of the replica to which the [ViewChange] belongs to.
+/// * `next_view` - The [View] to change to.
+pub(crate) fn create_view_change_no_cert_empty_log_default_usig(
+    origin: ReplicaId,
+    next_view: View,
+) -> ViewChange<DummyPayload, Signature> {
+    let variant = ViewChangeVariantLog {
+        message_log: vec![],
+    };
+
+    ViewChange::sign(
+        ViewChangeContent {
+            origin,
+            next_view,
+            checkpoint: None,
+            variant,
+            phantom_data: PhantomData,
+        },
+        &mut UsigNoOp::default(),
+    )
+    .unwrap()
+}
+
+/// Returns a [ViewChange] with the provided [Usig], no cert, and with an empty
+/// message log.
+///
+/// # Arguments
+///
+/// * `origin` - The ID of the replica to which the [ViewChange] belongs to.
+/// * `next_view` - The [View] to change to.
+/// * `usig` - The [Usig] to be used for signing the [ViewChange].
+pub(crate) fn create_view_change_no_cert_empty_log_with_usig(
+    origin: ReplicaId,
+    next_view: View,
+    usig: &mut impl Usig<Signature = Signature>,
+) -> ViewChange<DummyPayload, Signature> {
+    let variant = ViewChangeVariantLog {
+        message_log: vec![],
+    };
+
+    ViewChange::sign(
+        ViewChangeContent {
+            origin,
+            next_view,
+            checkpoint: None,
+            variant,
+            phantom_data: PhantomData,
+        },
+        usig,
+    )
+    .unwrap()
 }
