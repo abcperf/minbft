@@ -20,7 +20,7 @@ use anyhow::Result;
 use blake2::{digest::Update, Blake2b512, Digest};
 use serde::{Deserialize, Serialize};
 use shared_ids::AnyId;
-use tracing::{debug, error, trace};
+use tracing::{error, trace};
 use usig::{Count, Counter, Usig};
 
 use crate::{error::InnerError, Config, ReplicaId, RequestPayload, View};
