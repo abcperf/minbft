@@ -275,3 +275,72 @@ impl<P: RequestPayload, Sig: Counter + Serialize + Debug> ViewChange<P, Sig> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+
+mod test {
+    use rstest::rstest;
+    use usig::AnyId;
+
+    use std::marker::PhantomData;
+    use std::num::NonZeroU64;
+
+    use super::ViewChange;
+
+    use usig::{noop::UsigNoOp, ReplicaId};
+
+    use crate::{
+        peer_message::usig_message::view_change::{ViewChangeContent, ViewChangeVariantLog},
+        tests::{
+            add_attestations, create_checkpoint_cert_valid_n_3_t_1, create_config_default,
+            create_message_log_valid, get_random_view_with_max,
+        },
+        View,
+    };
+
+    #[rstest]
+    fn validate_valid_view_change(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let rep_0 = ReplicaId::from_u64(0);
+        let rep_1 = ReplicaId::from_u64(1);
+        let mut usig_0 = UsigNoOp::default();
+        let mut usig_1 = UsigNoOp::default();
+
+        // Add attestations.
+        let usigs = vec![(rep_0, &mut usig_0), (rep_1, &mut usig_1)];
+        add_attestations(usigs);
+
+        let next_view = get_random_view_with_max(View(n * 2 + 1)) + 1;
+        let prev_view = get_random_view_with_max(next_view);
+
+        let t = 1;
+
+        let checkpoint = Some(create_checkpoint_cert_valid_n_3_t_1(
+            rep_0,
+            &mut usig_0,
+            rep_1,
+            &mut usig_1,
+        ));
+
+        let message_log = create_message_log_valid(rep_0, prev_view, &mut usig_0);
+
+        let variant = ViewChangeVariantLog { message_log };
+
+        let view_change = ViewChange::sign(
+            ViewChangeContent {
+                origin: rep_0,
+                next_view,
+                checkpoint,
+                variant,
+                phantom_data: PhantomData,
+            },
+            &mut usig_0,
+        )
+        .unwrap();
+
+        // Create config.
+        let config = create_config_default(n_parsed, t, rep_0);
+
+        assert!(dbg!(view_change.validate(&config, &mut usig_0)).is_ok());
+    }
+}
