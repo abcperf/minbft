@@ -19,9 +19,15 @@ use crate::{
     client_request::{self, RequestBatch},
     output::TimeoutRequest,
     peer_message::usig_message::{
-        checkpoint::{Checkpoint, CheckpointContent, CheckpointHash},
-        view_change::{ViewChange, ViewChangeContent, ViewChangeVariantLog},
-        view_peer_message::commit::{Commit, CommitContent},
+        checkpoint::{Checkpoint, CheckpointCertificate, CheckpointContent, CheckpointHash},
+        view_change::{
+            ViewChange, ViewChangeContent, ViewChangeVariantLog, ViewChangeVariantNoLog,
+        },
+        view_peer_message::{
+            commit::{Commit, CommitContent},
+            ViewPeerMessage,
+        },
+        UsigMessageV,
     },
     timeout::StopClass,
     Config, MinBft, Output, RequestPayload, ValidatedPeerMessage, View,
@@ -326,6 +332,28 @@ pub(crate) fn create_random_valid_commit_with_usig(
     create_commit_with_usig(id_backup, prepare, usig)
 }
 
+/// Returns a random [ReplicaId].
+///
+/// # Arguments
+///
+/// * `n` - The amount of peers that communicate with each other.
+pub(crate) fn get_random_replica_id(n: NonZeroU64) -> ReplicaId {
+    let mut rng = rand::thread_rng();
+    let id: u64 = rng.gen_range(0..n.into());
+    ReplicaId::from_u64(id)
+}
+
+/// Returns a random [View] smaller than the one provided.
+///
+/// # Arguments
+///
+/// * `max_view` - The [View] that should be bigger than the one returned.
+pub(crate) fn get_random_view_with_max(max_view: View) -> View {
+    let mut rng = rand::thread_rng();
+    let view_nr: u64 = rng.gen_range(0..max_view.0);
+    View(view_nr)
+}
+
 /// Returns a random valid backup [ReplicaId].
 ///
 /// # Arguments
@@ -459,4 +487,90 @@ pub(crate) fn create_view_change_no_cert_empty_log_with_usig(
         usig,
     )
     .unwrap()
+}
+
+/// Returns a [ViewChange] with the provided [Usig], checkpoint certificate, and
+/// with an empty message log.
+///
+/// # Arguments
+///
+/// * `origin` - The ID of the replica to which the [ViewChange] belongs to.
+/// * `next_view` - The [View] to change to.
+/// * `checkpoint_cert` - The checkpoint certificate to set for the [ViewChange].
+/// * `message_log` - The message log to set for the [ViewChange].
+/// * `usig` - The [Usig] to be used for signing the [ViewChange].
+pub(crate) fn create_view_change_with_cert_log_and_usig(
+    origin: ReplicaId,
+    next_view: View,
+    checkpoint_cert: Option<CheckpointCertificate<Signature>>,
+    message_log: Vec<UsigMessageV<ViewChangeVariantNoLog, DummyPayload, Signature>>,
+    usig: &mut impl Usig<Signature = Signature>,
+) -> ViewChange<DummyPayload, Signature> {
+    ViewChange::sign(
+        ViewChangeContent {
+            origin,
+            next_view,
+            checkpoint: checkpoint_cert,
+            variant: ViewChangeVariantLog { message_log },
+            phantom_data: PhantomData,
+        },
+        usig,
+    )
+    .unwrap()
+}
+
+pub(crate) fn create_checkpoint_cert_valid_n_3_t_1(
+    rep_0: ReplicaId,
+    usig_0: &mut impl Usig<Signature = Signature>,
+    rep_1: ReplicaId,
+    usig_1: &mut impl Usig<Signature = Signature>,
+) -> CheckpointCertificate<Signature> {
+    let mut rng = rand::thread_rng();
+    let rand_counter_last_prep: u64 = rng.gen();
+    let rand_total_accepted_batches: u64 = rng.gen();
+
+    let state_hash = create_random_state_hash();
+
+    let my_checkpoint = Checkpoint::sign(
+        CheckpointContent {
+            origin: rep_0,
+            state_hash,
+            counter_latest_prep: Count(rand_counter_last_prep),
+            total_amount_accepted_batches: rand_total_accepted_batches,
+        },
+        usig_0,
+    )
+    .unwrap();
+
+    let other_checkpoint = Checkpoint::sign(
+        CheckpointContent {
+            origin: rep_1,
+            state_hash,
+            counter_latest_prep: Count(rand_counter_last_prep),
+            total_amount_accepted_batches: rand_total_accepted_batches,
+        },
+        usig_1,
+    )
+    .unwrap();
+
+    let other_checkpoints = vec![other_checkpoint];
+
+    CheckpointCertificate {
+        my_checkpoint,
+        other_checkpoints,
+    }
+}
+
+pub(crate) fn create_message_log_valid(
+    origin: ReplicaId,
+    prev_view: View,
+    usig: &mut impl Usig<Signature = Signature>,
+) -> Vec<UsigMessageV<ViewChangeVariantNoLog, DummyPayload, Signature>> {
+    let mut message_log = Vec::new();
+
+    let prep = create_prepare_with_usig(origin, prev_view, usig);
+
+    message_log.push(UsigMessageV::View(ViewPeerMessage::Prepare(prep)));
+
+    message_log
 }
