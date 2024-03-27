@@ -164,38 +164,61 @@ mod test {
 
     use crate::tests::create_random_valid_commit_with_usig;
 
-    /// Creates a UsigMessage from a ViewPeerMessage
-    /// by calling [`from()`] and tests if the underlying ViewPeerMessage
-    /// from the created UsigMessage matches the passed ViewPeerMessage.
+    use std::num::NonZeroU64;
+
+    use crate::{
+        peer_message::usig_message::{view_peer_message::ViewPeerMessage, UsigMessage},
+        tests::create_random_valid_prepare_with_usig,
+    };
+    use usig::noop::UsigNoOp;
+
+    /// Validate a valid UsigMessage and check if `Ok` is returned.
     #[rstest]
-    fn from_vp_msg_create_usig_msg(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
-        use std::num::NonZeroU64;
+    fn validate_valid_usig_message(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        use usig::Usig;
 
-        use usig::noop::UsigNoOp;
-
-        use crate::{
-            peer_message::usig_message::{view_peer_message::ViewPeerMessage, UsigMessage},
-            tests::create_random_valid_prepare_with_usig,
-        };
+        use crate::tests::{add_attestations, create_config_default};
 
         let n_parsed = NonZeroU64::new(n).unwrap();
         let mut usig_primary = UsigNoOp::default();
 
-        let prep = create_random_valid_prepare_with_usig(n_parsed, &mut usig_primary);
-        let view_peer_msg = ViewPeerMessage::from(prep.clone());
-        let usig_message = UsigMessage::from(view_peer_msg);
-        assert!(
-            matches!(usig_message, UsigMessage::View(ViewPeerMessage::Prepare(vp_prep)) if prep == vp_prep)
-        );
+        for t in 0..n / 2 {
+            // ViewPeerMessage.
+            let prep = create_random_valid_prepare_with_usig(n_parsed, &mut usig_primary);
+            let id_primary = prep.origin;
+            let view_peer_msg = ViewPeerMessage::from(prep.clone());
+            let usig_message = UsigMessage::from(view_peer_msg.clone());
 
-        let mut usig_backup = UsigNoOp::default();
-        let commit = create_random_valid_commit_with_usig(n_parsed, prep, 
-            &mut usig_backup);
-        let view_peer_msg = ViewPeerMessage::from(commit.clone());
-        let usig_message = UsigMessage::from(view_peer_msg);
-        assert!(
-            matches!(usig_message, UsigMessage::View(ViewPeerMessage::Commit(vp_commit)) 
-            if vp_commit.origin == commit.origin && vp_commit.prepare == commit.prepare)
-        );
+            // Add attestation of oneself.
+            usig_primary.add_remote_party(id_primary, ());
+
+            // Create a default config.
+            let config_primary = create_config_default(n_parsed, t, id_primary);
+
+            // Validate UsigMessage using the previously created config and USIG.
+            let res_usig_msg_validation = usig_message.validate(&config_primary, &mut usig_primary);
+
+            assert!(res_usig_msg_validation.is_ok());
+
+            let mut usig_backup = UsigNoOp::default();
+            let commit = create_random_valid_commit_with_usig(n_parsed, prep, &mut usig_backup);
+            let id_backup = commit.origin;
+            let view_peer_msg = ViewPeerMessage::from(commit.clone());
+            let usig_message = UsigMessage::from(view_peer_msg);
+
+            // Add attestations.
+            let usigs = vec![
+                (id_primary, &mut usig_primary),
+                (id_backup, &mut usig_backup),
+            ];
+            add_attestations(usigs);
+
+            // Create config of backup.
+            let config = create_config_default(n_parsed, t, id_backup);
+
+            let res_usig_msg_validation = usig_message.validate(&config, &mut usig_primary);
+
+            assert!(res_usig_msg_validation.is_ok());
+        }
     }
 }
