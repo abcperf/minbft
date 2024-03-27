@@ -4,11 +4,15 @@
 //! It contains the ID of the replica ([ReplicaId]) which created the [ViewChange].
 //! Moreover, it contains the next [View] to which the replicas should change to.
 //! Furthermore, it contains the most recent checkpoint of the replica.
-//! Additionally, it may contain a log of messages or not, according to the variant of the [ViewChange].
-//! The messages that are logged are the ones broadcast by the replica since the most recent checkpoint.
+//! Additionally, it may contain a log of messages or not, according to the
+//! variant of the [ViewChange].
+//! The messages that are logged are the ones broadcast by the replica since the
+//! most recent checkpoint.
 //! The second part is its signature, as [ViewChange]s must be signed by a USIG.
-//! A [ViewChange] is broadcast by a replica when enough [crate::ReqViewChange]s have been collected.
-//! For further explanation, see the documentation in [crate::MinBft] or the paper "Efficient Byzantine Fault-Tolerance" by Veronese et al.
+//! A [ViewChange] is broadcast by a replica when enough [crate::ReqViewChange]s
+//! have been collected.
+//! For further explanation, see the documentation in [crate::MinBft] or the
+//! paper "Efficient Byzantine Fault-Tolerance" by Veronese et al.
 
 use std::{fmt::Debug, marker::PhantomData};
 
@@ -16,7 +20,7 @@ use anyhow::Result;
 use blake2::{digest::Update, Blake2b512, Digest};
 use serde::{Deserialize, Serialize};
 use shared_ids::AnyId;
-use tracing::{debug, error};
+use tracing::{debug, error, trace};
 use usig::{Count, Counter, Usig};
 
 use crate::{error::InnerError, Config, ReplicaId, RequestPayload, View};
@@ -41,7 +45,8 @@ pub(crate) trait ViewChangeVariant<P, Sig> {
 }
 
 /// A [ViewChange] message contains a message log.
-/// However, the messages in the message log must not contain a message log itself.
+/// However, the messages in the message log must not contain a message log
+/// themselves.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct ViewChangeVariantLog<P, Sig> {
     /// The log containing the messages of type UsigMessage.
@@ -49,7 +54,8 @@ pub(crate) struct ViewChangeVariantLog<P, Sig> {
 }
 
 impl<P, Sig> ViewChangeVariant<P, Sig> for ViewChangeVariantLog<P, Sig> {
-    // The hash of a ViewChange message that contains a message log is the hash of the message log.
+    // The hash of a ViewChange message that contains a message log is the hash
+    // of the message log.
     type Hash<'s> = [u8; 64] where Self: 's;
 
     // Hashes the message log of the message of type ViewChangeVariantLog.
@@ -64,8 +70,8 @@ impl<P, Sig> ViewChangeVariant<P, Sig> for ViewChangeVariantLog<P, Sig> {
     }
 }
 
-/// The struct guarantees that message logs cannot contain a message log itself
-/// (that is, it prevents the nesting of message logs).
+/// The struct guarantees that message logs cannot contain a message log
+/// themselves (that is, it prevents the nesting of message logs).
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct ViewChangeVariantNoLog {
     #[serde(with = "serde_bytes")]
@@ -73,7 +79,8 @@ pub(crate) struct ViewChangeVariantNoLog {
 }
 
 impl<P, Sig> ViewChangeVariant<P, Sig> for ViewChangeVariantNoLog {
-    // The hash of a ViewChange message that does not contain a message log is the struct field hash.
+    // The hash of a ViewChange message that does not contain a message log is
+    // simply the struct field `hash`.
     type Hash<'s> = &'s [u8];
 
     // Returns a reference of the hash.
@@ -90,7 +97,8 @@ pub(crate) struct ViewChangeContent<V: ViewChangeVariant<P, Sig>, P, Sig> {
     pub(crate) origin: ReplicaId,
     /// The next [View] to which it should be changed to.
     pub(crate) next_view: View,
-    /// The struct field checkpoint is optional since there can only exist a previous checkpoint certificate if one was created before.
+    /// The struct field checkpoint is optional since there can only exist a
+    /// previous checkpoint certificate if one was created before.
     pub(crate) checkpoint: Option<CheckpointCertificate<Sig>>,
     /// The variant of the [ViewChange].
     pub(crate) variant: V,
@@ -124,7 +132,8 @@ impl<P: Serialize + Clone, Sig: Serialize + Clone>
 }
 
 impl<V: ViewChangeVariant<P, Sig>, P, Sig> AsRef<ReplicaId> for ViewChangeContent<V, P, Sig> {
-    /// Referencing [ViewChangeContent] returns a reference to the origin in the [ViewChangeContent].
+    /// Referencing [ViewChangeContent] returns a reference to the origin in the
+    /// [ViewChangeContent].
     fn as_ref(&self) -> &ReplicaId {
         &self.origin
     }
@@ -139,7 +148,8 @@ pub(crate) type ViewChangeV<V, P, Sig> = UsigSigned<ViewChangeContent<V, P, Sig>
 pub(crate) type ViewChange<P, Sig> = ViewChangeV<ViewChangeVariantLog<P, Sig>, P, Sig>;
 
 impl<P: Serialize, Sig: Clone + Serialize> ViewChange<P, Sig> {
-    /// Convert a [ViewChange] to a [ViewChangeV] with the variant containing no log.
+    /// Convert a [ViewChange] to a [ViewChangeV] with the variant containing no
+    /// log.
     pub(super) fn to_no_log(&self) -> ViewChangeV<ViewChangeVariantNoLog, P, Sig> {
         let ViewChangeContent {
             origin,
@@ -182,20 +192,22 @@ impl<P: RequestPayload, Sig: Counter + Serialize + Debug> ViewChange<P, Sig> {
         config: &Config,
         usig: &mut impl Usig<Signature = Sig>,
     ) -> Result<(), InnerError> {
-        debug!(
+        trace!(
             "Validating ViewChange (origin: {:?}, next view: {:?}) ...",
-            self.origin, self.next_view
+            self.origin,
+            self.next_view
         );
         // Assure that the signature is correct.
-        debug!(
+        trace!(
             "Verifying signature of ViewChange (origin: {:?}, next view: {:?}) ...",
-            self.origin, self.next_view
+            self.origin,
+            self.next_view
         );
         self.verify(usig).map_or_else(|usig_error| {
             error!("Failed validating ViewChange (origin: {:?}, next view: {:?}): Verification of the signature failed.", self.origin, self.next_view);
             Err(InnerError::parse_usig_error(usig_error, config.id, "Commit", self.origin))
         }, |v| {
-            debug!("Successfully verified signature of ViewChange (origin: {:?}, next view: {:?}).", self.origin, self.next_view);
+            trace!("Successfully verified signature of ViewChange (origin: {:?}, next view: {:?}).", self.origin, self.next_view);
             Ok(v)
         })?;
 
@@ -255,9 +267,10 @@ impl<P: RequestPayload, Sig: Counter + Serialize + Debug> ViewChange<P, Sig> {
                 }
             }
         }
-        debug!(
+        trace!(
             "Successfully validated ViewChange (origin: {:?}, next view: {:?}).",
-            self.origin, self.next_view
+            self.origin,
+            self.next_view
         );
         Ok(())
     }
