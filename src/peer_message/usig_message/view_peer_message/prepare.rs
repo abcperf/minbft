@@ -162,14 +162,14 @@ pub(crate) mod test {
 
     use rand::Rng;
     use rstest::rstest;
-    use shared_ids::{AnyId, ReplicaId};
+    use shared_ids::{AnyId, ClientId, ReplicaId};
     use usig::{
         noop::{Signature, UsigNoOp},
         Usig,
     };
 
     use crate::{
-        client_request::RequestBatch,
+        client_request::{ClientRequest, RequestBatch},
         tests::{
             add_attestations, create_config_default, create_prepare_with_usig,
             create_random_valid_prepare_with_usig, get_random_backup_replica_id, DummyPayload,
@@ -179,13 +179,38 @@ pub(crate) mod test {
 
     use super::{Prepare, PrepareContent};
 
-    pub(crate) fn create_valid_prepare(
+    pub(crate) fn create_prepare(
         view: View,
         request_batch: RequestBatch<DummyPayload>,
         config: &Config,
         usig: &mut impl Usig<Signature = Signature>,
     ) -> Prepare<DummyPayload, Signature> {
         let origin = config.primary(view);
+        Prepare::sign(
+            PrepareContent {
+                origin,
+                view,
+                request_batch,
+            },
+            usig,
+        )
+        .unwrap()
+    }
+
+    pub(crate) fn create_prepare_invalid_reqs(
+        view: View,
+        config: &Config,
+        usig: &mut impl Usig<Signature = Signature>,
+    ) -> Prepare<DummyPayload, Signature> {
+        let origin = config.primary(view);
+
+        let client_req = ClientRequest {
+            client: ClientId::from_u64(0),
+            payload: DummyPayload(0, false),
+        };
+        let batch = [client_req; 1];
+        let batch = Box::new(batch);
+        let request_batch = RequestBatch { batch };
         Prepare::sign(
             PrepareContent {
                 origin,
