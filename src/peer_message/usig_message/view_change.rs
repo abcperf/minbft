@@ -343,4 +343,47 @@ mod test {
 
         assert!(dbg!(view_change.validate(&config, &mut usig_0)).is_ok());
     }
+
+    #[rstest]
+    fn validate_valid_view_change_counter_eq_0_empty_msg_log_no_cert(
+        #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
+    ) {
+        todo!();
+    }
+
+    #[rstest]
+    fn validate_invalid_view_change_counter_greater_0_empty_msg_log_no_cert(
+        #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
+    ) {
+        todo!();
+    }
+
+    #[rstest]
+    fn validate_invalid_view_change_msg_log_hole(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        todo!();
+    }
+
+    #[rstest]
+    fn validate_invalid_view_change_msg_log_first_missing(
+        #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
+    ) {
+        todo!();
+    }
+
+    #[rstest]
+    fn validate_invalid_view_change_msg_log_last_missing(
+        #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
+    ) {
+        todo!();
+    }
+
+    #[rstest]
+    fn validate_invalid_view_change_signature(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        todo!();
+    }
+
+    #[rstest]
+    fn validate_invalid_view_change_invalid_cert(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        todo!();
+    }
 }
