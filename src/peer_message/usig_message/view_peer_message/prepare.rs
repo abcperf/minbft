@@ -172,7 +172,8 @@ pub(crate) mod test {
         client_request::{ClientRequest, RequestBatch},
         tests::{
             add_attestations, create_config_default, create_prepare_with_usig,
-            create_random_valid_prepare_with_usig, get_random_backup_replica_id, DummyPayload,
+            create_random_valid_prepare_with_usig, get_random_backup_replica_id,
+            get_shuffled_backup_replicas, DummyPayload,
         },
         Config, View,
     };
@@ -214,6 +215,25 @@ pub(crate) mod test {
         Prepare::sign(
             PrepareContent {
                 origin,
+                view,
+                request_batch,
+            },
+            usig,
+        )
+        .unwrap()
+    }
+
+    pub(crate) fn create_prepare_invalid_origin(
+        view: View,
+        request_batch: RequestBatch<DummyPayload>,
+        config: &Config,
+        usig: &mut impl Usig<Signature = Signature>,
+    ) -> Prepare<DummyPayload, Signature> {
+        let primary = config.primary(view);
+        let backup_id = get_random_backup_replica_id(config.n, primary);
+        Prepare::sign(
+            PrepareContent {
+                origin: backup_id,
                 view,
                 request_batch,
             },
