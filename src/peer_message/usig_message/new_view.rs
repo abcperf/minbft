@@ -158,7 +158,7 @@ impl<P: RequestPayload, Sig: Serialize + Counter + Debug> NewView<P, Sig> {
 }
 
 /// The certificate of the [NewView].
-/// Must contain at least t + 1 valid messages of type [ViewChange].
+/// Must contain at least `t + 1` valid messages of type [ViewChange].
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct NewViewCertificate<P, Sig> {
     /// The collection of messages of type [ViewChange] that together form the
@@ -226,5 +226,41 @@ impl<P: RequestPayload, Sig: Serialize + Counter + Debug> NewViewCertificate<P, 
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+
+mod test {
+    fn validate_valid_new_view_cert() {
+        todo!();
+    }
+
+    fn validate_invalid_new_view_cert_unsuff_msgs() {
+        todo!();
+    }
+
+    fn validate_invalid_new_view_cert_not_all_same_next_view() {
+        todo!();
+    }
+
+    fn validate_invalid_new_view_cert_not_all_diff_origin() {
+        todo!();
+    }
+
+    fn validate_invalid_new_view_cert_invalid_vchange_msgs() {
+        todo!();
+    }
+
+    fn validate_valid_new_view() {
+        todo!();
+    }
+
+    fn validate_invalid_new_view_origin() {
+        todo!();
+    }
+
+    fn validate_invalid_new_view_signature() {
+        todo!();
     }
 }
