@@ -172,8 +172,7 @@ pub(crate) mod test {
         client_request::{ClientRequest, RequestBatch},
         tests::{
             add_attestations, create_config_default, create_prepare_with_usig,
-            create_random_valid_prepare_with_usig, get_random_backup_replica_id,
-            get_shuffled_backup_replicas, DummyPayload,
+            create_random_valid_prepare_with_usig, get_random_backup_replica_id, DummyPayload,
         },
         Config, View,
     };
@@ -240,6 +239,20 @@ pub(crate) mod test {
             usig,
         )
         .unwrap()
+    }
+
+    pub(crate) fn create_invalid_prepares(
+        view: View,
+        request_batch: RequestBatch<DummyPayload>,
+        config: &Config,
+        usig: &mut impl Usig<Signature = Signature>,
+    ) -> Vec<Prepare<DummyPayload, Signature>> {
+        let prep_invalid_origin =
+            create_prepare_invalid_origin(view, request_batch.clone(), config, usig);
+        let prep_invalid_reqs = create_prepare_invalid_reqs(view, config, usig);
+        let prep_invalid_usig =
+            create_prepare(view, request_batch, config, &mut UsigNoOp::default());
+        vec![prep_invalid_origin, prep_invalid_reqs, prep_invalid_usig]
     }
 
     /// Tests if the validation of a valid [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare)
