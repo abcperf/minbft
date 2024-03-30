@@ -80,3 +80,24 @@ impl<P> IntoIterator for RequestBatch<P> {
         batch.into_iter()
     }
 }
+
+#[cfg(test)]
+
+pub(crate) mod test {
+    use rand::{rngs::ThreadRng, Rng};
+    use shared_ids::ClientId;
+    use usig::AnyId;
+
+    use crate::tests::DummyPayload;
+
+    use super::ClientRequest;
+
+    pub(crate) fn create_invalid_client_req(mut rng: ThreadRng) -> ClientRequest<DummyPayload> {
+        let rand_client_id = rng.gen::<u64>();
+        let rand_req_id = rng.gen::<u64>();
+        ClientRequest {
+            client: ClientId::from_u64(rand_client_id),
+            payload: DummyPayload(rand_req_id, false),
+        }
+    }
+}
