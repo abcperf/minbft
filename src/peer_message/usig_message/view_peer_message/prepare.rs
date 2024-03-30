@@ -157,21 +157,45 @@ impl<P: RequestPayload, Sig> Prepare<P, Sig> {
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     use std::num::NonZeroU64;
 
     use rand::Rng;
     use rstest::rstest;
     use shared_ids::{AnyId, ReplicaId};
-    use usig::{noop::UsigNoOp, Usig};
+    use usig::{
+        noop::{Signature, UsigNoOp},
+        Usig,
+    };
 
     use crate::{
+        client_request::RequestBatch,
         tests::{
             add_attestations, create_config_default, create_prepare_with_usig,
-            create_random_valid_prepare_with_usig, get_random_backup_replica_id,
+            create_random_valid_prepare_with_usig, get_random_backup_replica_id, DummyPayload,
         },
-        View,
+        Config, View,
     };
+
+    use super::{Prepare, PrepareContent};
+
+    pub(crate) fn create_valid_prepare(
+        view: View,
+        request_batch: RequestBatch<DummyPayload>,
+        config: &Config,
+        usig: &mut impl Usig<Signature = Signature>,
+    ) -> Prepare<DummyPayload, Signature> {
+        let origin = config.primary(view);
+        Prepare::sign(
+            PrepareContent {
+                origin,
+                view,
+                request_batch,
+            },
+            usig,
+        )
+        .unwrap()
+    }
 
     /// Tests if the validation of a valid [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare)
     /// succeeds.
