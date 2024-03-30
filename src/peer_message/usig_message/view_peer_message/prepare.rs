@@ -160,7 +160,7 @@ impl<P: RequestPayload, Sig> Prepare<P, Sig> {
 pub(crate) mod test {
     use std::num::NonZeroU64;
 
-    use rand::Rng;
+    use rand::{rngs::ThreadRng, Rng};
     use rstest::rstest;
     use shared_ids::{AnyId, ClientId, ReplicaId};
     use usig::{
@@ -169,10 +169,11 @@ pub(crate) mod test {
     };
 
     use crate::{
-        client_request::{ClientRequest, RequestBatch},
+        client_request::{test::create_invalid_client_req, ClientRequest, RequestBatch},
         tests::{
             add_attestations, create_config_default, create_prepare_with_usig,
-            create_random_valid_prepare_with_usig, get_random_backup_replica_id, DummyPayload,
+            create_random_valid_prepare_with_usig, get_random_backup_replica_id,
+            get_random_replica_id, DummyPayload,
         },
         Config, View,
     };
@@ -201,13 +202,11 @@ pub(crate) mod test {
         view: View,
         config: &Config,
         usig: &mut impl Usig<Signature = Signature>,
+        mut rng: ThreadRng,
     ) -> Prepare<DummyPayload, Signature> {
         let origin = config.primary(view);
 
-        let client_req = ClientRequest {
-            client: ClientId::from_u64(0),
-            payload: DummyPayload(0, false),
-        };
+        let client_req = create_invalid_client_req(rng);
         let batch = [client_req; 1];
         let batch = Box::new(batch);
         let request_batch = RequestBatch { batch };
@@ -227,9 +226,10 @@ pub(crate) mod test {
         request_batch: RequestBatch<DummyPayload>,
         config: &Config,
         usig: &mut impl Usig<Signature = Signature>,
+        mut rng: ThreadRng,
     ) -> Prepare<DummyPayload, Signature> {
         let primary = config.primary(view);
-        let backup_id = get_random_backup_replica_id(config.n, primary);
+        let backup_id = get_random_backup_replica_id(config.n, primary, rng);
         Prepare::sign(
             PrepareContent {
                 origin: backup_id,
@@ -246,10 +246,11 @@ pub(crate) mod test {
         request_batch: RequestBatch<DummyPayload>,
         config: &Config,
         usig: &mut impl Usig<Signature = Signature>,
+        mut rng: ThreadRng,
     ) -> Vec<Prepare<DummyPayload, Signature>> {
         let prep_invalid_origin =
-            create_prepare_invalid_origin(view, request_batch.clone(), config, usig);
-        let prep_invalid_reqs = create_prepare_invalid_reqs(view, config, usig);
+            create_prepare_invalid_origin(view, request_batch.clone(), config, usig, rng);
+        let prep_invalid_reqs = create_prepare_invalid_reqs(view, config, usig, rng);
         let prep_invalid_usig =
             create_prepare(view, request_batch, config, &mut UsigNoOp::default());
         vec![prep_invalid_origin, prep_invalid_reqs, prep_invalid_usig]
@@ -262,8 +263,11 @@ pub(crate) mod test {
         let n_parsed = NonZeroU64::new(n).unwrap();
 
         for t in 0..n / 2 {
+            let primary_id = get_random_replica_id(n_parsed);
+            let view = View(primary_id.as_u64());
             let mut usig_primary = UsigNoOp::default();
-            let prepare = create_random_valid_prepare_with_usig(n_parsed, &mut usig_primary);
+            let config_primary = create_config_default(n_parsed, t, primary_id);
+            let prepare = create_prepare(view, request_batch, &config_primary, &mut usig_primary);
 
             let backup = ReplicaId::from_u64(1);
             let mut usig_backup = UsigNoOp::default();
