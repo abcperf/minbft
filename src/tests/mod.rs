@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use rand::{distributions::Uniform, Rng};
+use rand::{distributions::Uniform, prelude::SliceRandom, thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use shared_ids::{AnyId, ClientId, RequestId};
 use std::{
@@ -43,7 +43,7 @@ mod viewchange;
 ///
 /// It only contains the ID of the request, and if it is a valid or invalid request.
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
-pub(super) struct DummyPayload(u64, bool);
+pub(super) struct DummyPayload(pub(super) u64, pub(super) bool);
 
 impl RequestPayload for DummyPayload {
     /// Returns the ID of the Request.
@@ -354,22 +354,6 @@ pub(crate) fn get_random_view_with_max(max_view: View) -> View {
     View(view_nr)
 }
 
-/// Returns a random valid backup [ReplicaId].
-///
-/// # Arguments
-///
-/// * `n` - The amount of peers that communicate with each other.
-/// * `id_primary` - The [ReplicaId] of the current primary. The generated
-///                  backup [ReplicaId] should differ from it.
-pub(crate) fn get_random_backup_replica_id(n: NonZeroU64, id_primary: ReplicaId) -> ReplicaId {
-    let mut rng = rand::thread_rng();
-    let mut id_bp: u64 = rng.gen_range(0..n.into());
-    if id_primary.as_u64() == id_bp {
-        id_bp = (id_bp + 1) % n;
-    }
-    ReplicaId::from_u64(id_bp % n)
-}
-
 /// Returns a [Config] with default values.
 ///
 /// # Arguments
@@ -573,4 +557,30 @@ pub(crate) fn create_message_log_valid(
     message_log.push(UsigMessageV::View(ViewPeerMessage::Prepare(prep)));
 
     message_log
+}
+
+pub(crate) fn get_shuffled_backup_replicas(n: NonZeroU64, primary_id: ReplicaId) -> Vec<ReplicaId> {
+    let mut backup_replica_ids = Vec::new();
+    for i in 0..n.get() {
+        let replica_id = ReplicaId::from_u64(i);
+        if replica_id != primary_id {
+            backup_replica_ids.push(replica_id);
+        }
+    }
+    backup_replica_ids.shuffle(&mut thread_rng());
+    backup_replica_ids
+}
+
+/// Returns a random valid backup [ReplicaId].
+///
+/// # Arguments
+///
+/// * `n` - The amount of peers that communicate with each other.
+/// * `primary_id` - The [ReplicaId] of the current primary. The generated
+///                  backup [ReplicaId] should differ from it.
+pub(crate) fn get_random_backup_replica_id(n: NonZeroU64, primary_id: ReplicaId) -> ReplicaId {
+    let backup_replica_ids = get_shuffled_backup_replicas(n, primary_id);
+    let mut rng = thread_rng();
+    let random_index = rng.gen_range(0..backup_replica_ids.len() as u64) as usize;
+    backup_replica_ids[random_index]
 }
