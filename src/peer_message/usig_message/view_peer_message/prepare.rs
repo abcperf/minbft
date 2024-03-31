@@ -160,19 +160,18 @@ impl<P: RequestPayload, Sig> Prepare<P, Sig> {
 pub(crate) mod test {
     use std::num::NonZeroU64;
 
-    use rand::{rngs::ThreadRng, Rng};
+    use rand::{rngs::ThreadRng, thread_rng};
     use rstest::rstest;
-    use shared_ids::{AnyId, ClientId, ReplicaId};
+    use shared_ids::AnyId;
     use usig::{
         noop::{Signature, UsigNoOp},
         Usig,
     };
 
     use crate::{
-        client_request::{test::create_invalid_client_req, ClientRequest, RequestBatch},
+        client_request::{test::create_batch, test::create_invalid_client_req, RequestBatch},
         tests::{
-            add_attestations, create_config_default, create_prepare_with_usig,
-            create_random_valid_prepare_with_usig, get_random_backup_replica_id,
+            add_attestations, create_config_default, get_random_backup_replica_id,
             get_random_replica_id, DummyPayload,
         },
         Config, View,
@@ -202,7 +201,7 @@ pub(crate) mod test {
         view: View,
         config: &Config,
         usig: &mut impl Usig<Signature = Signature>,
-        mut rng: ThreadRng,
+        rng: &mut ThreadRng,
     ) -> Prepare<DummyPayload, Signature> {
         let origin = config.primary(view);
 
@@ -226,7 +225,7 @@ pub(crate) mod test {
         request_batch: RequestBatch<DummyPayload>,
         config: &Config,
         usig: &mut impl Usig<Signature = Signature>,
-        mut rng: ThreadRng,
+        rng: &mut ThreadRng,
     ) -> Prepare<DummyPayload, Signature> {
         let primary = config.primary(view);
         let backup_id = get_random_backup_replica_id(config.n, primary, rng);
@@ -246,7 +245,7 @@ pub(crate) mod test {
         request_batch: RequestBatch<DummyPayload>,
         config: &Config,
         usig: &mut impl Usig<Signature = Signature>,
-        mut rng: ThreadRng,
+        rng: &mut ThreadRng,
     ) -> Vec<Prepare<DummyPayload, Signature>> {
         let prep_invalid_origin =
             create_prepare_invalid_origin(view, request_batch.clone(), config, usig, rng);
@@ -261,26 +260,27 @@ pub(crate) mod test {
     #[rstest]
     fn validate_valid_prepare(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
 
         for t in 0..n / 2 {
             let primary_id = get_random_replica_id(n_parsed);
             let view = View(primary_id.as_u64());
             let mut usig_primary = UsigNoOp::default();
             let config_primary = create_config_default(n_parsed, t, primary_id);
+            let request_batch = create_batch();
             let prepare = create_prepare(view, request_batch, &config_primary, &mut usig_primary);
 
-            let backup = ReplicaId::from_u64(1);
+            let backup_id = get_random_backup_replica_id(n_parsed, primary_id, &mut rng);
             let mut usig_backup = UsigNoOp::default();
+            let config_backup = create_config_default(n_parsed, t, backup_id);
 
             add_attestations(vec![
-                (prepare.origin, &mut usig_primary),
-                (backup, &mut usig_backup),
+                (primary_id, &mut usig_primary),
+                (backup_id, &mut usig_backup),
             ]);
 
-            let config = create_config_default(n_parsed, t, prepare.origin);
-
-            assert!(prepare.validate(&config, &mut usig_backup).is_ok());
-            assert!(prepare.validate(&config, &mut usig_primary).is_ok());
+            assert!(prepare.validate(&config_primary, &mut usig_primary).is_ok());
+            assert!(prepare.validate(&config_backup, &mut usig_backup).is_ok());
         }
     }
 
@@ -290,26 +290,64 @@ pub(crate) mod test {
     #[rstest]
     fn validate_invalid_prep_not_primary(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
 
         for t in 0..n / 2 {
-            let mut rng = rand::thread_rng();
-            let id_prim = rng.gen_range(0..n);
-            let id_primary = ReplicaId::from_u64(id_prim);
-
+            let primary_id = get_random_replica_id(n_parsed);
+            let view = View(primary_id.as_u64());
             let mut usig_primary = UsigNoOp::default();
-            usig_primary.add_remote_party(ReplicaId::from_u64(id_prim), ());
+            let config_primary = create_config_default(n_parsed, t, primary_id);
+            let request_batch = create_batch();
+            let prepare = create_prepare_invalid_origin(
+                view,
+                request_batch,
+                &config_primary,
+                &mut usig_primary,
+                &mut rng,
+            );
 
-            let origin = get_random_backup_replica_id(n_parsed, id_primary);
-            let mut usig_peer = UsigNoOp::default();
+            let backup_id = get_random_backup_replica_id(n_parsed, primary_id, &mut rng);
+            let mut usig_backup = UsigNoOp::default();
+            let config_backup = create_config_default(n_parsed, t, backup_id);
 
-            let prepare = create_prepare_with_usig(origin, View(id_prim), &mut usig_primary);
+            add_attestations(vec![
+                (primary_id, &mut usig_primary),
+                (backup_id, &mut usig_backup),
+            ]);
 
-            add_attestations(vec![(origin, &mut usig_primary), (origin, &mut usig_peer)]);
+            assert!(prepare
+                .validate(&config_primary, &mut usig_primary)
+                .is_err());
+            assert!(prepare.validate(&config_backup, &mut usig_backup).is_err());
+        }
+    }
 
-            let config = create_config_default(n_parsed, t, id_primary);
+    #[rstest]
+    fn validate_invalid_prep_reqs(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
 
-            assert!(prepare.validate(&config, &mut usig_primary).is_err());
-            assert!(prepare.validate(&config, &mut usig_peer).is_err());
+        for t in 0..n / 2 {
+            let primary_id = get_random_replica_id(n_parsed);
+            let view = View(primary_id.as_u64());
+            let mut usig_primary = UsigNoOp::default();
+            let config_primary = create_config_default(n_parsed, t, primary_id);
+            let prepare =
+                create_prepare_invalid_reqs(view, &config_primary, &mut usig_primary, &mut rng);
+
+            let backup_id = get_random_backup_replica_id(n_parsed, primary_id, &mut rng);
+            let mut usig_backup = UsigNoOp::default();
+            let config_backup = create_config_default(n_parsed, t, backup_id);
+
+            add_attestations(vec![
+                (primary_id, &mut usig_primary),
+                (backup_id, &mut usig_backup),
+            ]);
+
+            assert!(prepare
+                .validate(&config_primary, &mut usig_primary)
+                .is_err());
+            assert!(prepare.validate(&config_backup, &mut usig_backup).is_err());
         }
     }
 
@@ -319,26 +357,25 @@ pub(crate) mod test {
     #[rstest]
     fn validate_invalid_prepare_unknown_remote_party(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
 
         for t in 0..n / 2 {
+            let primary_id = get_random_replica_id(n_parsed);
+            let view = View(primary_id.as_u64());
             let mut usig_primary = UsigNoOp::default();
-            let prepare = create_random_valid_prepare_with_usig(n_parsed, &mut usig_primary);
-            let id_primary = prepare.origin;
+            let config_primary = create_config_default(n_parsed, t, primary_id);
+            let request_batch = create_batch();
+            let prepare = create_prepare(view, request_batch, &config_primary, &mut usig_primary);
 
-            let mut usig_peer = UsigNoOp::default();
-            let id_peer = get_random_backup_replica_id(n_parsed, id_primary);
+            let backup_id = get_random_backup_replica_id(n_parsed, primary_id, &mut rng);
+            let mut usig_backup = UsigNoOp::default();
+            let config_backup = create_config_default(n_parsed, t, backup_id);
 
-            usig_primary.add_remote_party(id_peer, ());
-            usig_peer.add_remote_party(id_peer, ());
-            usig_peer.add_remote_party(id_primary, ());
+            usig_primary.add_remote_party(primary_id, ());
+            usig_backup.add_remote_party(backup_id, ());
 
-            let config_peer = create_config_default(n_parsed, t, id_peer);
-            let config_primary = create_config_default(n_parsed, t, id_primary);
-
-            assert!(prepare.validate(&config_peer, &mut usig_peer).is_ok());
-            assert!(prepare
-                .validate(&config_primary, &mut usig_primary)
-                .is_err());
+            assert!(prepare.validate(&config_primary, &mut usig_primary).is_ok());
+            assert!(prepare.validate(&config_backup, &mut usig_backup).is_err());
         }
     }
 }
