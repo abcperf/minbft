@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use rand::{distributions::Uniform, prelude::SliceRandom, thread_rng, Rng};
+use rand::{distributions::Uniform, prelude::SliceRandom, rngs::ThreadRng, thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use shared_ids::{AnyId, ClientId, RequestId};
 use std::{
@@ -314,24 +314,6 @@ pub(crate) fn create_commit_with_usig(
     Commit::sign(CommitContent { origin, prepare }, usig).unwrap()
 }
 
-/// Returns a valid [Commit] with a random origin and with the provided USIG.
-///
-/// # Arguments
-///
-/// * `n` - The amount of peers that communicate with each other.
-///         It implicitly defines the range from which a random [ReplicaId]
-///         can be chosen (0 .. n - 1).
-/// * `prepare` - The [Prepare] to which this [Commit] belongs to.
-/// * `usig` - The [Usig] to be used for signing the [Commit].
-pub(crate) fn create_random_valid_commit_with_usig(
-    n: NonZeroU64,
-    prepare: Prepare<DummyPayload, Signature>,
-    usig: &mut impl Usig<Signature = Signature>,
-) -> Commit<DummyPayload, Signature> {
-    let id_backup = get_random_backup_replica_id(n, prepare.origin);
-    create_commit_with_usig(id_backup, prepare, usig)
-}
-
 /// Returns a random [ReplicaId].
 ///
 /// # Arguments
@@ -578,9 +560,12 @@ pub(crate) fn get_shuffled_backup_replicas(n: NonZeroU64, primary_id: ReplicaId)
 /// * `n` - The amount of peers that communicate with each other.
 /// * `primary_id` - The [ReplicaId] of the current primary. The generated
 ///                  backup [ReplicaId] should differ from it.
-pub(crate) fn get_random_backup_replica_id(n: NonZeroU64, primary_id: ReplicaId) -> ReplicaId {
+pub(crate) fn get_random_backup_replica_id(
+    n: NonZeroU64,
+    primary_id: ReplicaId,
+    rng: &mut ThreadRng,
+) -> ReplicaId {
     let backup_replica_ids = get_shuffled_backup_replicas(n, primary_id);
-    let mut rng = thread_rng();
     let random_index = rng.gen_range(0..backup_replica_ids.len() as u64) as usize;
     backup_replica_ids[random_index]
 }
