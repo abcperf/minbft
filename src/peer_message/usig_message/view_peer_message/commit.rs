@@ -126,7 +126,7 @@ impl<P: RequestPayload, Sig: Serialize> Commit<P, Sig> {
 pub(crate) mod test {
     use std::num::NonZeroU64;
 
-    use rand::{rngs::ThreadRng, thread_rng};
+    use rand::thread_rng;
     use rstest::rstest;
     use usig::{
         noop::{Signature, UsigNoOp},
@@ -157,21 +157,6 @@ pub(crate) mod test {
         usig: &mut impl Usig<Signature = Signature>,
     ) -> Commit<DummyPayload, Signature> {
         Commit::sign(CommitContent { origin, prepare }, usig).unwrap()
-    }
-
-    pub(crate) fn create_invalid_commits(
-        n: NonZeroU64,
-        prepare: Prepare<DummyPayload, Signature>,
-        usig: &mut impl Usig<Signature = Signature>,
-        rng: &mut ThreadRng,
-    ) -> Vec<Commit<DummyPayload, Signature>> {
-        let commit_invalid_origin = create_commit(prepare.origin, prepare.clone(), usig);
-
-        let random_backup_id = get_random_backup_replica_id(n, prepare.origin, rng);
-        let commit_invalid_usig =
-            create_commit(random_backup_id, prepare, &mut UsigNoOp::default());
-
-        vec![commit_invalid_origin, commit_invalid_usig]
     }
 
     /// Tests if the validation of a valid [Commit] succeeds.
