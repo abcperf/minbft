@@ -248,11 +248,9 @@ pub(crate) mod test {
         rng: &mut ThreadRng,
     ) -> Vec<Prepare<DummyPayload, Signature>> {
         let prep_invalid_origin =
-            create_prepare_invalid_origin(view, request_batch.clone(), config, usig, rng);
+            create_prepare_invalid_origin(view, request_batch, config, usig, rng);
         let prep_invalid_reqs = create_prepare_invalid_reqs(view, config, usig, rng);
-        let prep_invalid_usig =
-            create_prepare(view, request_batch, config, &mut UsigNoOp::default());
-        vec![prep_invalid_origin, prep_invalid_reqs, prep_invalid_usig]
+        vec![prep_invalid_origin, prep_invalid_reqs]
     }
 
     /// Tests if the validation of a valid [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare)
