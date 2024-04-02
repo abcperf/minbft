@@ -361,7 +361,7 @@ pub(crate) fn create_config_default(n: NonZeroU64, t: u64, id: ReplicaId) -> Con
 ///
 /// * `usigs` - The [UsigNoOp]s that shall be added as a remote party to
 ///             each other.
-pub(crate) fn add_attestations(mut usigs: Vec<(ReplicaId, &mut UsigNoOp)>) {
+pub(crate) fn add_attestations(usigs: &mut Vec<(ReplicaId, &mut UsigNoOp)>) {
     for i in 0..usigs.len() {
         for j in 0..usigs.len() {
             let peer_id = usigs[j].0;
@@ -541,16 +541,20 @@ pub(crate) fn create_message_log_valid(
     message_log
 }
 
-pub(crate) fn get_shuffled_backup_replicas(n: NonZeroU64, primary_id: ReplicaId) -> Vec<ReplicaId> {
-    let mut backup_replica_ids = Vec::new();
+pub(crate) fn get_shuffled_remaining_replicas(
+    n: NonZeroU64,
+    excluded_replica: Option<ReplicaId>,
+    rng: &mut ThreadRng,
+) -> Vec<ReplicaId> {
+    let mut remaining_replica_ids = Vec::new();
     for i in 0..n.get() {
         let replica_id = ReplicaId::from_u64(i);
-        if replica_id != primary_id {
-            backup_replica_ids.push(replica_id);
+        if excluded_replica.is_none() || replica_id != excluded_replica.unwrap() {
+            remaining_replica_ids.push(replica_id);
         }
     }
-    backup_replica_ids.shuffle(&mut thread_rng());
-    backup_replica_ids
+    remaining_replica_ids.shuffle(rng);
+    remaining_replica_ids
 }
 
 /// Returns a random valid backup [ReplicaId].
@@ -565,7 +569,7 @@ pub(crate) fn get_random_backup_replica_id(
     primary_id: ReplicaId,
     rng: &mut ThreadRng,
 ) -> ReplicaId {
-    let backup_replica_ids = get_shuffled_backup_replicas(n, primary_id);
+    let backup_replica_ids = get_shuffled_remaining_replicas(n, Some(primary_id), rng);
     let random_index = rng.gen_range(0..backup_replica_ids.len() as u64) as usize;
     backup_replica_ids[random_index]
 }
