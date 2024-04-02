@@ -96,6 +96,24 @@ pub(super) enum InnerError {
         origin: ReplicaId,
     },
     /// A replica's (the given receiver) attempt to validate a ViewChange message
+    /// from the given origin failed since there are holes in the sequence number of messages in its log.
+    #[error("replica's ({receiver:?}) validation of the view-change message from {origin:?} failed since the message log
+    is empty when a certificate is passed: First message is expected to be the 
+    checkpoint of the replica")]
+    ViewChangeMessageLogEmptyWithCert {
+        receiver: ReplicaId,
+        origin: ReplicaId,
+    },
+    /// A replica's (the given receiver) attempt to validate a ViewChange message
+    /// from the given origin failed since the counter of its last message (counter_last_msg) is not the expected one (counter_expected).
+    #[error("replica's ({receiver:?}) validation of the view-change message from {origin:?} failed since the counter of its first message is {counter_first_msg:?} when it should be {counter_expected:?}")]
+    ViewChangeFirstUnexpectedCounter {
+        receiver: ReplicaId,
+        origin: ReplicaId,
+        counter_first_msg: Count,
+        counter_expected: Count,
+    },
+    /// A replica's (the given receiver) attempt to validate a ViewChange message
     /// from the given origin failed since the counter of its last message (counter_last_msg) is not the expected one (counter_expected).
     #[error("replica's ({receiver:?}) validation of the view-change message from {origin:?} failed since the counter of its last message is {counter_last_msg:?} when it should be {counter_expected:?}")]
     ViewChangeLastUnexpectedCounter {
@@ -259,6 +277,15 @@ impl From<InnerError> for Error {
             InnerError::ViewChangeHolesInMessageLog { receiver, origin } => {
                 Error::ViewChange { receiver, origin }
             }
+            InnerError::ViewChangeMessageLogEmptyWithCert { receiver, origin } => {
+                Error::ViewChange { receiver, origin }
+            }
+            InnerError::ViewChangeFirstUnexpectedCounter {
+                receiver,
+                origin,
+                counter_first_msg: _,
+                counter_expected: _,
+            } => Error::ViewChange { receiver, origin },
             InnerError::ViewChangeLastUnexpectedCounter {
                 receiver,
                 origin,
