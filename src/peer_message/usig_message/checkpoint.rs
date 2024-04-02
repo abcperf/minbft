@@ -344,7 +344,7 @@ pub(crate) mod test {
         error::InnerError,
         tests::{
             add_attestations, create_config_default, create_random_state_hash,
-            get_random_backup_replica_id, get_random_replica_id, get_shuffled_remaining_replicas,
+            get_random_included_replica_id, get_random_replica_id, get_shuffled_remaining_replicas,
         },
     };
 
@@ -603,6 +603,76 @@ pub(crate) mod test {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn create_invalid_checkpoint_certs(
+        n: NonZeroU64,
+        t: NonZeroU64,
+        origin: ReplicaId,
+        state_hash: [u8; 64],
+        counter_latest_prep: Count,
+        total_amount_accepted_batches: u64,
+        rng: &mut ThreadRng,
+        usig_origin: &mut impl Usig<Signature = Signature>,
+        usigs_others: &mut HashMap<ReplicaId, impl Usig<Signature = Signature>>,
+    ) -> Vec<CheckpointCertificate<Signature>> {
+        let mut certs_invalid = Vec::new();
+
+        let cert_unsuff = create_invalid_checkpoint_cert_unsuff_msgs(
+            n,
+            t,
+            origin,
+            state_hash,
+            counter_latest_prep,
+            total_amount_accepted_batches,
+            rng,
+            usig_origin,
+            usigs_others,
+        );
+
+        let cert_not_all_same_hash = create_invalid_checkpoint_cert_not_same_hash(
+            n,
+            t,
+            origin,
+            state_hash,
+            counter_latest_prep,
+            total_amount_accepted_batches,
+            rng,
+            usig_origin,
+            usigs_others,
+        );
+
+        let cert_not_all_diff_origin = create_invalid_checkpoint_cert_not_all_diff_origin(
+            n,
+            t,
+            origin,
+            state_hash,
+            counter_latest_prep,
+            total_amount_accepted_batches,
+            rng,
+            usig_origin,
+            usigs_others,
+        );
+
+        let cert_not_all_same_latest_prep = create_invalid_checkpoint_cert_not_all_same_latest_prep(
+            n,
+            t,
+            origin,
+            state_hash,
+            counter_latest_prep,
+            total_amount_accepted_batches,
+            rng,
+            usig_origin,
+            usigs_others,
+        );
+
+        certs_invalid.push(cert_unsuff);
+        certs_invalid.push(cert_not_all_same_hash);
+        certs_invalid.push(cert_not_all_diff_origin);
+        certs_invalid.push(cert_not_all_same_latest_prep);
+
+        certs_invalid
+    }
+
     /// Tests if the validation of a [CheckpointCertificate], which does not
     /// contain a sufficient amount of [Checkpoint]s, results in an error.
     #[rstest]
@@ -612,7 +682,7 @@ pub(crate) mod test {
         let mut usigs = Vec::new();
 
         let mut rng = rand::thread_rng();
-        let origin = get_random_replica_id(n_parsed);
+        let origin = get_random_replica_id(n_parsed, &mut rng);
         let counter_latest_prep = Count(rng.gen());
         let total_amount_accepted_batches: u64 = rng.gen();
         let state_hash = create_random_state_hash();
@@ -692,7 +762,7 @@ pub(crate) mod test {
         let mut usigs = Vec::new();
 
         let mut rng = rand::thread_rng();
-        let origin = get_random_replica_id(n_parsed);
+        let origin = get_random_replica_id(n_parsed, &mut rng);
         let counter_latest_prep = Count(rng.gen());
         let total_amount_accepted_batches: u64 = rng.gen();
         let state_hash = create_random_state_hash();
@@ -772,7 +842,7 @@ pub(crate) mod test {
         let mut usigs = Vec::new();
 
         let mut rng = rand::thread_rng();
-        let origin = get_random_replica_id(n_parsed);
+        let origin = get_random_replica_id(n_parsed, &mut rng);
         let counter_latest_prep = Count(rng.gen());
         let total_amount_accepted_batches: u64 = rng.gen();
         let state_hash = create_random_state_hash();
@@ -852,7 +922,7 @@ pub(crate) mod test {
         let mut usigs = Vec::new();
 
         let mut rng = rand::thread_rng();
-        let origin = get_random_replica_id(n_parsed);
+        let origin = get_random_replica_id(n_parsed, &mut rng);
         let counter_latest_prep = Count(rng.gen());
         let total_amount_accepted_batches: u64 = rng.gen();
         let state_hash = create_random_state_hash();
@@ -938,7 +1008,7 @@ pub(crate) mod test {
         let mut usigs = Vec::new();
 
         let mut rng = rand::thread_rng();
-        let origin = get_random_replica_id(n_parsed);
+        let origin = get_random_replica_id(n_parsed, &mut rng);
         let counter_latest_prep = Count(rng.gen());
         let total_amount_accepted_batches: u64 = rng.gen();
         let state_hash = create_random_state_hash();
@@ -1017,7 +1087,7 @@ pub(crate) mod test {
         let mut usigs = Vec::new();
 
         let mut rng = rand::thread_rng();
-        let origin = get_random_replica_id(n_parsed);
+        let origin = get_random_replica_id(n_parsed, &mut rng);
         let counter_latest_prep = Count(rng.gen());
         let total_amount_accepted_batches: u64 = rng.gen();
         let state_hash = create_random_state_hash();
@@ -1089,7 +1159,7 @@ pub(crate) mod test {
         let mut usigs = Vec::new();
 
         let mut rng = rand::thread_rng();
-        let origin = get_random_replica_id(n_parsed);
+        let origin = get_random_replica_id(n_parsed, &mut rng);
         let counter_latest_prep = Count(rng.gen());
         let total_amount_accepted_batches: u64 = rng.gen();
         let state_hash = create_random_state_hash();
@@ -1157,14 +1227,14 @@ pub(crate) mod test {
         let mut usigs = Vec::new();
 
         let mut rng = rand::thread_rng();
-        let origin = get_random_replica_id(n_parsed);
+        let origin = get_random_replica_id(n_parsed, &mut rng);
         let counter_latest_prep = Count(rng.gen());
         let total_amount_accepted_batches: u64 = rng.gen();
         let state_hash = create_random_state_hash();
         let mut usig_origin = UsigNoOp::default();
         usigs.push((origin, &mut usig_origin));
 
-        let random_rep_id = get_random_backup_replica_id(n_parsed, origin, &mut rng);
+        let random_rep_id = get_random_included_replica_id(n_parsed, origin, &mut rng);
         let mut usigs_others = HashMap::new();
         for i in 0..n {
             let rep_id = ReplicaId::from_u64(i);
