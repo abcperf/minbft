@@ -141,7 +141,7 @@ mod test {
             let mut usig_backup = UsigNoOp::default();
             let config_backup = create_config_default(n_parsed, t, backup_id);
 
-            add_attestations(vec![
+            add_attestations(&mut vec![
                 (primary_id, &mut usig_primary),
                 (backup_id, &mut usig_backup),
             ]);
@@ -171,7 +171,7 @@ mod test {
             let config_backup = create_config_default(n_parsed, t, backup_id);
             let commit = create_commit(backup_id, prepare, &mut usig_backup);
 
-            add_attestations(vec![
+            add_attestations(&mut vec![
                 (primary_id, &mut usig_primary),
                 (backup_id, &mut usig_backup),
             ]);
