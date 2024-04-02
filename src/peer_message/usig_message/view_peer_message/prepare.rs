@@ -171,7 +171,7 @@ pub(crate) mod test {
     use crate::{
         client_request::{test::create_batch, test::create_invalid_client_req, RequestBatch},
         tests::{
-            add_attestations, create_config_default, get_random_backup_replica_id,
+            add_attestations, create_config_default, get_random_included_replica_id,
             get_random_replica_id, DummyPayload,
         },
         Config, View,
@@ -228,7 +228,7 @@ pub(crate) mod test {
         rng: &mut ThreadRng,
     ) -> Prepare<DummyPayload, Signature> {
         let primary = config.primary(view);
-        let backup_id = get_random_backup_replica_id(config.n, primary, rng);
+        let backup_id = get_random_included_replica_id(config.n, primary, rng);
         Prepare::sign(
             PrepareContent {
                 origin: backup_id,
@@ -261,14 +261,14 @@ pub(crate) mod test {
         let mut rng = thread_rng();
 
         for t in 0..n / 2 {
-            let primary_id = get_random_replica_id(n_parsed);
+            let primary_id = get_random_replica_id(n_parsed, &mut rng);
             let view = View(primary_id.as_u64());
             let mut usig_primary = UsigNoOp::default();
             let config_primary = create_config_default(n_parsed, t, primary_id);
             let request_batch = create_batch();
             let prepare = create_prepare(view, request_batch, &config_primary, &mut usig_primary);
 
-            let backup_id = get_random_backup_replica_id(n_parsed, primary_id, &mut rng);
+            let backup_id = get_random_included_replica_id(n_parsed, primary_id, &mut rng);
             let mut usig_backup = UsigNoOp::default();
             let config_backup = create_config_default(n_parsed, t, backup_id);
 
@@ -291,7 +291,7 @@ pub(crate) mod test {
         let mut rng = thread_rng();
 
         for t in 0..n / 2 {
-            let primary_id = get_random_replica_id(n_parsed);
+            let primary_id = get_random_replica_id(n_parsed, &mut rng);
             let view = View(primary_id.as_u64());
             let mut usig_primary = UsigNoOp::default();
             let config_primary = create_config_default(n_parsed, t, primary_id);
@@ -304,7 +304,7 @@ pub(crate) mod test {
                 &mut rng,
             );
 
-            let backup_id = get_random_backup_replica_id(n_parsed, primary_id, &mut rng);
+            let backup_id = get_random_included_replica_id(n_parsed, primary_id, &mut rng);
             let mut usig_backup = UsigNoOp::default();
             let config_backup = create_config_default(n_parsed, t, backup_id);
 
@@ -326,14 +326,14 @@ pub(crate) mod test {
         let mut rng = thread_rng();
 
         for t in 0..n / 2 {
-            let primary_id = get_random_replica_id(n_parsed);
+            let primary_id = get_random_replica_id(n_parsed, &mut rng);
             let view = View(primary_id.as_u64());
             let mut usig_primary = UsigNoOp::default();
             let config_primary = create_config_default(n_parsed, t, primary_id);
             let prepare =
                 create_prepare_invalid_reqs(view, &config_primary, &mut usig_primary, &mut rng);
 
-            let backup_id = get_random_backup_replica_id(n_parsed, primary_id, &mut rng);
+            let backup_id = get_random_included_replica_id(n_parsed, primary_id, &mut rng);
             let mut usig_backup = UsigNoOp::default();
             let config_backup = create_config_default(n_parsed, t, backup_id);
 
@@ -358,14 +358,14 @@ pub(crate) mod test {
         let mut rng = thread_rng();
 
         for t in 0..n / 2 {
-            let primary_id = get_random_replica_id(n_parsed);
+            let primary_id = get_random_replica_id(n_parsed, &mut rng);
             let view = View(primary_id.as_u64());
             let mut usig_primary = UsigNoOp::default();
             let config_primary = create_config_default(n_parsed, t, primary_id);
             let request_batch = create_batch();
             let prepare = create_prepare(view, request_batch, &config_primary, &mut usig_primary);
 
-            let backup_id = get_random_backup_replica_id(n_parsed, primary_id, &mut rng);
+            let backup_id = get_random_included_replica_id(n_parsed, primary_id, &mut rng);
             let mut usig_backup = UsigNoOp::default();
             let config_backup = create_config_default(n_parsed, t, backup_id);
 
