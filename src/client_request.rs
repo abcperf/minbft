@@ -90,14 +90,28 @@ pub(crate) mod test {
 
     use crate::tests::DummyPayload;
 
-    use super::ClientRequest;
+    use super::{ClientRequest, RequestBatch};
 
-    pub(crate) fn create_invalid_client_req(mut rng: ThreadRng) -> ClientRequest<DummyPayload> {
+    pub(crate) fn create_invalid_client_req(rng: &mut ThreadRng) -> ClientRequest<DummyPayload> {
         let rand_client_id = rng.gen::<u64>();
         let rand_req_id = rng.gen::<u64>();
         ClientRequest {
             client: ClientId::from_u64(rand_client_id),
             payload: DummyPayload(rand_req_id, false),
         }
+    }
+
+    pub(crate) fn create_batch() -> RequestBatch<DummyPayload> {
+        let mut batch = Vec::new();
+        for i in 0..10 {
+            let client_req = ClientRequest {
+                client: ClientId::from_u64(i),
+                payload: DummyPayload(i, true),
+            };
+            batch.push(client_req);
+        }
+        let batch: [ClientRequest<DummyPayload>; 10] = batch.try_into().unwrap();
+        let batch = Box::new(batch);
+        RequestBatch { batch }
     }
 }
