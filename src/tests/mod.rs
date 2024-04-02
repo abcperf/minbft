@@ -319,8 +319,7 @@ pub(crate) fn create_commit_with_usig(
 /// # Arguments
 ///
 /// * `n` - The amount of peers that communicate with each other.
-pub(crate) fn get_random_replica_id(n: NonZeroU64) -> ReplicaId {
-    let mut rng = rand::thread_rng();
+pub(crate) fn get_random_replica_id(n: NonZeroU64, rng: &mut ThreadRng) -> ReplicaId {
     let id: u64 = rng.gen_range(0..n.into());
     ReplicaId::from_u64(id)
 }
@@ -397,34 +396,6 @@ pub(crate) fn create_random_state_hash() -> CheckpointHash {
     vals.try_into().unwrap()
 }
 
-/// Returns a [ViewChange] with a default [Usig], no cert, and with an empty
-/// message log.
-///
-/// # Arguments
-///
-/// * `origin` - The ID of the replica to which the [ViewChange] belongs to.
-/// * `next_view` - The [View] to change to.
-pub(crate) fn create_view_change_no_cert_empty_log_default_usig(
-    origin: ReplicaId,
-    next_view: View,
-) -> ViewChange<DummyPayload, Signature> {
-    let variant = ViewChangeVariantLog {
-        message_log: vec![],
-    };
-
-    ViewChange::sign(
-        ViewChangeContent {
-            origin,
-            next_view,
-            checkpoint: None,
-            variant,
-            phantom_data: PhantomData,
-        },
-        &mut UsigNoOp::default(),
-    )
-    .unwrap()
-}
-
 /// Returns a [ViewChange] with the provided [Usig], no cert, and with an empty
 /// message log.
 ///
@@ -446,7 +417,7 @@ pub(crate) fn create_view_change_no_cert_empty_log_with_usig(
         ViewChangeContent {
             origin,
             next_view,
-            checkpoint: None,
+            checkpoint_cert: None,
             variant,
             phantom_data: PhantomData,
         },
@@ -476,7 +447,7 @@ pub(crate) fn create_view_change_with_cert_log_and_usig(
         ViewChangeContent {
             origin,
             next_view,
-            checkpoint: checkpoint_cert,
+            checkpoint_cert,
             variant: ViewChangeVariantLog { message_log },
             phantom_data: PhantomData,
         },
@@ -527,20 +498,6 @@ pub(crate) fn create_checkpoint_cert_valid_n_3_t_1(
     }
 }
 
-pub(crate) fn create_message_log_valid(
-    origin: ReplicaId,
-    prev_view: View,
-    usig: &mut impl Usig<Signature = Signature>,
-) -> Vec<UsigMessageV<ViewChangeVariantNoLog, DummyPayload, Signature>> {
-    let mut message_log = Vec::new();
-
-    let prep = create_prepare_with_usig(origin, prev_view, usig);
-
-    message_log.push(UsigMessageV::View(ViewPeerMessage::Prepare(prep)));
-
-    message_log
-}
-
 pub(crate) fn get_shuffled_remaining_replicas(
     n: NonZeroU64,
     excluded_replica: Option<ReplicaId>,
@@ -564,12 +521,12 @@ pub(crate) fn get_shuffled_remaining_replicas(
 /// * `n` - The amount of peers that communicate with each other.
 /// * `primary_id` - The [ReplicaId] of the current primary. The generated
 ///                  backup [ReplicaId] should differ from it.
-pub(crate) fn get_random_backup_replica_id(
+pub(crate) fn get_random_included_replica_id(
     n: NonZeroU64,
-    primary_id: ReplicaId,
+    excluded_rep_id: ReplicaId,
     rng: &mut ThreadRng,
 ) -> ReplicaId {
-    let backup_replica_ids = get_shuffled_remaining_replicas(n, Some(primary_id), rng);
-    let random_index = rng.gen_range(0..backup_replica_ids.len() as u64) as usize;
-    backup_replica_ids[random_index]
+    let remaining_replica_ids = get_shuffled_remaining_replicas(n, Some(excluded_rep_id), rng);
+    let random_index = rng.gen_range(0..remaining_replica_ids.len() as u64) as usize;
+    remaining_replica_ids[random_index]
 }
