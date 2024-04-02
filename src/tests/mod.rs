@@ -1,36 +1,19 @@
 use anyhow::{anyhow, Result};
-use rand::{distributions::Uniform, prelude::SliceRandom, rngs::ThreadRng, thread_rng, Rng};
+use rand::{distributions::Uniform, prelude::SliceRandom, rngs::ThreadRng, Rng};
 use serde::{Deserialize, Serialize};
 use shared_ids::{AnyId, ClientId, RequestId};
 use std::{
     collections::HashMap,
-    marker::PhantomData,
     num::NonZeroU64,
     time::{Duration, Instant},
 };
 
 use shared_ids::ReplicaId;
-use usig::{
-    noop::{Signature, UsigNoOp},
-    Count, Usig,
-};
+use usig::{noop::UsigNoOp, Usig};
 
 use crate::{
-    client_request::{self, RequestBatch},
-    output::TimeoutRequest,
-    peer_message::usig_message::{
-        checkpoint::{Checkpoint, CheckpointCertificate, CheckpointContent, CheckpointHash},
-        view_change::{
-            ViewChange, ViewChangeContent, ViewChangeVariantLog, ViewChangeVariantNoLog,
-        },
-        view_peer_message::{
-            commit::{Commit, CommitContent},
-            ViewPeerMessage,
-        },
-        UsigMessageV,
-    },
-    timeout::StopClass,
-    Config, MinBft, Output, RequestPayload, ValidatedPeerMessage, View,
+    output::TimeoutRequest, peer_message::usig_message::checkpoint::CheckpointHash,
+    timeout::StopClass, Config, MinBft, Output, RequestPayload, ValidatedPeerMessage, View,
 };
 
 use super::{Prepare, PrepareContent, TimeoutType};
@@ -212,108 +195,6 @@ fn hello() {
     assert!(matches!(message, ValidatedPeerMessage::Hello(_)));
 }
 
-/// Returns a [Prepare] with a default [UsigNoOp] as [Usig].
-///
-/// # Arguments
-///
-/// * `origin` - The ID of the replica to which the [Prepare] belongs to.
-///              It should be the ID of the primary.
-/// * `view` - The current [View].
-pub(crate) fn create_prepare_default_usig(
-    origin: ReplicaId,
-    view: View,
-) -> Prepare<DummyPayload, Signature> {
-    Prepare::sign(
-        PrepareContent {
-            origin,
-            view,
-            request_batch: RequestBatch::new(
-                Box::<[client_request::ClientRequest<DummyPayload>; 0]>::new([]),
-            ),
-        },
-        &mut UsigNoOp::default(),
-    )
-    .unwrap()
-}
-
-/// Returns a [Prepare] with the provided [Usig].
-///
-/// # Arguments
-///
-/// * `origin` - The ID of the replica to which the [Prepare] belongs to.
-///              It should be the ID of the primary.
-/// * `view` - The current [View].
-/// * `usig` - The [Usig] to be used for signing the [Prepare].
-pub(crate) fn create_prepare_with_usig(
-    origin: ReplicaId,
-    view: View,
-    usig: &mut impl Usig<Signature = Signature>,
-) -> Prepare<DummyPayload, Signature> {
-    Prepare::sign(
-        PrepareContent {
-            origin,
-            view,
-            request_batch: RequestBatch::new(
-                Box::<[client_request::ClientRequest<DummyPayload>; 0]>::new([]),
-            ),
-        },
-        usig,
-    )
-    .unwrap()
-}
-
-/// Returns a valid [Prepare] with a random origin and with the provided USIG.
-///
-/// # Arguments
-///
-/// * `n` - The amount of peers that communicate with each other.
-///         It implicitly defines the range from which a random [ReplicaId]
-///         can be chosen (0 .. n - 1).
-/// * `usig` - The [Usig] to be used for signing the [Prepare].
-pub(crate) fn create_random_valid_prepare_with_usig(
-    n: NonZeroU64,
-    usig: &mut impl Usig<Signature = Signature>,
-) -> Prepare<DummyPayload, Signature> {
-    let mut rng = rand::thread_rng();
-    let id_prim: u64 = rng.gen_range(0..n.into());
-
-    // Create Prepare.
-    let id_primary = ReplicaId::from_u64(id_prim % n);
-    let view = View(id_prim);
-
-    create_prepare_with_usig(id_primary, view, usig)
-}
-
-/// Returns a [Commit] with a default [UsigNoOp] as [Usig].
-///
-/// # Arguments
-///
-/// * `origin` - The ID of the replica to which the [Commit] belongs to.
-///              It should be the ID of the primary.
-/// * `prepare` - The [Prepare] to which this [Commit] belongs to.
-pub(crate) fn create_commit_default_usig(
-    origin: ReplicaId,
-    prepare: Prepare<DummyPayload, Signature>,
-) -> Commit<DummyPayload, Signature> {
-    Commit::sign(CommitContent { origin, prepare }, &mut UsigNoOp::default()).unwrap()
-}
-
-/// Returns a [Commit] with the provided [Usig].
-///
-/// # Arguments
-///
-/// * `origin` - The ID of the backup replica to which the [Commit] belongs
-///              to.
-/// * `prepare` - The [Prepare] to which this [Commit] belongs to.
-/// * `usig` - The [Usig] to be used for signing the [Commit].
-pub(crate) fn create_commit_with_usig(
-    origin: ReplicaId,
-    prepare: Prepare<DummyPayload, Signature>,
-    usig: &mut impl Usig<Signature = Signature>,
-) -> Commit<DummyPayload, Signature> {
-    Commit::sign(CommitContent { origin, prepare }, usig).unwrap()
-}
-
 /// Returns a random [ReplicaId].
 ///
 /// # Arguments
@@ -369,24 +250,6 @@ pub(crate) fn add_attestations(usigs: &mut Vec<(ReplicaId, &mut UsigNoOp)>) {
     }
 }
 
-/// Creates a default [Checkpoint] with the provided [ReplicaId] as origin.
-///
-/// # Arguments
-///
-/// * `origin` - The ID of the replica to which the [Checkpoint] belongs to.
-pub(crate) fn create_default_checkpoint(origin: ReplicaId) -> Checkpoint<Signature> {
-    Checkpoint::sign(
-        CheckpointContent {
-            origin,
-            state_hash: [0; 64],
-            counter_latest_prep: Count(0),
-            total_amount_accepted_batches: 0,
-        },
-        &mut UsigNoOp::default(),
-    )
-    .unwrap()
-}
-
 /// Creates a random state hash for a [Checkpoint].
 pub(crate) fn create_random_state_hash() -> CheckpointHash {
     let mut rng = rand::thread_rng();
@@ -394,108 +257,6 @@ pub(crate) fn create_random_state_hash() -> CheckpointHash {
 
     let vals: Vec<u8> = (0..64).map(|_| rng.sample(range)).collect();
     vals.try_into().unwrap()
-}
-
-/// Returns a [ViewChange] with the provided [Usig], no cert, and with an empty
-/// message log.
-///
-/// # Arguments
-///
-/// * `origin` - The ID of the replica to which the [ViewChange] belongs to.
-/// * `next_view` - The [View] to change to.
-/// * `usig` - The [Usig] to be used for signing the [ViewChange].
-pub(crate) fn create_view_change_no_cert_empty_log_with_usig(
-    origin: ReplicaId,
-    next_view: View,
-    usig: &mut impl Usig<Signature = Signature>,
-) -> ViewChange<DummyPayload, Signature> {
-    let variant = ViewChangeVariantLog {
-        message_log: vec![],
-    };
-
-    ViewChange::sign(
-        ViewChangeContent {
-            origin,
-            next_view,
-            checkpoint_cert: None,
-            variant,
-            phantom_data: PhantomData,
-        },
-        usig,
-    )
-    .unwrap()
-}
-
-/// Returns a [ViewChange] with the provided [Usig], checkpoint certificate, and
-/// with an empty message log.
-///
-/// # Arguments
-///
-/// * `origin` - The ID of the replica to which the [ViewChange] belongs to.
-/// * `next_view` - The [View] to change to.
-/// * `checkpoint_cert` - The checkpoint certificate to set for the [ViewChange].
-/// * `message_log` - The message log to set for the [ViewChange].
-/// * `usig` - The [Usig] to be used for signing the [ViewChange].
-pub(crate) fn create_view_change_with_cert_log_and_usig(
-    origin: ReplicaId,
-    next_view: View,
-    checkpoint_cert: Option<CheckpointCertificate<Signature>>,
-    message_log: Vec<UsigMessageV<ViewChangeVariantNoLog, DummyPayload, Signature>>,
-    usig: &mut impl Usig<Signature = Signature>,
-) -> ViewChange<DummyPayload, Signature> {
-    ViewChange::sign(
-        ViewChangeContent {
-            origin,
-            next_view,
-            checkpoint_cert,
-            variant: ViewChangeVariantLog { message_log },
-            phantom_data: PhantomData,
-        },
-        usig,
-    )
-    .unwrap()
-}
-
-pub(crate) fn create_checkpoint_cert_valid_n_3_t_1(
-    rep_0: ReplicaId,
-    usig_0: &mut impl Usig<Signature = Signature>,
-    rep_1: ReplicaId,
-    usig_1: &mut impl Usig<Signature = Signature>,
-) -> CheckpointCertificate<Signature> {
-    let mut rng = rand::thread_rng();
-    let rand_counter_last_prep: u64 = rng.gen();
-    let rand_total_accepted_batches: u64 = rng.gen();
-
-    let state_hash = create_random_state_hash();
-
-    let my_checkpoint = Checkpoint::sign(
-        CheckpointContent {
-            origin: rep_0,
-            state_hash,
-            counter_latest_prep: Count(rand_counter_last_prep),
-            total_amount_accepted_batches: rand_total_accepted_batches,
-        },
-        usig_0,
-    )
-    .unwrap();
-
-    let other_checkpoint = Checkpoint::sign(
-        CheckpointContent {
-            origin: rep_1,
-            state_hash,
-            counter_latest_prep: Count(rand_counter_last_prep),
-            total_amount_accepted_batches: rand_total_accepted_batches,
-        },
-        usig_1,
-    )
-    .unwrap();
-
-    let other_checkpoints = vec![other_checkpoint];
-
-    CheckpointCertificate {
-        my_checkpoint,
-        other_checkpoints,
-    }
 }
 
 pub(crate) fn get_shuffled_remaining_replicas(
