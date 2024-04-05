@@ -326,7 +326,7 @@ impl<P: RequestPayload, Sig: Counter + Serialize + Debug> ViewChange<P, Sig> {
 
 #[cfg(test)]
 pub(crate) mod test {
-    use rand::{rngs::ThreadRng, thread_rng, Rng};
+    use rand::{thread_rng, Rng};
     use rstest::rstest;
     use usig::{noop::Signature, AnyId, Usig};
 
@@ -397,38 +397,15 @@ pub(crate) mod test {
         message_log
     }
 
-    pub(crate) struct ViewChangeMetadata {
-        pub(crate) t: u64,
-        pub(crate) amount_messages: u64,
-        pub(crate) next_view: View,
-    }
-
-    pub(crate) fn setup_creation_of_random_view_change(
-        n: NonZeroU64,
-        rng: &mut ThreadRng,
-    ) -> ViewChangeMetadata {
-        let t = n.get() / 2;
-        let amount_messages: u64 = rng.gen_range(5..10);
-        let next_view = get_random_view_with_max(View(2 * n.get() + 1));
-
-        ViewChangeMetadata {
-            t,
-            amount_messages,
-            next_view,
-        }
-    }
-
     #[rstest]
     fn validate_valid_view_change_no_cert(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
         let mut rng = thread_rng();
         let origin = get_random_replica_id(n_parsed, &mut rng);
 
-        let ViewChangeMetadata {
-            t,
-            amount_messages,
-            next_view,
-        } = setup_creation_of_random_view_change(n_parsed, &mut rng);
+        let t = n / 2;
+        let amount_messages: u64 = rng.gen_range(5..10);
+        let next_view = get_random_view_with_max(View(2 * n + 1));
 
         let configs = create_default_configs_for_replicas(n_parsed, t);
         let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
@@ -455,11 +432,8 @@ pub(crate) mod test {
         let mut rng = thread_rng();
         let origin = get_random_replica_id(n_parsed, &mut rng);
 
-        let ViewChangeMetadata {
-            t,
-            amount_messages: _,
-            next_view,
-        } = setup_creation_of_random_view_change(n_parsed, &mut rng);
+        let t = n / 2;
+        let next_view = get_random_view_with_max(View(2 * n + 1));
 
         let message_log = Vec::new();
 
@@ -486,11 +460,9 @@ pub(crate) mod test {
         let mut rng = thread_rng();
         let origin = get_random_replica_id(n_parsed, &mut rng);
 
-        let ViewChangeMetadata {
-            t,
-            amount_messages,
-            next_view,
-        } = setup_creation_of_random_view_change(n_parsed, &mut rng);
+        let t = n / 2;
+        let amount_messages: u64 = rng.gen_range(5..10);
+        let next_view = get_random_view_with_max(View(2 * n + 1));
 
         let configs = create_default_configs_for_replicas(n_parsed, t);
         let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
@@ -517,11 +489,9 @@ pub(crate) mod test {
         let mut rng = thread_rng();
         let origin = get_random_replica_id(n_parsed, &mut rng);
 
-        let ViewChangeMetadata {
-            t,
-            amount_messages,
-            next_view,
-        } = setup_creation_of_random_view_change(n_parsed, &mut rng);
+        let t = n / 2;
+        let amount_messages: u64 = rng.gen_range(5..10);
+        let next_view = get_random_view_with_max(View(2 * n + 1));
 
         let configs = create_default_configs_for_replicas(n_parsed, t);
         let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
@@ -551,11 +521,9 @@ pub(crate) mod test {
         let mut rng = thread_rng();
         let origin = get_random_replica_id(n_parsed, &mut rng);
 
-        let ViewChangeMetadata {
-            t,
-            amount_messages,
-            next_view,
-        } = setup_creation_of_random_view_change(n_parsed, &mut rng);
+        let t = n / 2;
+        let amount_messages: u64 = rng.gen_range(5..10);
+        let next_view = get_random_view_with_max(View(2 * n + 1));
 
         let configs = create_default_configs_for_replicas(n_parsed, t);
         let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
@@ -584,11 +552,9 @@ pub(crate) mod test {
         let mut rng = thread_rng();
         let origin = get_random_replica_id(n_parsed, &mut rng);
 
-        let ViewChangeMetadata {
-            t,
-            amount_messages,
-            next_view,
-        } = setup_creation_of_random_view_change(n_parsed, &mut rng);
+        let t = n / 2;
+        let amount_messages: u64 = rng.gen_range(5..10);
+        let next_view = get_random_view_with_max(View(2 * n + 1));
 
         let configs = create_default_configs_for_replicas(n_parsed, t);
         let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
@@ -615,11 +581,9 @@ pub(crate) mod test {
         let mut rng = thread_rng();
         let origin = get_random_replica_id(n_parsed, &mut rng);
 
-        let ViewChangeMetadata {
-            t,
-            amount_messages,
-            next_view,
-        } = setup_creation_of_random_view_change(n_parsed, &mut rng);
+        let t = n / 2;
+        let amount_messages: u64 = rng.gen_range(5..10);
+        let next_view = get_random_view_with_max(View(2 * n + 1));
 
         let configs = create_default_configs_for_replicas(n_parsed, t);
         let mut usigs = create_attested_usigs_for_replicas(n_parsed, vec![origin]);
@@ -644,11 +608,9 @@ pub(crate) mod test {
         let mut rng = thread_rng();
         let origin = get_random_replica_id(n_parsed, &mut rng);
 
-        let ViewChangeMetadata {
-            t,
-            amount_messages,
-            next_view,
-        } = setup_creation_of_random_view_change(n_parsed, &mut rng);
+        let t = n / 2;
+        let amount_messages: u64 = rng.gen_range(5..10);
+        let next_view = get_random_view_with_max(View(2 * n + 1));
 
         let configs = create_default_configs_for_replicas(n_parsed, t);
         let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
@@ -700,11 +662,9 @@ pub(crate) mod test {
         let mut rng = thread_rng();
         let origin = get_random_replica_id(n_parsed, &mut rng);
 
-        let ViewChangeMetadata {
-            t,
-            amount_messages,
-            next_view,
-        } = setup_creation_of_random_view_change(n_parsed, &mut rng);
+        let t = n / 2;
+        let amount_messages: u64 = rng.gen_range(5..10);
+        let next_view = get_random_view_with_max(View(2 * n + 1));
 
         let configs = create_default_configs_for_replicas(n_parsed, t);
         let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
@@ -757,11 +717,9 @@ pub(crate) mod test {
         let mut rng = thread_rng();
         let origin = get_random_replica_id(n_parsed, &mut rng);
 
-        let ViewChangeMetadata {
-            t,
-            amount_messages,
-            next_view,
-        } = setup_creation_of_random_view_change(n_parsed, &mut rng);
+        let t = n / 2;
+        let amount_messages: u64 = rng.gen_range(5..10);
+        let next_view = get_random_view_with_max(View(2 * n + 1));
 
         let configs = create_default_configs_for_replicas(n_parsed, t);
         let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
@@ -810,11 +768,9 @@ pub(crate) mod test {
         let mut rng = thread_rng();
         let origin = get_random_replica_id(n_parsed, &mut rng);
 
-        let ViewChangeMetadata {
-            t,
-            amount_messages,
-            next_view,
-        } = setup_creation_of_random_view_change(n_parsed, &mut rng);
+        let t = n / 2;
+        let amount_messages: u64 = rng.gen_range(5..10);
+        let next_view = get_random_view_with_max(View(2 * n + 1));
 
         let configs = create_default_configs_for_replicas(n_parsed, t);
         let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
