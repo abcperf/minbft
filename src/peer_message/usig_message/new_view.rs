@@ -230,10 +230,61 @@ impl<P: RequestPayload, Sig: Serialize + Counter + Debug> NewViewCertificate<P, 
 }
 
 #[cfg(test)]
+pub(crate) mod test {
+    use std::num::NonZeroU64;
 
-mod test {
-    fn validate_valid_new_view_cert() {
-        todo!();
+    use rand::thread_rng;
+    use rstest::rstest;
+
+    use crate::{
+        peer_message::usig_message::view_change::test::{create_message_log, create_view_change},
+        tests::{
+            create_attested_usigs_for_replicas, create_default_configs_for_replicas,
+            get_shuffled_remaining_replicas,
+        },
+    };
+
+    use super::NewViewCertificate;
+
+    #[rstest]
+    fn validate_valid_new_view_cert(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        use rand::Rng;
+
+        use crate::{tests::get_random_view_with_max, View};
+
+        let mut view_changes = Vec::new();
+
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+        let shuffled_replicas = get_shuffled_remaining_replicas(n_parsed, None, &mut rng);
+
+        let t = n / 2;
+        let next_view = get_random_view_with_max(View(2 * n + 1));
+
+        let configs = create_default_configs_for_replicas(n_parsed, t);
+        let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
+
+        for shuffled_replica in &shuffled_replicas {
+            let amount_messages: u64 = rng.gen_range(5..10);
+
+            let message_log =
+                create_message_log(*shuffled_replica, amount_messages, &configs, &mut usigs);
+
+            let usig_origin = usigs.get_mut(shuffled_replica).unwrap();
+
+            let view_change =
+                create_view_change(*shuffled_replica, next_view, None, message_log, usig_origin);
+
+            view_changes.push(view_change);
+        }
+
+        let new_view = NewViewCertificate { view_changes };
+
+        for shuffled_replica in &shuffled_replicas {
+            let config = configs.get(shuffled_replica).unwrap();
+            let usig = usigs.get_mut(shuffled_replica).unwrap();
+            assert!(new_view.validate(config, usig).is_ok());
+        }
     }
 
     fn validate_invalid_new_view_cert_unsuff_msgs() {
