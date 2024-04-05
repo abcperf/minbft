@@ -235,6 +235,43 @@ pub(crate) fn create_config_default(n: NonZeroU64, t: u64, id: ReplicaId) -> Con
     }
 }
 
+pub(crate) fn create_default_configs_for_replicas(
+    n: NonZeroU64,
+    t: u64,
+) -> HashMap<ReplicaId, Config> {
+    let mut configs = HashMap::new();
+    for i in 0..n.get() {
+        let rep_id = ReplicaId::from_u64(i);
+        let config = create_config_default(n, t, rep_id);
+        configs.insert(rep_id, config);
+    }
+    configs
+}
+
+pub(crate) fn create_attested_usigs_for_replicas(
+    n: NonZeroU64,
+    not_to_attest_with_rest: Vec<ReplicaId>,
+) -> HashMap<ReplicaId, UsigNoOp> {
+    let mut usigs = HashMap::new();
+    for i in 0..n.get() {
+        let rep_id = ReplicaId::from_u64(i);
+        let usig = UsigNoOp::default();
+        usigs.insert(rep_id, usig);
+    }
+
+    let mut usigs_tuple = Vec::new();
+    for (rep_id, usig) in usigs.iter_mut() {
+        if not_to_attest_with_rest.contains(rep_id) {
+            continue;
+        }
+        usigs_tuple.push((*rep_id, usig));
+    }
+
+    add_attestations(&mut usigs_tuple);
+
+    usigs
+}
+
 /// Adds each [UsigNoOp] to each [UsigNoOp] as a remote party.
 ///
 /// # Arguments
@@ -257,6 +294,16 @@ pub(crate) fn create_random_state_hash() -> CheckpointHash {
 
     let vals: Vec<u8> = (0..64).map(|_| rng.sample(range)).collect();
     vals.try_into().unwrap()
+}
+
+pub(crate) fn get_two_different_indexes(max_range: usize, rng: &mut ThreadRng) -> (usize, usize) {
+    assert!(max_range > 1);
+    let index_1 = rng.gen_range(0..max_range);
+    let mut index_2 = rng.gen_range(0..max_range);
+    while index_2 == index_1 {
+        index_2 = rng.gen_range(0..max_range);
+    }
+    (index_1, index_2)
 }
 
 pub(crate) fn get_shuffled_remaining_replicas(
