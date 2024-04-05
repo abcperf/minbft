@@ -275,12 +275,12 @@ pub(crate) mod test {
             view_changes.push(view_change);
         }
 
-        let new_view = NewViewCertificate { view_changes };
+        let new_view_cert = NewViewCertificate { view_changes };
 
         for shuffled_replica in &shuffled_replicas {
             let config = configs.get(shuffled_replica).unwrap();
             let usig = usigs.get_mut(shuffled_replica).unwrap();
-            assert!(new_view.validate(config, usig).is_ok());
+            assert!(new_view_cert.validate(config, usig).is_ok());
         }
     }
 
@@ -322,12 +322,12 @@ pub(crate) mod test {
                 view_changes.push(view_change);
             }
 
-            let new_view = NewViewCertificate { view_changes };
+            let new_view_cert = NewViewCertificate { view_changes };
 
             for shuffled_replica in &shuffled_replicas {
                 let config = configs.get(shuffled_replica).unwrap();
                 let usig = usigs.get_mut(shuffled_replica).unwrap();
-                assert!(new_view.validate(config, usig).is_err());
+                assert!(new_view_cert.validate(config, usig).is_err());
             }
         }
     }
@@ -375,12 +375,12 @@ pub(crate) mod test {
             view_changes.push(view_change);
         }
 
-        let new_view = NewViewCertificate { view_changes };
+        let new_view_cert = NewViewCertificate { view_changes };
 
         for shuffled_replica in &shuffled_replicas {
             let config = configs.get(shuffled_replica).unwrap();
             let usig = usigs.get_mut(shuffled_replica).unwrap();
-            assert!(new_view.validate(config, usig).is_err());
+            assert!(new_view_cert.validate(config, usig).is_err());
         }
     }
 
@@ -426,12 +426,12 @@ pub(crate) mod test {
             view_changes.push(view_change);
         }
 
-        let new_view = NewViewCertificate { view_changes };
+        let new_view_cert = NewViewCertificate { view_changes };
 
         for shuffled_replica in &shuffled_replicas {
             let config = configs.get(shuffled_replica).unwrap();
             let usig = usigs.get_mut(shuffled_replica).unwrap();
-            assert!(new_view.validate(config, usig).is_err());
+            assert!(new_view_cert.validate(config, usig).is_err());
         }
     }
 
