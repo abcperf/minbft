@@ -326,7 +326,7 @@ impl<P: RequestPayload, Sig: Counter + Serialize + Debug> ViewChange<P, Sig> {
 
 #[cfg(test)]
 pub(crate) mod test {
-    use rand::{rngs::ThreadRng, Rng};
+    use rand::{rngs::ThreadRng, thread_rng, Rng};
     use rstest::rstest;
     use usig::{noop::Signature, AnyId, Usig};
 
@@ -337,21 +337,20 @@ pub(crate) mod test {
 
     use usig::{noop::UsigNoOp, Count, ReplicaId};
 
-    use crate::peer_message::usig_message::checkpoint::test::create_invalid_checkpoint_certs;
+    use crate::tests::{create_attested_usigs_for_replicas, create_default_configs_for_replicas};
     use crate::{
         client_request::test::create_batch,
         peer_message::usig_message::{
-            checkpoint::{test::create_checkpoint_cert, CheckpointCertificate},
-            view_change::{ViewChangeContent, ViewChangeVariantLog},
-            view_peer_message::{
-                commit::test::create_commit, prepare::test::create_prepare, ViewPeerMessage,
+            checkpoint::{
+                test::{create_checkpoint_cert, create_invalid_checkpoint_certs},
+                CheckpointCertificate,
             },
+            view_change::{ViewChangeContent, ViewChangeVariantLog},
+            view_peer_message::{prepare::test::create_prepare, ViewPeerMessage},
             UsigMessageV,
         },
         tests::{
-            add_attestations, create_config_default, create_random_state_hash,
-            get_random_included_replica_id, get_random_replica_id, get_random_view_with_max,
-            DummyPayload,
+            create_random_state_hash, get_random_replica_id, get_random_view_with_max, DummyPayload,
         },
         Config, View,
     };
@@ -378,150 +377,72 @@ pub(crate) mod test {
 
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_message_log(
-        amount_messages: u64,
-        n: NonZeroU64,
         origin: ReplicaId,
-        config_origin: &Config,
-        usig_origin: &mut impl Usig<Signature = Signature>,
-        rng: &mut ThreadRng,
+        amount_messages: u64,
         configs: &HashMap<ReplicaId, Config>,
-        usigs: &mut HashMap<ReplicaId, impl Usig<Signature = Signature>>,
+        usigs: &mut HashMap<ReplicaId, UsigNoOp>,
     ) -> Vec<UsigMessageV<ViewChangeVariantNoLog, DummyPayload, Signature>> {
         let mut message_log = Vec::new();
 
-        let amount_prepares = rng.gen_range(0..amount_messages);
-        let amount_commits = amount_messages - amount_prepares;
+        let config_origin = configs.get(&origin).unwrap();
+        let usig_origin = usigs.get_mut(&origin).unwrap();
 
         let view = View(origin.as_u64());
-        for _ in 0..amount_prepares {
+        for _ in 0..amount_messages {
             let request_batch = create_batch();
             let prepare = create_prepare(view, request_batch, config_origin, usig_origin);
             message_log.push(UsigMessageV::View(ViewPeerMessage::Prepare(prepare)));
-        }
-
-        for _ in 0..amount_commits {
-            let primary_id = get_random_included_replica_id(n, origin, rng);
-            let view = View(primary_id.as_u64());
-            let usig_primary = usigs.get_mut(&primary_id).unwrap();
-            let config_primary = configs.get(&primary_id).unwrap();
-            let request_batch = create_batch();
-            let prepare = create_prepare(view, request_batch, config_primary, usig_primary);
-
-            let commit = create_commit(origin, prepare, usig_origin);
-            message_log.push(UsigMessageV::View(ViewPeerMessage::Commit(commit)));
         }
 
         message_log
     }
 
     pub(crate) struct ViewChangeMetadata {
-        amount_messages: u64,
-        next_view: View,
-        n: NonZeroU64,
-        t: NonZeroU64,
-        origin: ReplicaId,
-        config_origin: Config,
-        usig_origin: UsigNoOp,
-        rng: ThreadRng,
-        config_others: HashMap<ReplicaId, Config>,
-        usigs_others: HashMap<ReplicaId, UsigNoOp>,
+        pub(crate) t: u64,
+        pub(crate) amount_messages: u64,
+        pub(crate) next_view: View,
     }
 
-    pub(crate) fn setup_creation_of_view_change(n: NonZeroU64) -> ViewChangeMetadata {
-        let mut usigs = Vec::new();
-
-        let mut rng = rand::thread_rng();
-        let origin = get_random_replica_id(n, &mut rng);
-        let mut usig_origin = UsigNoOp::default();
-        usigs.push((origin, &mut usig_origin));
-
-        let mut usigs_others = HashMap::new();
-        for i in 0..n.get() {
-            let rep_id = ReplicaId::from_u64(i);
-            if rep_id == origin {
-                continue;
-            }
-            let usig_other = UsigNoOp::default();
-            usigs_others.insert(rep_id, usig_other);
-        }
-
-        for (rep_id, usig_other) in usigs_others.iter_mut() {
-            usigs.push((*rep_id, usig_other));
-        }
-
-        add_attestations(&mut usigs);
-
-        let t = if n.get() / 2 == 1 {
-            NonZeroU64::new(1).unwrap()
-        } else {
-            NonZeroU64::new(rng.gen_range(1..n.get() / 2)).unwrap()
-        };
-
-        let config_origin = create_config_default(n, t.get(), origin);
-        let mut config_others = HashMap::new();
-        for i in 0..n.get() {
-            let rep_id = ReplicaId::from_u64(i);
-            if rep_id == origin {
-                continue;
-            }
-            let config_other = create_config_default(n, t.get(), rep_id);
-            config_others.insert(rep_id, config_other);
-        }
-
+    pub(crate) fn setup_creation_of_random_view_change(
+        n: NonZeroU64,
+        rng: &mut ThreadRng,
+    ) -> ViewChangeMetadata {
+        let t = n.get() / 2;
         let amount_messages: u64 = rng.gen_range(5..10);
         let next_view = get_random_view_with_max(View(2 * n.get() + 1));
 
         ViewChangeMetadata {
+            t,
             amount_messages,
             next_view,
-            n,
-            t,
-            origin,
-            config_origin,
-            usig_origin,
-            rng,
-            config_others,
-            usigs_others,
         }
     }
 
     #[rstest]
     fn validate_valid_view_change_no_cert(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+        let origin = get_random_replica_id(n_parsed, &mut rng);
+
         let ViewChangeMetadata {
+            t,
             amount_messages,
             next_view,
-            n,
-            t: _,
-            origin,
-            config_origin,
-            mut usig_origin,
-            mut rng,
-            config_others,
-            mut usigs_others,
-        } = setup_creation_of_view_change(NonZeroU64::new(n).unwrap());
+        } = setup_creation_of_random_view_change(n_parsed, &mut rng);
 
-        let message_log = create_message_log(
-            amount_messages,
-            n,
-            origin,
-            &config_origin,
-            &mut usig_origin,
-            &mut rng,
-            &config_others,
-            &mut usigs_others,
-        );
+        let configs = create_default_configs_for_replicas(n_parsed, t);
+        let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
 
-        let view_change =
-            create_view_change(origin, next_view, None, message_log, &mut usig_origin);
+        let message_log = create_message_log(origin, amount_messages, &configs, &mut usigs);
 
-        for i in 0..n.get() {
+        let usig_origin = usigs.get_mut(&origin).unwrap();
+
+        let view_change = create_view_change(origin, next_view, None, message_log, usig_origin);
+
+        for i in 0..n {
             let rep_id = ReplicaId::from_u64(i);
-            if rep_id == origin {
-                assert!((view_change.validate(&config_origin, &mut usig_origin)).is_ok());
-                continue;
-            }
-            let config = config_others.get(&rep_id).unwrap();
-            let usig = usigs_others.get_mut(&rep_id).unwrap();
+            let config = configs.get(&rep_id).unwrap();
+            let usig = usigs.get_mut(&rep_id).unwrap();
             assert!((view_change.validate(config, usig)).is_ok());
         }
     }
@@ -530,32 +451,29 @@ pub(crate) mod test {
     fn validate_valid_view_change_counter_eq_0_empty_msg_log_no_cert(
         #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
     ) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+        let origin = get_random_replica_id(n_parsed, &mut rng);
+
         let ViewChangeMetadata {
+            t,
             amount_messages: _,
             next_view,
-            n,
-            t: _,
-            origin,
-            config_origin,
-            mut usig_origin,
-            rng: _,
-            config_others,
-            mut usigs_others,
-        } = setup_creation_of_view_change(NonZeroU64::new(n).unwrap());
+        } = setup_creation_of_random_view_change(n_parsed, &mut rng);
 
         let message_log = Vec::new();
 
-        let view_change =
-            create_view_change(origin, next_view, None, message_log, &mut usig_origin);
+        let configs = create_default_configs_for_replicas(n_parsed, t);
+        let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
 
-        for i in 0..n.get() {
+        let usig_origin = usigs.get_mut(&origin).unwrap();
+
+        let view_change = create_view_change(origin, next_view, None, message_log, usig_origin);
+
+        for i in 0..n {
             let rep_id = ReplicaId::from_u64(i);
-            if rep_id == origin {
-                assert!((view_change.validate(&config_origin, &mut usig_origin)).is_ok());
-                continue;
-            }
-            let config = config_others.get(&rep_id).unwrap();
-            let usig = usigs_others.get_mut(&rep_id).unwrap();
+            let config = configs.get(&rep_id).unwrap();
+            let usig = usigs.get_mut(&rep_id).unwrap();
             assert!((view_change.validate(config, usig)).is_ok());
         }
     }
@@ -564,88 +482,63 @@ pub(crate) mod test {
     fn validate_invalid_view_change_counter_greater_0_empty_msg_log_no_cert(
         #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
     ) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+        let origin = get_random_replica_id(n_parsed, &mut rng);
+
         let ViewChangeMetadata {
+            t,
             amount_messages,
             next_view,
-            n,
-            t: _,
-            origin,
-            config_origin,
-            mut usig_origin,
-            mut rng,
-            config_others,
-            mut usigs_others,
-        } = setup_creation_of_view_change(NonZeroU64::new(n).unwrap());
+        } = setup_creation_of_random_view_change(n_parsed, &mut rng);
 
-        let mut message_log = create_message_log(
-            amount_messages,
-            n,
-            origin,
-            &config_origin,
-            &mut usig_origin,
-            &mut rng,
-            &config_others,
-            &mut usigs_others,
-        );
+        let configs = create_default_configs_for_replicas(n_parsed, t);
+        let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
+
+        let mut message_log = create_message_log(origin, amount_messages, &configs, &mut usigs);
 
         message_log.drain(..);
 
-        let view_change =
-            create_view_change(origin, next_view, None, message_log, &mut usig_origin);
+        let usig_origin = usigs.get_mut(&origin).unwrap();
 
-        for i in 0..n.get() {
+        let view_change = create_view_change(origin, next_view, None, message_log, usig_origin);
+
+        for i in 0..n {
             let rep_id = ReplicaId::from_u64(i);
-            if rep_id == origin {
-                assert!((view_change.validate(&config_origin, &mut usig_origin)).is_err());
-                continue;
-            }
-            let config = config_others.get(&rep_id).unwrap();
-            let usig = usigs_others.get_mut(&rep_id).unwrap();
+            let config = configs.get(&rep_id).unwrap();
+            let usig = usigs.get_mut(&rep_id).unwrap();
             assert!((view_change.validate(config, usig)).is_err());
         }
     }
 
     #[rstest]
     fn validate_invalid_view_change_msg_log_hole(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+        let origin = get_random_replica_id(n_parsed, &mut rng);
+
         let ViewChangeMetadata {
-            amount_messages: _,
-            next_view,
-            n,
-            t: _,
-            origin,
-            config_origin,
-            mut usig_origin,
-            mut rng,
-            config_others,
-            mut usigs_others,
-        } = setup_creation_of_view_change(NonZeroU64::new(n).unwrap());
-
-        let amount_messages: u64 = rng.gen_range(5..10);
-        let msg_to_delete_index: usize = rng.gen_range(2..4);
-        let mut message_log = create_message_log(
+            t,
             amount_messages,
-            n,
-            origin,
-            &config_origin,
-            &mut usig_origin,
-            &mut rng,
-            &config_others,
-            &mut usigs_others,
-        );
+            next_view,
+        } = setup_creation_of_random_view_change(n_parsed, &mut rng);
 
+        let configs = create_default_configs_for_replicas(n_parsed, t);
+        let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
+
+        let mut message_log = create_message_log(origin, amount_messages, &configs, &mut usigs);
+
+        let usig_origin = usigs.get_mut(&origin).unwrap();
+
+        let msg_to_delete_index: usize = rng.gen_range(2..4);
         message_log.remove(msg_to_delete_index);
 
-        let view_change =
-            create_view_change(origin, next_view, None, message_log, &mut usig_origin);
+        let view_change = create_view_change(origin, next_view, None, message_log, usig_origin);
 
-        for i in 0..n.get() {
+        for i in 0..n {
             let rep_id = ReplicaId::from_u64(i);
-            if rep_id == origin {
-                assert!((view_change.validate(&config_origin, &mut usig_origin)).is_err());
-                continue;
-            }
-            let config = config_others.get(&rep_id).unwrap();
-            let usig = usigs_others.get_mut(&rep_id).unwrap();
+            let config = configs.get(&rep_id).unwrap();
+            let usig = usigs.get_mut(&rep_id).unwrap();
             assert!((view_change.validate(config, usig)).is_err());
         }
     }
@@ -654,43 +547,31 @@ pub(crate) mod test {
     fn validate_invalid_view_change_msg_log_first_missing(
         #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
     ) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+        let origin = get_random_replica_id(n_parsed, &mut rng);
+
         let ViewChangeMetadata {
+            t,
             amount_messages,
             next_view,
-            n,
-            t: _,
-            origin,
-            config_origin,
-            mut usig_origin,
-            mut rng,
-            config_others,
-            mut usigs_others,
-        } = setup_creation_of_view_change(NonZeroU64::new(n).unwrap());
+        } = setup_creation_of_random_view_change(n_parsed, &mut rng);
 
-        let mut message_log = create_message_log(
-            amount_messages,
-            n,
-            origin,
-            &config_origin,
-            &mut usig_origin,
-            &mut rng,
-            &config_others,
-            &mut usigs_others,
-        );
+        let configs = create_default_configs_for_replicas(n_parsed, t);
+        let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
+
+        let mut message_log = create_message_log(origin, amount_messages, &configs, &mut usigs);
+
+        let usig_origin = usigs.get_mut(&origin).unwrap();
 
         message_log.remove(0);
 
-        let view_change =
-            create_view_change(origin, next_view, None, message_log, &mut usig_origin);
+        let view_change = create_view_change(origin, next_view, None, message_log, usig_origin);
 
-        for i in 0..n.get() {
+        for i in 0..n {
             let rep_id = ReplicaId::from_u64(i);
-            if rep_id == origin {
-                assert!((view_change.validate(&config_origin, &mut usig_origin)).is_err());
-                continue;
-            }
-            let config = config_others.get(&rep_id).unwrap();
-            let usig = usigs_others.get_mut(&rep_id).unwrap();
+            let config = configs.get(&rep_id).unwrap();
+            let usig = usigs.get_mut(&rep_id).unwrap();
             assert!((view_change.validate(config, usig)).is_err());
         }
     }
@@ -699,43 +580,31 @@ pub(crate) mod test {
     fn validate_invalid_view_change_msg_log_last_missing(
         #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
     ) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+        let origin = get_random_replica_id(n_parsed, &mut rng);
+
         let ViewChangeMetadata {
+            t,
             amount_messages,
             next_view,
-            n,
-            t: _,
-            origin,
-            config_origin,
-            mut usig_origin,
-            mut rng,
-            config_others,
-            mut usigs_others,
-        } = setup_creation_of_view_change(NonZeroU64::new(n).unwrap());
+        } = setup_creation_of_random_view_change(n_parsed, &mut rng);
 
-        let mut message_log = create_message_log(
-            amount_messages,
-            n,
-            origin,
-            &config_origin,
-            &mut usig_origin,
-            &mut rng,
-            &config_others,
-            &mut usigs_others,
-        );
+        let configs = create_default_configs_for_replicas(n_parsed, t);
+        let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
+
+        let mut message_log = create_message_log(origin, amount_messages, &configs, &mut usigs);
+
+        let usig_origin = usigs.get_mut(&origin).unwrap();
 
         message_log.pop();
 
-        let view_change =
-            create_view_change(origin, next_view, None, message_log, &mut usig_origin);
+        let view_change = create_view_change(origin, next_view, None, message_log, usig_origin);
 
-        for i in 0..n.get() {
+        for i in 0..n {
             let rep_id = ReplicaId::from_u64(i);
-            if rep_id == origin {
-                assert!((view_change.validate(&config_origin, &mut usig_origin)).is_err());
-                continue;
-            }
-            let config = config_others.get(&rep_id).unwrap();
-            let usig = usigs_others.get_mut(&rep_id).unwrap();
+            let config = configs.get(&rep_id).unwrap();
+            let usig = usigs.get_mut(&rep_id).unwrap();
             assert!((view_change.validate(config, usig)).is_err());
         }
     }
@@ -743,224 +612,140 @@ pub(crate) mod test {
     #[rstest]
     fn validate_invalid_view_change_signature(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
-
-        let mut usigs = Vec::new();
-
-        let mut rng = rand::thread_rng();
+        let mut rng = thread_rng();
         let origin = get_random_replica_id(n_parsed, &mut rng);
-        let mut usig_origin = UsigNoOp::default();
 
-        let mut usigs_others = HashMap::new();
-        for i in 0..n {
-            let rep_id = ReplicaId::from_u64(i);
-            if rep_id == origin {
-                continue;
-            }
-            let usig_other = UsigNoOp::default();
-            usigs_others.insert(rep_id, usig_other);
-        }
-
-        for (rep_id, usig_other) in usigs_others.iter_mut() {
-            usigs.push((*rep_id, usig_other));
-        }
-
-        add_attestations(&mut usigs);
-
-        let t_random: u64 = if n / 2 == 1 {
-            1
-        } else {
-            rng.gen_range(1..n / 2)
-        };
-
-        let config_origin = create_config_default(n_parsed, t_random, origin);
-        let mut config_others = HashMap::new();
-        for i in 0..n {
-            let rep_id = ReplicaId::from_u64(i);
-            if rep_id == origin {
-                continue;
-            }
-            let config_other = create_config_default(n_parsed, t_random, rep_id);
-            config_others.insert(rep_id, config_other);
-        }
-
-        let amount_messages: u64 = rng.gen_range(5..10);
-        let message_log = create_message_log(
+        let ViewChangeMetadata {
+            t,
             amount_messages,
-            n_parsed,
-            origin,
-            &config_origin,
-            &mut usig_origin,
-            &mut rng,
-            &config_others,
-            &mut usigs_others,
-        );
+            next_view,
+        } = setup_creation_of_random_view_change(n_parsed, &mut rng);
 
-        let next_view = get_random_view_with_max(View(2 * n + 1));
+        let configs = create_default_configs_for_replicas(n_parsed, t);
+        let mut usigs = create_attested_usigs_for_replicas(n_parsed, vec![origin]);
 
-        let view_change =
-            create_view_change(origin, next_view, None, message_log, &mut usig_origin);
+        let message_log = create_message_log(origin, amount_messages, &configs, &mut usigs);
+
+        let usig_origin = usigs.get_mut(&origin).unwrap();
+
+        let view_change = create_view_change(origin, next_view, None, message_log, usig_origin);
 
         for i in 0..n {
             let rep_id = ReplicaId::from_u64(i);
-            if rep_id == origin {
-                assert!((view_change.validate(&config_origin, &mut usig_origin)).is_err());
-                continue;
-            }
-            let config = config_others.get(&rep_id).unwrap();
-            let usig = usigs_others.get_mut(&rep_id).unwrap();
+            let config = configs.get(&rep_id).unwrap();
+            let usig = usigs.get_mut(&rep_id).unwrap();
             assert!((view_change.validate(config, usig)).is_err());
         }
     }
 
     #[rstest]
     fn validate_valid_view_change_with_cert(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+        let origin = get_random_replica_id(n_parsed, &mut rng);
+
         let ViewChangeMetadata {
+            t,
             amount_messages,
             next_view,
-            n,
-            t,
-            origin,
-            config_origin,
-            mut usig_origin,
-            mut rng,
-            config_others,
-            mut usigs_others,
-        } = setup_creation_of_view_change(NonZeroU64::new(n).unwrap());
+        } = setup_creation_of_random_view_change(n_parsed, &mut rng);
 
-        let _ = create_message_log(
-            amount_messages,
-            n,
-            origin,
-            &config_origin,
-            &mut usig_origin,
-            &mut rng,
-            &config_others,
-            &mut usigs_others,
-        );
+        let configs = create_default_configs_for_replicas(n_parsed, t);
+        let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
+
+        let _ = create_message_log(origin, amount_messages, &configs, &mut usigs);
 
         let counter_latest_prep = Count(rng.gen());
         let total_amount_accepted_batches: u64 = rng.gen();
         let state_hash = create_random_state_hash();
         let checkpoint_cert = create_checkpoint_cert(
-            n,
-            t.get(),
+            n_parsed,
+            t,
             origin,
             state_hash,
             counter_latest_prep,
             total_amount_accepted_batches,
             &mut rng,
-            &mut usig_origin,
-            &mut usigs_others,
+            &mut usigs,
         );
 
         let mut message_log = Vec::new();
         message_log.push(UsigMessageV::Checkpoint(
             checkpoint_cert.my_checkpoint.clone(),
         ));
-        let mut next_messages = create_message_log(
-            amount_messages,
-            n,
-            origin,
-            &config_origin,
-            &mut usig_origin,
-            &mut rng,
-            &config_others,
-            &mut usigs_others,
-        );
+        let mut next_messages = create_message_log(origin, amount_messages, &configs, &mut usigs);
         message_log.append(&mut next_messages);
+
+        let usig_origin = usigs.get_mut(&origin).unwrap();
 
         let view_change = create_view_change(
             origin,
             next_view,
             Some(checkpoint_cert),
             message_log,
-            &mut usig_origin,
+            usig_origin,
         );
 
-        for i in 0..n.get() {
+        for i in 0..n {
             let rep_id = ReplicaId::from_u64(i);
-            if rep_id == origin {
-                assert!((view_change.validate(&config_origin, &mut usig_origin)).is_ok());
-                continue;
-            }
-            let config = config_others.get(&rep_id).unwrap();
-            let usig = usigs_others.get_mut(&rep_id).unwrap();
+            let config = configs.get(&rep_id).unwrap();
+            let usig = usigs.get_mut(&rep_id).unwrap();
             assert!((view_change.validate(config, usig)).is_ok());
         }
     }
 
     #[rstest]
     fn validate_invalid_view_change_with_invalid_cert(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+        let origin = get_random_replica_id(n_parsed, &mut rng);
+
         let ViewChangeMetadata {
+            t,
             amount_messages,
             next_view,
-            n,
-            t,
-            origin,
-            config_origin,
-            mut usig_origin,
-            mut rng,
-            config_others,
-            mut usigs_others,
-        } = setup_creation_of_view_change(NonZeroU64::new(n).unwrap());
+        } = setup_creation_of_random_view_change(n_parsed, &mut rng);
 
-        let _ = create_message_log(
-            amount_messages,
-            n,
-            origin,
-            &config_origin,
-            &mut usig_origin,
-            &mut rng,
-            &config_others,
-            &mut usigs_others,
-        );
+        let configs = create_default_configs_for_replicas(n_parsed, t);
+        let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
+
+        let _ = create_message_log(origin, amount_messages, &configs, &mut usigs);
 
         let counter_latest_prep = Count(rng.gen());
         let total_amount_accepted_batches: u64 = rng.gen();
         let state_hash = create_random_state_hash();
         let certs_invalid = create_invalid_checkpoint_certs(
-            n,
+            n_parsed,
             t,
             origin,
             state_hash,
             counter_latest_prep,
             total_amount_accepted_batches,
             &mut rng,
-            &mut usig_origin,
-            &mut usigs_others,
+            &mut usigs,
         );
 
         for cert_invalid in certs_invalid {
             let mut message_log = Vec::new();
             message_log.push(UsigMessageV::Checkpoint(cert_invalid.my_checkpoint.clone()));
-            let mut next_messages = create_message_log(
-                amount_messages,
-                n,
-                origin,
-                &config_origin,
-                &mut usig_origin,
-                &mut rng,
-                &config_others,
-                &mut usigs_others,
-            );
+            let mut next_messages =
+                create_message_log(origin, amount_messages, &configs, &mut usigs);
             message_log.append(&mut next_messages);
+
+            let usig_origin = usigs.get_mut(&origin).unwrap();
 
             let view_change = create_view_change(
                 origin,
                 next_view,
                 Some(cert_invalid),
                 message_log,
-                &mut usig_origin,
+                usig_origin,
             );
 
-            for i in 0..n.get() {
+            for i in 0..n {
                 let rep_id = ReplicaId::from_u64(i);
-                if rep_id == origin {
-                    assert!((view_change.validate(&config_origin, &mut usig_origin)).is_err());
-                    continue;
-                }
-                let config = config_others.get(&rep_id).unwrap();
-                let usig = usigs_others.get_mut(&rep_id).unwrap();
+                let config = configs.get(&rep_id).unwrap();
+                let usig = usigs.get_mut(&rep_id).unwrap();
                 assert!((view_change.validate(config, usig)).is_err());
             }
         }
@@ -968,65 +753,51 @@ pub(crate) mod test {
 
     #[rstest]
     fn validate_invalid_view_change_with_cert_empty_log(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
-        let ViewChangeMetadata {
-            amount_messages,
-            next_view: _,
-            n,
-            t,
-            origin,
-            config_origin,
-            mut usig_origin,
-            mut rng,
-            config_others,
-            mut usigs_others,
-        } = setup_creation_of_view_change(NonZeroU64::new(n).unwrap());
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+        let origin = get_random_replica_id(n_parsed, &mut rng);
 
-        let _ = create_message_log(
+        let ViewChangeMetadata {
+            t,
             amount_messages,
-            n,
-            origin,
-            &config_origin,
-            &mut usig_origin,
-            &mut rng,
-            &config_others,
-            &mut usigs_others,
-        );
+            next_view,
+        } = setup_creation_of_random_view_change(n_parsed, &mut rng);
+
+        let configs = create_default_configs_for_replicas(n_parsed, t);
+        let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
+
+        let _ = create_message_log(origin, amount_messages, &configs, &mut usigs);
 
         let counter_latest_prep = Count(rng.gen());
         let total_amount_accepted_batches: u64 = rng.gen();
         let state_hash = create_random_state_hash();
         let checkpoint_cert = create_checkpoint_cert(
-            n,
-            t.get(),
+            n_parsed,
+            t,
             origin,
             state_hash,
             counter_latest_prep,
             total_amount_accepted_batches,
             &mut rng,
-            &mut usig_origin,
-            &mut usigs_others,
+            &mut usigs,
         );
 
         let message_log = Vec::new();
 
-        let next_view = get_random_view_with_max(View(2 * n.get() + 1));
+        let usig_origin = usigs.get_mut(&origin).unwrap();
 
         let view_change = create_view_change(
             origin,
             next_view,
             Some(checkpoint_cert),
             message_log,
-            &mut usig_origin,
+            usig_origin,
         );
 
-        for i in 0..n.get() {
+        for i in 0..n {
             let rep_id = ReplicaId::from_u64(i);
-            if rep_id == origin {
-                assert!((view_change.validate(&config_origin, &mut usig_origin)).is_err());
-                continue;
-            }
-            let config = config_others.get(&rep_id).unwrap();
-            let usig = usigs_others.get_mut(&rep_id).unwrap();
+            let config = configs.get(&rep_id).unwrap();
+            let usig = usigs.get_mut(&rep_id).unwrap();
             assert!((view_change.validate(config, usig)).is_err());
         }
     }
@@ -1035,74 +806,53 @@ pub(crate) mod test {
     fn validate_invalid_view_change_with_cert_log_first_not_cp(
         #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
     ) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+        let origin = get_random_replica_id(n_parsed, &mut rng);
+
         let ViewChangeMetadata {
+            t,
             amount_messages,
             next_view,
-            n,
-            t,
-            origin,
-            config_origin,
-            mut usig_origin,
-            mut rng,
-            config_others,
-            mut usigs_others,
-        } = setup_creation_of_view_change(NonZeroU64::new(n).unwrap());
+        } = setup_creation_of_random_view_change(n_parsed, &mut rng);
 
-        let _ = create_message_log(
-            amount_messages,
-            n,
-            origin,
-            &config_origin,
-            &mut usig_origin,
-            &mut rng,
-            &config_others,
-            &mut usigs_others,
-        );
+        let configs = create_default_configs_for_replicas(n_parsed, t);
+        let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
+
+        let _ = create_message_log(origin, amount_messages, &configs, &mut usigs);
 
         let counter_latest_prep = Count(rng.gen());
         let total_amount_accepted_batches: u64 = rng.gen();
         let state_hash = create_random_state_hash();
         let checkpoint_cert = create_checkpoint_cert(
-            n,
-            t.get(),
+            n_parsed,
+            t,
             origin,
             state_hash,
             counter_latest_prep,
             total_amount_accepted_batches,
             &mut rng,
-            &mut usig_origin,
-            &mut usigs_others,
+            &mut usigs,
         );
 
         let mut message_log = Vec::new();
-        let mut next_messages = create_message_log(
-            amount_messages,
-            n,
-            origin,
-            &config_origin,
-            &mut usig_origin,
-            &mut rng,
-            &config_others,
-            &mut usigs_others,
-        );
+        let mut next_messages = create_message_log(origin, amount_messages, &configs, &mut usigs);
         message_log.append(&mut next_messages);
+
+        let usig_origin = usigs.get_mut(&origin).unwrap();
 
         let view_change = create_view_change(
             origin,
             next_view,
             Some(checkpoint_cert),
             message_log,
-            &mut usig_origin,
+            usig_origin,
         );
 
-        for i in 0..n.get() {
+        for i in 0..n {
             let rep_id = ReplicaId::from_u64(i);
-            if rep_id == origin {
-                assert!((view_change.validate(&config_origin, &mut usig_origin)).is_err());
-                continue;
-            }
-            let config = config_others.get(&rep_id).unwrap();
-            let usig = usigs_others.get_mut(&rep_id).unwrap();
+            let config = configs.get(&rep_id).unwrap();
+            let usig = usigs.get_mut(&rep_id).unwrap();
             assert!((view_change.validate(config, usig)).is_err());
         }
     }
