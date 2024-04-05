@@ -327,10 +327,7 @@ impl<Sig: Serialize> CheckpointCertificate<Sig> {
 
 #[cfg(test)]
 pub(crate) mod test {
-    use std::{
-        collections::{HashMap, HashSet},
-        num::NonZeroU64,
-    };
+    use std::{collections::HashMap, num::NonZeroU64};
 
     use rand::{rngs::ThreadRng, Rng};
     use rstest::rstest;
@@ -343,8 +340,9 @@ pub(crate) mod test {
     use crate::{
         error::InnerError,
         tests::{
-            add_attestations, create_config_default, create_random_state_hash,
-            get_random_included_replica_id, get_random_replica_id, get_shuffled_remaining_replicas,
+            create_attested_usigs_for_replicas, create_default_configs_for_replicas,
+            create_random_state_hash, get_random_included_replica_id, get_random_replica_id,
+            get_shuffled_remaining_replicas, get_two_different_indexes,
         },
     };
 
@@ -378,9 +376,10 @@ pub(crate) mod test {
         counter_latest_prep: Count,
         total_amount_accepted_batches: u64,
         rng: &mut ThreadRng,
-        usig_origin: &mut impl Usig<Signature = Signature>,
-        usigs_others: &mut HashMap<ReplicaId, impl Usig<Signature = Signature>>,
+        usigs: &mut HashMap<ReplicaId, UsigNoOp>,
     ) -> CheckpointCertificate<Signature> {
+        let usig_origin = usigs.get_mut(&origin).unwrap();
+
         let my_checkpoint = create_checkpoint(
             origin,
             state_hash,
@@ -392,7 +391,7 @@ pub(crate) mod test {
         let mut other_checkpoints = Vec::new();
         let shuffled_remaining_reps = get_shuffled_remaining_replicas(n, Some(origin), rng);
         for other_rep_id in shuffled_remaining_reps.iter().take(t as usize) {
-            let usig = usigs_others.get_mut(other_rep_id).unwrap();
+            let usig = usigs.get_mut(other_rep_id).unwrap();
             let other_checkpoint = create_checkpoint(
                 *other_rep_id,
                 state_hash,
@@ -411,15 +410,15 @@ pub(crate) mod test {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_invalid_checkpoint_cert_unsuff_msgs(
         n: NonZeroU64,
-        t: NonZeroU64,
+        t: u64,
         origin: ReplicaId,
         state_hash: [u8; 64],
         counter_latest_prep: Count,
         total_amount_accepted_batches: u64,
         rng: &mut ThreadRng,
-        usig_origin: &mut impl Usig<Signature = Signature>,
-        usigs_others: &mut HashMap<ReplicaId, impl Usig<Signature = Signature>>,
+        usigs: &mut HashMap<ReplicaId, UsigNoOp>,
     ) -> CheckpointCertificate<Signature> {
+        let usig_origin = usigs.get_mut(&origin).unwrap();
         let my_checkpoint = create_checkpoint(
             origin,
             state_hash,
@@ -430,12 +429,12 @@ pub(crate) mod test {
 
         let mut other_checkpoints = Vec::new();
         let shuffled_remaining_reps = get_shuffled_remaining_replicas(n, Some(origin), rng);
-        let amount_other_checkpoints = rng.gen_range(0..t.get()) as usize;
+        let amount_other_checkpoints = rng.gen_range(0..t) as usize;
         for other_rep_id in shuffled_remaining_reps
             .iter()
             .take(amount_other_checkpoints)
         {
-            let usig = usigs_others.get_mut(other_rep_id).unwrap();
+            let usig = usigs.get_mut(other_rep_id).unwrap();
             let other_checkpoint = create_checkpoint(
                 *other_rep_id,
                 state_hash,
@@ -454,15 +453,15 @@ pub(crate) mod test {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_invalid_checkpoint_cert_not_same_hash(
         n: NonZeroU64,
-        t: NonZeroU64,
+        t: u64,
         origin: ReplicaId,
         state_hash: [u8; 64],
         counter_latest_prep: Count,
         total_amount_accepted_batches: u64,
         rng: &mut ThreadRng,
-        usig_origin: &mut impl Usig<Signature = Signature>,
-        usigs_others: &mut HashMap<ReplicaId, impl Usig<Signature = Signature>>,
+        usigs: &mut HashMap<ReplicaId, UsigNoOp>,
     ) -> CheckpointCertificate<Signature> {
+        let usig_origin = usigs.get_mut(&origin).unwrap();
         let my_checkpoint = create_checkpoint(
             origin,
             state_hash,
@@ -475,7 +474,7 @@ pub(crate) mod test {
         let shuffled_remaining_reps = get_shuffled_remaining_replicas(n, Some(origin), rng);
 
         let mut state_hash_diff = [0u8; 64];
-        for other_rep_id in shuffled_remaining_reps.iter().take(t.get() as usize) {
+        for other_rep_id in shuffled_remaining_reps.iter().take(t as usize) {
             let random_byte_index = rng.gen_range(0..64) as usize;
             for i in 0..64 {
                 if i == random_byte_index {
@@ -485,7 +484,7 @@ pub(crate) mod test {
                 }
             }
 
-            let usig = usigs_others.get_mut(other_rep_id).unwrap();
+            let usig = usigs.get_mut(other_rep_id).unwrap();
             let other_checkpoint = create_checkpoint(
                 *other_rep_id,
                 state_hash_diff,
@@ -504,15 +503,15 @@ pub(crate) mod test {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_invalid_checkpoint_cert_not_all_diff_origin(
         n: NonZeroU64,
-        t: NonZeroU64,
+        t: u64,
         origin: ReplicaId,
         state_hash: [u8; 64],
         counter_latest_prep: Count,
         total_amount_accepted_batches: u64,
         rng: &mut ThreadRng,
-        usig_origin: &mut impl Usig<Signature = Signature>,
-        usigs_others: &mut HashMap<ReplicaId, impl Usig<Signature = Signature>>,
+        usigs: &mut HashMap<ReplicaId, UsigNoOp>,
     ) -> CheckpointCertificate<Signature> {
+        let usig_origin = usigs.get_mut(&origin).unwrap();
         let my_checkpoint = create_checkpoint(
             origin,
             state_hash,
@@ -523,25 +522,15 @@ pub(crate) mod test {
 
         let mut other_checkpoints = Vec::new();
         let shuffled_remaining_reps = get_shuffled_remaining_replicas(n, Some(origin), rng);
-        let random_rep_id_index = rng.gen_range(0..t.get()) as usize;
-        let origin_to_set_to = if t.get() < 2 {
-            origin
-        } else if random_rep_id_index + 1 < t.get() as usize {
-            shuffled_remaining_reps[random_rep_id_index + 1]
-        } else {
-            shuffled_remaining_reps[random_rep_id_index - 1]
-        };
+        let (index_to_replace_origin, index_origin_to_set_to) =
+            get_two_different_indexes(t as usize, rng);
 
-        for (rep_id_index, rep_id) in shuffled_remaining_reps
-            .iter()
-            .enumerate()
-            .take(t.get() as usize)
-        {
+        for (rep_id_index, rep_id) in shuffled_remaining_reps.iter().enumerate().take(t as usize) {
             let mut origin_checkpoint = *rep_id;
-            if rep_id_index == random_rep_id_index {
-                origin_checkpoint = origin_to_set_to;
+            if rep_id_index == index_to_replace_origin {
+                origin_checkpoint = shuffled_remaining_reps[index_origin_to_set_to];
             }
-            let usig = usigs_others.get_mut(rep_id).unwrap();
+            let usig = usigs.get_mut(rep_id).unwrap();
             let other_checkpoint = create_checkpoint(
                 origin_checkpoint,
                 state_hash,
@@ -561,15 +550,15 @@ pub(crate) mod test {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_invalid_checkpoint_cert_not_all_same_latest_prep(
         n: NonZeroU64,
-        t: NonZeroU64,
+        t: u64,
         origin: ReplicaId,
         state_hash: [u8; 64],
         counter_latest_prep: Count,
         total_amount_accepted_batches: u64,
         rng: &mut ThreadRng,
-        usig_origin: &mut impl Usig<Signature = Signature>,
-        usigs_others: &mut HashMap<ReplicaId, impl Usig<Signature = Signature>>,
+        usigs: &mut HashMap<ReplicaId, UsigNoOp>,
     ) -> CheckpointCertificate<Signature> {
+        let usig_origin = usigs.get_mut(&origin).unwrap();
         let my_checkpoint = create_checkpoint(
             origin,
             state_hash,
@@ -581,12 +570,12 @@ pub(crate) mod test {
         let mut other_checkpoints = Vec::new();
         let shuffled_remaining_reps = get_shuffled_remaining_replicas(n, Some(origin), rng);
 
-        for other_rep_id in shuffled_remaining_reps.iter().take(t.get() as usize) {
+        for other_rep_id in shuffled_remaining_reps.iter().take(t as usize) {
             let mut random_counter_latest_prep = Count(rng.gen_range(0..u64::MAX));
             if random_counter_latest_prep == counter_latest_prep {
                 random_counter_latest_prep = Count(random_counter_latest_prep.0.wrapping_add(1));
             }
-            let usig = usigs_others.get_mut(other_rep_id).unwrap();
+            let usig = usigs.get_mut(other_rep_id).unwrap();
             let other_checkpoint = create_checkpoint(
                 *other_rep_id,
                 state_hash,
@@ -606,14 +595,13 @@ pub(crate) mod test {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_invalid_checkpoint_certs(
         n: NonZeroU64,
-        t: NonZeroU64,
+        t: u64,
         origin: ReplicaId,
         state_hash: [u8; 64],
         counter_latest_prep: Count,
         total_amount_accepted_batches: u64,
         rng: &mut ThreadRng,
-        usig_origin: &mut impl Usig<Signature = Signature>,
-        usigs_others: &mut HashMap<ReplicaId, impl Usig<Signature = Signature>>,
+        usigs: &mut HashMap<ReplicaId, UsigNoOp>,
     ) -> Vec<CheckpointCertificate<Signature>> {
         let mut certs_invalid = Vec::new();
 
@@ -625,8 +613,7 @@ pub(crate) mod test {
             counter_latest_prep,
             total_amount_accepted_batches,
             rng,
-            usig_origin,
-            usigs_others,
+            usigs,
         );
 
         let cert_not_all_same_hash = create_invalid_checkpoint_cert_not_same_hash(
@@ -637,8 +624,7 @@ pub(crate) mod test {
             counter_latest_prep,
             total_amount_accepted_batches,
             rng,
-            usig_origin,
-            usigs_others,
+            usigs,
         );
 
         let cert_not_all_diff_origin = create_invalid_checkpoint_cert_not_all_diff_origin(
@@ -649,8 +635,7 @@ pub(crate) mod test {
             counter_latest_prep,
             total_amount_accepted_batches,
             rng,
-            usig_origin,
-            usigs_others,
+            usigs,
         );
 
         let cert_not_all_same_latest_prep = create_invalid_checkpoint_cert_not_all_same_latest_prep(
@@ -661,8 +646,7 @@ pub(crate) mod test {
             counter_latest_prep,
             total_amount_accepted_batches,
             rng,
-            usig_origin,
-            usigs_others,
+            usigs,
         );
 
         certs_invalid.push(cert_unsuff);
@@ -679,70 +663,32 @@ pub(crate) mod test {
     fn validate_cert_not_enough_msgs(#[values(5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
 
-        let mut usigs = Vec::new();
-
         let mut rng = rand::thread_rng();
         let origin = get_random_replica_id(n_parsed, &mut rng);
         let counter_latest_prep = Count(rng.gen());
         let total_amount_accepted_batches: u64 = rng.gen();
         let state_hash = create_random_state_hash();
-        let mut usig_origin = UsigNoOp::default();
-        usigs.push((origin, &mut usig_origin));
 
-        let mut usigs_others = HashMap::new();
-        for i in 0..n {
-            let rep_id = ReplicaId::from_u64(i);
-            if rep_id == origin {
-                continue;
-            }
-            let usig_other = UsigNoOp::default();
-            usigs_others.insert(rep_id, usig_other);
-        }
-
-        for (rep_id, usig_other) in usigs_others.iter_mut() {
-            usigs.push((*rep_id, usig_other));
-        }
-
-        add_attestations(&mut usigs);
+        let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
 
         for t in 1..n / 2 {
-            let config_origin = create_config_default(n_parsed, t, origin);
-            let mut config_others = HashMap::new();
-            for i in 0..n {
-                let rep_id = ReplicaId::from_u64(i);
-                if rep_id == origin {
-                    continue;
-                }
-                let config_other = create_config_default(n_parsed, t, rep_id);
-                config_others.insert(rep_id, config_other);
-            }
+            let configs = create_default_configs_for_replicas(n_parsed, t);
 
-            let t_parsed = NonZeroU64::new(t).unwrap();
             let checkpoint_cert = create_invalid_checkpoint_cert_unsuff_msgs(
                 n_parsed,
-                t_parsed,
+                t,
                 origin,
                 state_hash,
                 counter_latest_prep,
                 total_amount_accepted_batches,
                 &mut rng,
-                &mut usig_origin,
-                &mut usigs_others,
+                &mut usigs,
             );
-
-            assert!(matches!(
-                checkpoint_cert.validate(&config_origin, &mut usig_origin).err().unwrap(),
-                InnerError::CheckpointCertNotSufficientMsgs { receiver, origin: cert_origin }
-                if receiver == origin && cert_origin == origin,
-            ));
 
             for i in 0..n {
                 let rep_id = ReplicaId::from_u64(i);
-                if rep_id == origin {
-                    continue;
-                }
-                let config_other = config_others.get(&rep_id).unwrap();
-                let usig_other = usigs_others.get_mut(&rep_id).unwrap();
+                let config_other = configs.get(&rep_id).unwrap();
+                let usig_other = usigs.get_mut(&rep_id).unwrap();
 
                 assert!(matches!(
                     checkpoint_cert.validate(config_other, usig_other).err().unwrap(),
@@ -759,70 +705,32 @@ pub(crate) mod test {
     fn validate_cert_not_all_same_state_hash(#[values(5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
 
-        let mut usigs = Vec::new();
-
         let mut rng = rand::thread_rng();
         let origin = get_random_replica_id(n_parsed, &mut rng);
         let counter_latest_prep = Count(rng.gen());
         let total_amount_accepted_batches: u64 = rng.gen();
         let state_hash = create_random_state_hash();
-        let mut usig_origin = UsigNoOp::default();
-        usigs.push((origin, &mut usig_origin));
 
-        let mut usigs_others = HashMap::new();
-        for i in 0..n {
-            let rep_id = ReplicaId::from_u64(i);
-            if rep_id == origin {
-                continue;
-            }
-            let usig_other = UsigNoOp::default();
-            usigs_others.insert(rep_id, usig_other);
-        }
-
-        for (rep_id, usig_other) in usigs_others.iter_mut() {
-            usigs.push((*rep_id, usig_other));
-        }
-
-        add_attestations(&mut usigs);
+        let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
 
         for t in 1..n / 2 {
-            let config_origin = create_config_default(n_parsed, t, origin);
-            let mut config_others = HashMap::new();
-            for i in 0..n {
-                let rep_id = ReplicaId::from_u64(i);
-                if rep_id == origin {
-                    continue;
-                }
-                let config_other = create_config_default(n_parsed, t, rep_id);
-                config_others.insert(rep_id, config_other);
-            }
+            let configs = create_default_configs_for_replicas(n_parsed, t);
 
-            let t_parsed = NonZeroU64::new(t).unwrap();
             let checkpoint_cert = create_invalid_checkpoint_cert_not_same_hash(
                 n_parsed,
-                t_parsed,
+                t,
                 origin,
                 state_hash,
                 counter_latest_prep,
                 total_amount_accepted_batches,
                 &mut rng,
-                &mut usig_origin,
-                &mut usigs_others,
+                &mut usigs,
             );
-
-            assert!(matches!(
-                checkpoint_cert.validate(&config_origin, &mut usig_origin).err().unwrap(),
-                InnerError::CheckpointCertNotAllSameStateHash { receiver, origin: cert_origin }
-                if receiver == origin && cert_origin == origin,
-            ));
 
             for i in 0..n {
                 let rep_id = ReplicaId::from_u64(i);
-                if rep_id == origin {
-                    continue;
-                }
-                let config_other = config_others.get(&rep_id).unwrap();
-                let usig_other = usigs_others.get_mut(&rep_id).unwrap();
+                let config_other = configs.get(&rep_id).unwrap();
+                let usig_other = usigs.get_mut(&rep_id).unwrap();
 
                 assert!(matches!(
                     checkpoint_cert.validate(config_other, usig_other).err().unwrap(),
@@ -839,77 +747,39 @@ pub(crate) mod test {
     fn validate_cert_not_all_different_origins(#[values(5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
 
-        let mut usigs = Vec::new();
-
         let mut rng = rand::thread_rng();
         let origin = get_random_replica_id(n_parsed, &mut rng);
         let counter_latest_prep = Count(rng.gen());
         let total_amount_accepted_batches: u64 = rng.gen();
         let state_hash = create_random_state_hash();
-        let mut usig_origin = UsigNoOp::default();
-        usigs.push((origin, &mut usig_origin));
 
-        let mut usigs_others = HashMap::new();
+        let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
+
+        let t = n / 2;
+
+        let configs = create_default_configs_for_replicas(n_parsed, t);
+
+        let checkpoint_cert = create_invalid_checkpoint_cert_not_all_diff_origin(
+            n_parsed,
+            t,
+            origin,
+            state_hash,
+            counter_latest_prep,
+            total_amount_accepted_batches,
+            &mut rng,
+            &mut usigs,
+        );
+
         for i in 0..n {
             let rep_id = ReplicaId::from_u64(i);
-            if rep_id == origin {
-                continue;
-            }
-            let usig_other = UsigNoOp::default();
-            usigs_others.insert(rep_id, usig_other);
-        }
-
-        for (rep_id, usig_other) in usigs_others.iter_mut() {
-            usigs.push((*rep_id, usig_other));
-        }
-
-        add_attestations(&mut usigs);
-
-        for t in 1..n / 2 {
-            let config_origin = create_config_default(n_parsed, t, origin);
-            let mut config_others = HashMap::new();
-            for i in 0..n {
-                let rep_id = ReplicaId::from_u64(i);
-                if rep_id == origin {
-                    continue;
-                }
-                let config_other = create_config_default(n_parsed, t, rep_id);
-                config_others.insert(rep_id, config_other);
-            }
-
-            let t_parsed = NonZeroU64::new(t).unwrap();
-            let checkpoint_cert = create_invalid_checkpoint_cert_not_all_diff_origin(
-                n_parsed,
-                t_parsed,
-                origin,
-                state_hash,
-                counter_latest_prep,
-                total_amount_accepted_batches,
-                &mut rng,
-                &mut usig_origin,
-                &mut usigs_others,
-            );
+            let config_other = configs.get(&rep_id).unwrap();
+            let usig_other = usigs.get_mut(&rep_id).unwrap();
 
             assert!(matches!(
-                checkpoint_cert.validate(&config_origin, &mut usig_origin).err().unwrap(),
+                checkpoint_cert.validate(config_other, usig_other).err().unwrap(),
                 InnerError::CheckpointCertNotAllDifferentOrigin { receiver, origin: cert_origin }
-                if receiver == origin && cert_origin == origin,
+                if receiver == rep_id && cert_origin == origin,
             ));
-
-            for i in 0..n {
-                let rep_id = ReplicaId::from_u64(i);
-                if rep_id == origin {
-                    continue;
-                }
-                let config_other = config_others.get(&rep_id).unwrap();
-                let usig_other = usigs_others.get_mut(&rep_id).unwrap();
-
-                assert!(matches!(
-                    checkpoint_cert.validate(config_other, usig_other).err().unwrap(),
-                    InnerError::CheckpointCertNotAllDifferentOrigin { receiver, origin: cert_origin }
-                    if receiver == rep_id && cert_origin == origin,
-                ));
-            }
         }
     }
 
@@ -919,82 +789,39 @@ pub(crate) mod test {
     fn validate_cert_checkpoint_invalid_usig(#[values(5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
 
-        let mut usigs = Vec::new();
-
         let mut rng = rand::thread_rng();
         let origin = get_random_replica_id(n_parsed, &mut rng);
         let counter_latest_prep = Count(rng.gen());
         let total_amount_accepted_batches: u64 = rng.gen();
         let state_hash = create_random_state_hash();
-        let mut usig_origin = UsigNoOp::default();
 
-        let mut usigs_others = HashMap::new();
+        let mut usigs = create_attested_usigs_for_replicas(n_parsed, vec![origin]);
+
+        let t = n / 2;
+
+        let configs = create_default_configs_for_replicas(n_parsed, t);
+
+        let checkpoint_cert = create_checkpoint_cert(
+            n_parsed,
+            t,
+            origin,
+            state_hash,
+            counter_latest_prep,
+            total_amount_accepted_batches,
+            &mut rng,
+            &mut usigs,
+        );
+
         for i in 0..n {
             let rep_id = ReplicaId::from_u64(i);
-            if rep_id == origin {
-                continue;
-            }
-            let usig_other = UsigNoOp::default();
-            usigs_others.insert(rep_id, usig_other);
-        }
-        let shuffled_replica_ids = get_shuffled_remaining_replicas(n_parsed, None, &mut rng);
-        let set_replica_ids: Vec<&ReplicaId> = shuffled_replica_ids
-            .iter()
-            .take((n / 2 + 1) as usize)
-            .collect();
-        let set_replica_ids: HashSet<&ReplicaId> =
-            HashSet::from_iter(set_replica_ids.iter().cloned());
-        for (rep_id, usig_other) in usigs_others.iter_mut() {
-            if !set_replica_ids.contains(&rep_id) {
-                usigs.push((*rep_id, usig_other));
-            }
-        }
-        add_attestations(&mut usigs);
-
-        for t in 1..n / 2 {
-            let config_origin = create_config_default(n_parsed, t, origin);
-            let mut config_others = HashMap::new();
-            for i in 0..n {
-                let rep_id = ReplicaId::from_u64(i);
-                if rep_id == origin {
-                    continue;
-                }
-                let config_other = create_config_default(n_parsed, t, rep_id);
-                config_others.insert(rep_id, config_other);
-            }
-
-            let checkpoint_cert = create_checkpoint_cert(
-                n_parsed,
-                t,
-                origin,
-                state_hash,
-                counter_latest_prep,
-                total_amount_accepted_batches,
-                &mut rng,
-                &mut usig_origin,
-                &mut usigs_others,
-            );
+            let config_other = configs.get(&rep_id).unwrap();
+            let usig_other = usigs.get_mut(&rep_id).unwrap();
 
             assert!(matches!(
-                checkpoint_cert.validate(&config_origin, &mut usig_origin).err().unwrap(),
+                checkpoint_cert.validate(config_other, usig_other).err().unwrap(),
                 InnerError::Usig { usig_error: _, replica, msg_type: _, origin: cert_origin }
-                if replica == origin && cert_origin == origin,
+                if replica == rep_id && cert_origin == origin,
             ));
-
-            for i in 0..n {
-                let rep_id = ReplicaId::from_u64(i);
-                if rep_id == origin {
-                    continue;
-                }
-                let config_other = config_others.get(&rep_id).unwrap();
-                let usig_other = usigs_others.get_mut(&rep_id).unwrap();
-
-                assert!(matches!(
-                    checkpoint_cert.validate(config_other, usig_other).err().unwrap(),
-                    InnerError::Usig { usig_error: _, replica, msg_type: _, origin: cert_origin }
-                    if replica == rep_id && cert_origin == origin,
-                ));
-            }
         }
     }
 
@@ -1005,70 +832,32 @@ pub(crate) mod test {
     fn validate_cert_checkpoint_invalid_latest_prep(#[values(5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
 
-        let mut usigs = Vec::new();
-
         let mut rng = rand::thread_rng();
         let origin = get_random_replica_id(n_parsed, &mut rng);
         let counter_latest_prep = Count(rng.gen());
         let total_amount_accepted_batches: u64 = rng.gen();
         let state_hash = create_random_state_hash();
-        let mut usig_origin = UsigNoOp::default();
-        usigs.push((origin, &mut usig_origin));
 
-        let mut usigs_others = HashMap::new();
-        for i in 0..n {
-            let rep_id = ReplicaId::from_u64(i);
-            if rep_id == origin {
-                continue;
-            }
-            let usig_other = UsigNoOp::default();
-            usigs_others.insert(rep_id, usig_other);
-        }
-
-        for (rep_id, usig_other) in usigs_others.iter_mut() {
-            usigs.push((*rep_id, usig_other));
-        }
-
-        add_attestations(&mut usigs);
+        let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
 
         for t in 1..n / 2 {
-            let config_origin = create_config_default(n_parsed, t, origin);
-            let mut config_others = HashMap::new();
-            for i in 0..n {
-                let rep_id = ReplicaId::from_u64(i);
-                if rep_id == origin {
-                    continue;
-                }
-                let config_other = create_config_default(n_parsed, t, rep_id);
-                config_others.insert(rep_id, config_other);
-            }
+            let configs = create_default_configs_for_replicas(n_parsed, t);
 
-            let t_parsed = NonZeroU64::new(t).unwrap();
             let checkpoint_cert = create_invalid_checkpoint_cert_not_all_same_latest_prep(
                 n_parsed,
-                t_parsed,
+                t,
                 origin,
                 state_hash,
                 counter_latest_prep,
                 total_amount_accepted_batches,
                 &mut rng,
-                &mut usig_origin,
-                &mut usigs_others,
+                &mut usigs,
             );
-
-            assert!(matches!(
-                checkpoint_cert.validate(&config_origin, &mut usig_origin).err().unwrap(),
-                InnerError::CheckpointCertNotAllSameLatestPrep { receiver, origin: cert_origin }
-                if receiver == origin && cert_origin == origin,
-            ));
 
             for i in 0..n {
                 let rep_id = ReplicaId::from_u64(i);
-                if rep_id == origin {
-                    continue;
-                }
-                let config_other = config_others.get(&rep_id).unwrap();
-                let usig_other = usigs_others.get_mut(&rep_id).unwrap();
+                let config_other = configs.get(&rep_id).unwrap();
+                let usig_other = usigs.get_mut(&rep_id).unwrap();
 
                 assert!(matches!(
                     checkpoint_cert.validate(config_other, usig_other).err().unwrap(),
@@ -1084,43 +873,16 @@ pub(crate) mod test {
     fn validate_cert_valid(#[values(5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
 
-        let mut usigs = Vec::new();
-
         let mut rng = rand::thread_rng();
         let origin = get_random_replica_id(n_parsed, &mut rng);
         let counter_latest_prep = Count(rng.gen());
         let total_amount_accepted_batches: u64 = rng.gen();
         let state_hash = create_random_state_hash();
-        let mut usig_origin = UsigNoOp::default();
-        usigs.push((origin, &mut usig_origin));
 
-        let mut usigs_others = HashMap::new();
-        for i in 0..n {
-            let rep_id = ReplicaId::from_u64(i);
-            if rep_id == origin {
-                continue;
-            }
-            let usig_other = UsigNoOp::default();
-            usigs_others.insert(rep_id, usig_other);
-        }
-
-        for (rep_id, usig_other) in usigs_others.iter_mut() {
-            usigs.push((*rep_id, usig_other));
-        }
-
-        add_attestations(&mut usigs);
+        let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
 
         for t in 1..n / 2 {
-            let config_origin = create_config_default(n_parsed, t, origin);
-            let mut config_others = HashMap::new();
-            for i in 0..n {
-                let rep_id = ReplicaId::from_u64(i);
-                if rep_id == origin {
-                    continue;
-                }
-                let config_other = create_config_default(n_parsed, t, rep_id);
-                config_others.insert(rep_id, config_other);
-            }
+            let configs = create_default_configs_for_replicas(n_parsed, t);
 
             let checkpoint_cert = create_checkpoint_cert(
                 n_parsed,
@@ -1130,21 +892,13 @@ pub(crate) mod test {
                 counter_latest_prep,
                 total_amount_accepted_batches,
                 &mut rng,
-                &mut usig_origin,
-                &mut usigs_others,
+                &mut usigs,
             );
-
-            assert!(checkpoint_cert
-                .validate(&config_origin, &mut usig_origin)
-                .is_ok());
 
             for i in 0..n {
                 let rep_id = ReplicaId::from_u64(i);
-                if rep_id == origin {
-                    continue;
-                }
-                let config_other = config_others.get(&rep_id).unwrap();
-                let usig_other = usigs_others.get_mut(&rep_id).unwrap();
+                let config_other = configs.get(&rep_id).unwrap();
+                let usig_other = usigs.get_mut(&rep_id).unwrap();
 
                 assert!(checkpoint_cert.validate(config_other, usig_other).is_ok());
             }
@@ -1156,63 +910,30 @@ pub(crate) mod test {
     fn validate_valid_checkpoint_msg(#[values(5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
 
-        let mut usigs = Vec::new();
-
         let mut rng = rand::thread_rng();
         let origin = get_random_replica_id(n_parsed, &mut rng);
         let counter_latest_prep = Count(rng.gen());
         let total_amount_accepted_batches: u64 = rng.gen();
         let state_hash = create_random_state_hash();
-        let mut usig_origin = UsigNoOp::default();
-        usigs.push((origin, &mut usig_origin));
 
-        let mut usigs_others = HashMap::new();
-        for i in 0..n {
-            let rep_id = ReplicaId::from_u64(i);
-            if rep_id == origin {
-                continue;
-            }
-            let usig_other = UsigNoOp::default();
-            usigs_others.insert(rep_id, usig_other);
-        }
-
-        for (rep_id, usig_other) in usigs_others.iter_mut() {
-            usigs.push((*rep_id, usig_other));
-        }
-
-        add_attestations(&mut usigs);
+        let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
+        let usig_origin = usigs.get_mut(&origin).unwrap();
 
         let checkpoint = create_checkpoint(
             origin,
             state_hash,
             counter_latest_prep,
             total_amount_accepted_batches,
-            &mut usig_origin,
+            usig_origin,
         );
 
         for t in 1..n / 2 {
-            let config_origin = create_config_default(n_parsed, t, origin);
-            let mut config_others = HashMap::new();
-            for i in 0..n {
-                let rep_id = ReplicaId::from_u64(i);
-                if rep_id == origin {
-                    continue;
-                }
-                let config_other = create_config_default(n_parsed, t, rep_id);
-                config_others.insert(rep_id, config_other);
-            }
-
-            assert!(checkpoint
-                .validate(&config_origin, &mut usig_origin)
-                .is_ok());
+            let configs = create_default_configs_for_replicas(n_parsed, t);
 
             for i in 0..n {
                 let rep_id = ReplicaId::from_u64(i);
-                if rep_id == origin {
-                    continue;
-                }
-                let config_other = config_others.get(&rep_id).unwrap();
-                let usig_other = usigs_others.get_mut(&rep_id).unwrap();
+                let config_other = configs.get(&rep_id).unwrap();
+                let usig_other = usigs.get_mut(&rep_id).unwrap();
 
                 assert!(checkpoint.validate(config_other, usig_other).is_ok());
             }
@@ -1224,69 +945,35 @@ pub(crate) mod test {
     fn validate_invalid_checkpoint_msg(#[values(5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
 
-        let mut usigs = Vec::new();
-
         let mut rng = rand::thread_rng();
         let origin = get_random_replica_id(n_parsed, &mut rng);
         let counter_latest_prep = Count(rng.gen());
         let total_amount_accepted_batches: u64 = rng.gen();
         let state_hash = create_random_state_hash();
-        let mut usig_origin = UsigNoOp::default();
-        usigs.push((origin, &mut usig_origin));
 
-        let random_rep_id = get_random_included_replica_id(n_parsed, origin, &mut rng);
-        let mut usigs_others = HashMap::new();
-        for i in 0..n {
-            let rep_id = ReplicaId::from_u64(i);
-            if rep_id == origin {
-                continue;
-            }
-            let usig_other = UsigNoOp::default();
-            usigs_others.insert(rep_id, usig_other);
-        }
+        let random_rep_id_to_exclude = get_random_included_replica_id(n_parsed, origin, &mut rng);
 
-        for (rep_id, usig_other) in usigs_others.iter_mut() {
-            if *rep_id == random_rep_id {
-                continue;
-            }
-            usigs.push((*rep_id, usig_other));
-        }
-
-        add_attestations(&mut usigs);
+        let mut usigs =
+            create_attested_usigs_for_replicas(n_parsed, vec![random_rep_id_to_exclude]);
+        let usig_origin = usigs.get_mut(&origin).unwrap();
 
         let checkpoint = create_checkpoint(
             origin,
             state_hash,
             counter_latest_prep,
             total_amount_accepted_batches,
-            &mut usig_origin,
+            usig_origin,
         );
 
         for t in 1..n / 2 {
-            let config_origin = create_config_default(n_parsed, t, origin);
-            let mut config_others = HashMap::new();
-            for i in 0..n {
-                let rep_id = ReplicaId::from_u64(i);
-                if rep_id == origin {
-                    continue;
-                }
-                let config_other = create_config_default(n_parsed, t, rep_id);
-                config_others.insert(rep_id, config_other);
-            }
-
-            assert!(checkpoint
-                .validate(&config_origin, &mut usig_origin)
-                .is_ok());
+            let configs = create_default_configs_for_replicas(n_parsed, t);
 
             for i in 0..n {
                 let rep_id = ReplicaId::from_u64(i);
-                if rep_id == origin {
-                    continue;
-                }
-                let config_other = config_others.get(&rep_id).unwrap();
-                let usig_other = usigs_others.get_mut(&rep_id).unwrap();
+                let config_other = configs.get(&rep_id).unwrap();
+                let usig_other = usigs.get_mut(&rep_id).unwrap();
 
-                if rep_id == random_rep_id {
+                if rep_id == random_rep_id_to_exclude {
                     assert!(matches!(
                         checkpoint.validate(config_other, usig_other).err().unwrap(),
                         InnerError::Usig { usig_error: _, replica, msg_type: _, origin: cert_origin }
