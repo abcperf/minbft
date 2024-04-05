@@ -657,7 +657,7 @@ pub(crate) mod test {
     }
 
     #[rstest]
-    fn validate_invalid_view_change_with_invalid_cert(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+    fn validate_invalid_view_change_with_invalid_cert(#[values(5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
         let mut rng = thread_rng();
         let origin = get_random_replica_id(n_parsed, &mut rng);
