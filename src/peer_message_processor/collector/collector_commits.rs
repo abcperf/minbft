@@ -70,6 +70,8 @@ impl<P: Clone, Sig: Counter + Clone> CollectorCommits<P, Sig> {
                 );
                 self.recv_commits
                     .collect(commit.prepare.counter(), commit.origin, config);
+                self.prepare
+                    .insert(commit.prepare.counter(), commit.prepare.clone());
             }
         }
 
@@ -89,5 +91,66 @@ impl<P: Clone, Sig: Counter + Clone> CollectorCommits<P, Sig> {
         }
 
         vec
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use rstest::rstest;
+    use usig::Counter;
+
+    #[ignore]
+    #[rstest]
+    fn insert_new_commit(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        use std::num::NonZeroU64;
+
+        use rand::thread_rng;
+        use usig::{noop::UsigNoOp, AnyId};
+
+        use crate::{
+            client_request::test::create_batch,
+            peer_message::usig_message::view_peer_message::{
+                commit::test::create_commit, prepare::test::create_prepare, ViewPeerMessage,
+            },
+            peer_message_processor::collector::collector_commits::CollectorCommits,
+            tests::{create_config_default, get_random_included_replica_id, get_random_replica_id},
+            View,
+        };
+
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+        let t = n / 2;
+
+        let primary_id = get_random_replica_id(n_parsed, &mut rng);
+        let view = View(primary_id.as_u64());
+        let mut usig_primary = UsigNoOp::default();
+        let config_primary = create_config_default(n_parsed, t, primary_id);
+        let request_batch = create_batch();
+        let prepare = create_prepare(view, request_batch, &config_primary, &mut usig_primary);
+
+        let backup_id = get_random_included_replica_id(n_parsed, primary_id, &mut rng);
+        let mut usig_backup = UsigNoOp::default();
+        let config_backup = create_config_default(n_parsed, t, backup_id);
+        let commit = create_commit(backup_id, prepare.clone(), &mut usig_backup);
+
+        let vp_msg = ViewPeerMessage::from(commit.clone());
+
+        let mut collector = CollectorCommits::new(t);
+
+        let retrieved = collector.collect(vp_msg, &config_backup);
+
+        if t == 1 {
+            assert_eq!(retrieved.len(), t as usize);
+            assert_eq!(retrieved[0], prepare);
+        } else {
+            assert!(retrieved.is_empty());
+            assert_eq!(collector.recv_commits.0.len(), 1);
+            let bool_array = collector.recv_commits.0.get(&prepare.counter());
+            assert!(bool_array.is_some());
+            let bool_array = bool_array.unwrap();
+            assert_eq!(bool_array.counter, 1);
+            let is_collected = bool_array.bools.get(commit.origin.as_u64() as usize);
+            assert!(is_collected.is_some());
+        }
     }
 }
