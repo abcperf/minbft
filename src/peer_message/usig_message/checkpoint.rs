@@ -367,8 +367,30 @@ pub(crate) mod test {
         .unwrap()
     }
 
+    pub(crate) fn create_checkpoint_cert_random(
+        n: NonZeroU64,
+        t: u64,
+        origin: ReplicaId,
+        rng: &mut ThreadRng,
+        usigs: &mut HashMap<ReplicaId, UsigNoOp>,
+    ) -> CheckpointCertificate<Signature> {
+        let counter_latest_prep = Count(rng.gen());
+        let total_amount_accepted_batches: u64 = rng.gen();
+        let state_hash = create_random_state_hash();
+        create_checkpoint_cert_with_all_params(
+            n,
+            t,
+            origin,
+            state_hash,
+            counter_latest_prep,
+            total_amount_accepted_batches,
+            rng,
+            usigs,
+        )
+    }
+
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn create_checkpoint_cert(
+    pub(crate) fn create_checkpoint_cert_with_all_params(
         n: NonZeroU64,
         t: u64,
         origin: ReplicaId,
@@ -801,7 +823,7 @@ pub(crate) mod test {
 
         let configs = create_default_configs_for_replicas(n_parsed, t);
 
-        let checkpoint_cert = create_checkpoint_cert(
+        let checkpoint_cert = create_checkpoint_cert_with_all_params(
             n_parsed,
             t,
             origin,
@@ -874,26 +896,16 @@ pub(crate) mod test {
         let n_parsed = NonZeroU64::new(n).unwrap();
 
         let mut rng = rand::thread_rng();
-        let origin = get_random_replica_id(n_parsed, &mut rng);
-        let counter_latest_prep = Count(rng.gen());
-        let total_amount_accepted_batches: u64 = rng.gen();
-        let state_hash = create_random_state_hash();
 
         let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
 
         for t in 1..n / 2 {
             let configs = create_default_configs_for_replicas(n_parsed, t);
 
-            let checkpoint_cert = create_checkpoint_cert(
-                n_parsed,
-                t,
-                origin,
-                state_hash,
-                counter_latest_prep,
-                total_amount_accepted_batches,
-                &mut rng,
-                &mut usigs,
-            );
+            let origin = get_random_replica_id(n_parsed, &mut rng);
+
+            let checkpoint_cert =
+                create_checkpoint_cert_random(n_parsed, t, origin, &mut rng, &mut usigs);
 
             for i in 0..n {
                 let rep_id = ReplicaId::from_u64(i);
