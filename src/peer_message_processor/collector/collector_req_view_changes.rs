@@ -103,3 +103,49 @@ impl CollectorReqViewChanges {
         self.0.clean_up(key)
     }
 }
+
+#[cfg(test)]
+
+mod test {
+    use rstest::rstest;
+
+    use crate::tests::get_random_replica_id;
+
+    #[rstest]
+    fn insert_new_req_vc(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        use std::{num::NonZeroU64, time::Duration};
+
+        use rand::thread_rng;
+
+        use crate::{
+            peer_message::req_view_change::ReqViewChange,
+            peer_message_processor::collector::collector_req_view_changes::CollectorReqViewChanges,
+            Config, View,
+        };
+
+        let req_view_change = ReqViewChange {
+            prev_view: View(1),
+            next_view: View(2),
+        };
+
+        let mut collector = CollectorReqViewChanges::new();
+
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+
+        let t = n / 2;
+        let rep_id = get_random_replica_id(n_parsed, &mut rng);
+        let config = Config {
+            n: n_parsed,
+            t,
+            id: rep_id,
+            batch_timeout: Duration::from_secs(2),
+            max_batch_size: None,
+            initial_timeout_duration: Duration::from_secs(2),
+            checkpoint_period: NonZeroU64::new(2).unwrap(),
+        };
+
+        let retrieved = collector.collect(&req_view_change, rep_id, &config);
+        assert_eq!(retrieved, 1);
+    }
+}
