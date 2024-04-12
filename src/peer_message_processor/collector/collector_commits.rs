@@ -99,24 +99,24 @@ mod test {
     use rstest::rstest;
     use usig::Counter;
 
+    use std::num::NonZeroU64;
+
+    use rand::thread_rng;
+    use usig::{noop::UsigNoOp, AnyId};
+
+    use crate::{
+        client_request::test::create_batch,
+        peer_message::usig_message::view_peer_message::{
+            commit::test::create_commit, prepare::test::create_prepare, ViewPeerMessage,
+        },
+        peer_message_processor::collector::collector_commits::CollectorCommits,
+        tests::{create_config_default, get_random_included_replica_id, get_random_replica_id},
+        View,
+    };
+
     #[ignore]
     #[rstest]
     fn insert_new_commit(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
-        use std::num::NonZeroU64;
-
-        use rand::thread_rng;
-        use usig::{noop::UsigNoOp, AnyId};
-
-        use crate::{
-            client_request::test::create_batch,
-            peer_message::usig_message::view_peer_message::{
-                commit::test::create_commit, prepare::test::create_prepare, ViewPeerMessage,
-            },
-            peer_message_processor::collector::collector_commits::CollectorCommits,
-            tests::{create_config_default, get_random_included_replica_id, get_random_replica_id},
-            View,
-        };
-
         let n_parsed = NonZeroU64::new(n).unwrap();
         let mut rng = thread_rng();
         let t = n / 2;
