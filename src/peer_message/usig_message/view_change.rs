@@ -356,6 +356,12 @@ pub(crate) mod test {
         Config, View,
     };
 
+    pub(crate) type ViewChangeCreation =
+        fn(
+            u64,
+            Option<&mut ViewChangeSetup>,
+        ) -> (ViewChange<DummyPayload, Signature>, Option<ViewChangeSetup>);
+
     pub(crate) enum MessageLogManipulation {
         PopFirst,
         PopLast,
