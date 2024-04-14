@@ -536,39 +536,66 @@ pub(crate) mod test {
 
     pub(crate) fn create_invalid_vchange_counter_greater_0_empty_msg_log_no_cert(
         n: u64,
-    ) -> (ViewChange<DummyPayload, Signature>, ViewChangeSetup) {
-        let mut vc_setup = setup_view_change_tests(n);
+        vc_setup: Option<&mut ViewChangeSetup>,
+    ) -> (ViewChange<DummyPayload, Signature>, Option<ViewChangeSetup>) {
+        if let Some(vc_setup) = vc_setup {
+            let mut message_log = create_message_log(
+                vc_setup.origin,
+                vc_setup.amount_messages,
+                None,
+                &mut vc_setup.rng,
+                &vc_setup.configs,
+                &mut vc_setup.usigs,
+            );
 
-        let mut message_log = create_message_log(
-            vc_setup.origin,
-            vc_setup.amount_messages,
-            None,
-            &mut vc_setup.rng,
-            &vc_setup.configs,
-            &mut vc_setup.usigs,
-        );
+            message_log.drain(..);
 
-        message_log.drain(..);
+            let usig_origin = vc_setup.usigs.get_mut(&vc_setup.origin).unwrap();
 
-        let usig_origin = vc_setup.usigs.get_mut(&vc_setup.origin).unwrap();
+            let view_change = create_view_change(
+                vc_setup.origin,
+                vc_setup.next_view,
+                None,
+                message_log,
+                usig_origin,
+            );
 
-        let view_change = create_view_change(
-            vc_setup.origin,
-            vc_setup.next_view,
-            None,
-            message_log,
-            usig_origin,
-        );
+            (view_change, None)
+        } else {
+            let mut vc_setup = setup_view_change_tests(n);
 
-        (view_change, vc_setup)
+            let mut message_log = create_message_log(
+                vc_setup.origin,
+                vc_setup.amount_messages,
+                None,
+                &mut vc_setup.rng,
+                &vc_setup.configs,
+                &mut vc_setup.usigs,
+            );
+
+            message_log.drain(..);
+
+            let usig_origin = vc_setup.usigs.get_mut(&vc_setup.origin).unwrap();
+
+            let view_change = create_view_change(
+                vc_setup.origin,
+                vc_setup.next_view,
+                None,
+                message_log,
+                usig_origin,
+            );
+
+            (view_change, Some(vc_setup))
+        }
     }
 
     #[rstest]
     fn validate_invalid_view_change_counter_greater_0_empty_msg_log_no_cert(
         #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
     ) {
-        let (view_change, mut vc_setup) =
-            create_invalid_vchange_counter_greater_0_empty_msg_log_no_cert(n);
+        let (view_change, vc_setup) =
+            create_invalid_vchange_counter_greater_0_empty_msg_log_no_cert(n, None);
+        let mut vc_setup = vc_setup.unwrap();
 
         for i in 0..n {
             let rep_id = ReplicaId::from_u64(i);
@@ -580,20 +607,30 @@ pub(crate) mod test {
 
     pub(crate) fn create_invalid_vchange_msg_log_hole(
         n: u64,
-    ) -> (ViewChange<DummyPayload, Signature>, ViewChangeSetup) {
-        let mut vc_setup = setup_view_change_tests(n);
+        vc_setup: Option<&mut ViewChangeSetup>,
+    ) -> (ViewChange<DummyPayload, Signature>, Option<ViewChangeSetup>) {
+        if let Some(vc_setup) = vc_setup {
+            let view_change = create_invalid_view_change_log_manipulated(
+                Some(MessageLogManipulation::RemoveRandomInBetween),
+                vc_setup,
+            );
+            (view_change, None)
+        } else {
+            let mut vc_setup = setup_view_change_tests(n);
 
-        let view_change = create_invalid_view_change_log_manipulated(
-            Some(MessageLogManipulation::RemoveRandomInBetween),
-            &mut vc_setup,
-        );
+            let view_change = create_invalid_view_change_log_manipulated(
+                Some(MessageLogManipulation::RemoveRandomInBetween),
+                &mut vc_setup,
+            );
 
-        (view_change, vc_setup)
+            (view_change, Some(vc_setup))
+        }
     }
 
     #[rstest]
     fn validate_invalid_view_change_msg_log_hole(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
-        let (view_change, mut vc_setup) = create_invalid_vchange_msg_log_hole(n);
+        let (view_change, vc_setup) = create_invalid_vchange_msg_log_hole(n, None);
+        let mut vc_setup = vc_setup.unwrap();
 
         for i in 0..n {
             let rep_id = ReplicaId::from_u64(i);
@@ -603,24 +640,32 @@ pub(crate) mod test {
         }
     }
 
-    pub(crate) fn create_invalid_view_change_msg_log_first_missing(
+    pub(crate) fn create_invalid_vchange_msg_log_first_missing(
         n: u64,
-    ) -> (ViewChange<DummyPayload, Signature>, ViewChangeSetup) {
-        let mut vc_setup = setup_view_change_tests(n);
-
-        let view_change = create_invalid_view_change_log_manipulated(
-            Some(MessageLogManipulation::PopFirst),
-            &mut vc_setup,
-        );
-
-        (view_change, vc_setup)
+        vc_setup: Option<&mut ViewChangeSetup>,
+    ) -> (ViewChange<DummyPayload, Signature>, Option<ViewChangeSetup>) {
+        if let Some(vc_setup) = vc_setup {
+            let view_change = create_invalid_view_change_log_manipulated(
+                Some(MessageLogManipulation::PopFirst),
+                vc_setup,
+            );
+            (view_change, None)
+        } else {
+            let mut vc_setup = setup_view_change_tests(n);
+            let view_change = create_invalid_view_change_log_manipulated(
+                Some(MessageLogManipulation::PopFirst),
+                &mut vc_setup,
+            );
+            (view_change, Some(vc_setup))
+        }
     }
 
     #[rstest]
     fn validate_invalid_view_change_msg_log_first_missing(
         #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
     ) {
-        let (view_change, mut vc_setup) = create_invalid_view_change_msg_log_first_missing(n);
+        let (view_change, vc_setup) = create_invalid_vchange_msg_log_first_missing(n, None);
+        let mut vc_setup = vc_setup.unwrap();
 
         for i in 0..n {
             let rep_id = ReplicaId::from_u64(i);
@@ -630,24 +675,32 @@ pub(crate) mod test {
         }
     }
 
-    pub(crate) fn create_invalid_view_change_msg_log_last_missing(
+    pub(crate) fn create_invalid_vchange_msg_log_last_missing(
         n: u64,
-    ) -> (ViewChange<DummyPayload, Signature>, ViewChangeSetup) {
-        let mut vc_setup = setup_view_change_tests(n);
-
-        let view_change = create_invalid_view_change_log_manipulated(
-            Some(MessageLogManipulation::PopLast),
-            &mut vc_setup,
-        );
-
-        (view_change, vc_setup)
+        vc_setup: Option<&mut ViewChangeSetup>,
+    ) -> (ViewChange<DummyPayload, Signature>, Option<ViewChangeSetup>) {
+        if let Some(vc_setup) = vc_setup {
+            let view_change = create_invalid_view_change_log_manipulated(
+                Some(MessageLogManipulation::PopLast),
+                vc_setup,
+            );
+            (view_change, None)
+        } else {
+            let mut vc_setup = setup_view_change_tests(n);
+            let view_change = create_invalid_view_change_log_manipulated(
+                Some(MessageLogManipulation::PopLast),
+                &mut vc_setup,
+            );
+            (view_change, Some(vc_setup))
+        }
     }
 
     #[rstest]
     fn validate_invalid_view_change_msg_log_last_missing(
         #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
     ) {
-        let (view_change, mut vc_setup) = create_invalid_view_change_msg_log_last_missing(n);
+        let (view_change, vc_setup) = create_invalid_vchange_msg_log_last_missing(n, None);
+        let mut vc_setup = vc_setup.unwrap();
 
         for i in 0..n {
             let rep_id = ReplicaId::from_u64(i);
@@ -805,44 +858,79 @@ pub(crate) mod test {
 
     pub(crate) fn create_invalid_vchange_cert_empty_log(
         n: u64,
-    ) -> (ViewChange<DummyPayload, Signature>, ViewChangeSetup) {
-        let mut vc_setup = setup_view_change_tests(n);
+        vc_setup: Option<&mut ViewChangeSetup>,
+    ) -> (ViewChange<DummyPayload, Signature>, Option<ViewChangeSetup>) {
+        if let Some(vc_setup) = vc_setup {
+            let _ = create_message_log(
+                vc_setup.origin,
+                vc_setup.amount_messages,
+                None,
+                &mut vc_setup.rng,
+                &vc_setup.configs,
+                &mut vc_setup.usigs,
+            );
 
-        let _ = create_message_log(
-            vc_setup.origin,
-            vc_setup.amount_messages,
-            None,
-            &mut vc_setup.rng,
-            &vc_setup.configs,
-            &mut vc_setup.usigs,
-        );
+            let checkpoint_cert = create_checkpoint_cert_random(
+                vc_setup.n_parsed,
+                vc_setup.t,
+                vc_setup.origin,
+                &mut vc_setup.rng,
+                &mut vc_setup.usigs,
+            );
 
-        let checkpoint_cert = create_checkpoint_cert_random(
-            vc_setup.n_parsed,
-            vc_setup.t,
-            vc_setup.origin,
-            &mut vc_setup.rng,
-            &mut vc_setup.usigs,
-        );
+            let message_log = Vec::new();
 
-        let message_log = Vec::new();
+            let usig_origin = vc_setup.usigs.get_mut(&vc_setup.origin).unwrap();
 
-        let usig_origin = vc_setup.usigs.get_mut(&vc_setup.origin).unwrap();
+            let view_change = create_view_change(
+                vc_setup.origin,
+                vc_setup.next_view,
+                Some(checkpoint_cert),
+                message_log,
+                usig_origin,
+            );
 
-        let view_change = create_view_change(
-            vc_setup.origin,
-            vc_setup.next_view,
-            Some(checkpoint_cert),
-            message_log,
-            usig_origin,
-        );
+            (view_change, None)
+        } else {
+            let mut vc_setup = setup_view_change_tests(n);
 
-        (view_change, vc_setup)
+            let _ = create_message_log(
+                vc_setup.origin,
+                vc_setup.amount_messages,
+                None,
+                &mut vc_setup.rng,
+                &vc_setup.configs,
+                &mut vc_setup.usigs,
+            );
+
+            let checkpoint_cert = create_checkpoint_cert_random(
+                vc_setup.n_parsed,
+                vc_setup.t,
+                vc_setup.origin,
+                &mut vc_setup.rng,
+                &mut vc_setup.usigs,
+            );
+
+            let message_log = Vec::new();
+
+            let usig_origin = vc_setup.usigs.get_mut(&vc_setup.origin).unwrap();
+
+            let view_change = create_view_change(
+                vc_setup.origin,
+                vc_setup.next_view,
+                Some(checkpoint_cert),
+                message_log,
+                usig_origin,
+            );
+
+            (view_change, Some(vc_setup))
+        }
     }
 
     #[rstest]
     fn validate_invalid_view_change_with_cert_empty_log(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
-        let (view_change, mut vc_setup) = create_invalid_vchange_cert_empty_log(n);
+        let (view_change, vc_setup) = create_invalid_vchange_cert_empty_log(n, None);
+        let mut vc_setup = vc_setup.unwrap();
 
         for i in 0..n {
             let rep_id = ReplicaId::from_u64(i);
@@ -854,55 +942,98 @@ pub(crate) mod test {
 
     pub(crate) fn create_invalid_vchange_cert_log_first_not_cp(
         n: u64,
-    ) -> (ViewChange<DummyPayload, Signature>, ViewChangeSetup) {
-        let mut vc_setup = setup_view_change_tests(n);
+        vc_setup: Option<&mut ViewChangeSetup>,
+    ) -> (ViewChange<DummyPayload, Signature>, Option<ViewChangeSetup>) {
+        if let Some(vc_setup) = vc_setup {
+            let _ = create_message_log(
+                vc_setup.origin,
+                vc_setup.amount_messages,
+                None,
+                &mut vc_setup.rng,
+                &vc_setup.configs,
+                &mut vc_setup.usigs,
+            );
 
-        let _ = create_message_log(
-            vc_setup.origin,
-            vc_setup.amount_messages,
-            None,
-            &mut vc_setup.rng,
-            &vc_setup.configs,
-            &mut vc_setup.usigs,
-        );
+            let checkpoint_cert = create_checkpoint_cert_random(
+                vc_setup.n_parsed,
+                vc_setup.t,
+                vc_setup.origin,
+                &mut vc_setup.rng,
+                &mut vc_setup.usigs,
+            );
 
-        let checkpoint_cert = create_checkpoint_cert_random(
-            vc_setup.n_parsed,
-            vc_setup.t,
-            vc_setup.origin,
-            &mut vc_setup.rng,
-            &mut vc_setup.usigs,
-        );
+            let mut message_log = Vec::new();
+            let mut next_messages = create_message_log(
+                vc_setup.origin,
+                vc_setup.amount_messages,
+                None,
+                &mut vc_setup.rng,
+                &vc_setup.configs,
+                &mut vc_setup.usigs,
+            );
+            message_log.append(&mut next_messages);
 
-        let mut message_log = Vec::new();
-        let mut next_messages = create_message_log(
-            vc_setup.origin,
-            vc_setup.amount_messages,
-            None,
-            &mut vc_setup.rng,
-            &vc_setup.configs,
-            &mut vc_setup.usigs,
-        );
-        message_log.append(&mut next_messages);
+            let usig_origin = vc_setup.usigs.get_mut(&vc_setup.origin).unwrap();
 
-        let usig_origin = vc_setup.usigs.get_mut(&vc_setup.origin).unwrap();
+            let view_change = create_view_change(
+                vc_setup.origin,
+                vc_setup.next_view,
+                Some(checkpoint_cert),
+                message_log,
+                usig_origin,
+            );
+            (view_change, None)
+        } else {
+            let mut vc_setup = setup_view_change_tests(n);
 
-        let view_change = create_view_change(
-            vc_setup.origin,
-            vc_setup.next_view,
-            Some(checkpoint_cert),
-            message_log,
-            usig_origin,
-        );
+            let _ = create_message_log(
+                vc_setup.origin,
+                vc_setup.amount_messages,
+                None,
+                &mut vc_setup.rng,
+                &vc_setup.configs,
+                &mut vc_setup.usigs,
+            );
 
-        (view_change, vc_setup)
+            let checkpoint_cert = create_checkpoint_cert_random(
+                vc_setup.n_parsed,
+                vc_setup.t,
+                vc_setup.origin,
+                &mut vc_setup.rng,
+                &mut vc_setup.usigs,
+            );
+
+            let mut message_log = Vec::new();
+            let mut next_messages = create_message_log(
+                vc_setup.origin,
+                vc_setup.amount_messages,
+                None,
+                &mut vc_setup.rng,
+                &vc_setup.configs,
+                &mut vc_setup.usigs,
+            );
+            message_log.append(&mut next_messages);
+
+            let usig_origin = vc_setup.usigs.get_mut(&vc_setup.origin).unwrap();
+
+            let view_change = create_view_change(
+                vc_setup.origin,
+                vc_setup.next_view,
+                Some(checkpoint_cert),
+                message_log,
+                usig_origin,
+            );
+
+            (view_change, Some(vc_setup))
+        }
     }
 
     #[rstest]
     fn validate_invalid_view_change_with_cert_log_first_not_cp(
         #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
     ) {
-        let (view_change, mut vc_setup) = create_invalid_vchange_cert_log_first_not_cp(n);
+        let (view_change, vc_setup) = create_invalid_vchange_cert_log_first_not_cp(n, None);
+        let mut vc_setup = vc_setup.unwrap();
 
         for i in 0..n {
             let rep_id = ReplicaId::from_u64(i);
