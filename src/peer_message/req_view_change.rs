@@ -53,101 +53,170 @@ impl ReqViewChange {
 
 mod tests {
     use std::num::NonZeroU64;
-    use std::time::Duration;
 
+    use crate::View;
+    use rand::Rng;
+    use rstest::rstest;
     use shared_ids::AnyId;
     use shared_ids::ReplicaId;
 
-    use crate::Config;
-    use crate::View;
-
     use super::ReqViewChange;
 
-    /// Tests if a [ReqViewChange], in which the next [View] is smaller
-    /// and subsequent to the previous [View], is validated to false.
-    #[test]
-    fn validate_invalid_req_view_change_subsequent() {
-        let req_view_change = ReqViewChange {
-            prev_view: View(2),
-            next_view: View(1),
-        };
-        let config = Config {
-            n: NonZeroU64::new(3).unwrap(),
-            t: 1,
-            id: ReplicaId::from_u64(0),
-            batch_timeout: Duration::from_secs(2),
-            max_batch_size: None,
-            initial_timeout_duration: Duration::from_secs(2),
-            checkpoint_period: NonZeroU64::new(2).unwrap(),
-        };
-        assert!(req_view_change
-            .validate(ReplicaId::from_u64(0), &config)
-            .is_err());
-    }
-
-    /// Tests if the validation of a [ReqViewChange], in which the next [View] is smaller
-    /// and subsequent to the previous [View], results in an error.
-    #[test]
-    fn validate_invalid_req_view_change_jump() {
-        let req_view_change = ReqViewChange {
-            prev_view: View(3),
-            next_view: View(0),
-        };
-        let config = Config {
-            n: NonZeroU64::new(3).unwrap(),
-            t: 1,
-            id: ReplicaId::from_u64(0),
-            batch_timeout: Duration::from_secs(2),
-            max_batch_size: None,
-            initial_timeout_duration: Duration::from_secs(2),
-            checkpoint_period: NonZeroU64::new(2).unwrap(),
-        };
-        assert!(req_view_change
-            .validate(ReplicaId::from_u64(0), &config)
-            .is_err());
-    }
-
     /// Tests if the validation of a [ReqViewChange], in which the next [View] is bigger
-    /// and subsequent to the previous [View], succeeds.
-    #[test]
-    fn validate_valid_req_view_change_subsequent() {
+    /// and directly subsequent to the previous [View], succeeds.
+    #[rstest]
+    fn validate_valid_req_view_change_next_dir_subsequent(
+        #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
+    ) {
+        use rand::thread_rng;
+
+        use crate::tests::{
+            create_default_configs_for_replicas, get_random_included_index, get_random_replica_id,
+        };
+
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+        let origin = get_random_replica_id(n_parsed, &mut rng);
+
+        let rand_factor_0 = get_random_included_index(n as usize * 10, None, &mut rng);
+
+        let prev_view_nr = rng.gen_range(0..=rand_factor_0 as u64 * n);
+        let next_view_nr = prev_view_nr + 1;
+
+        let t = n / 2;
+
+        let prev_view = View(prev_view_nr);
+        let next_view = View(next_view_nr);
+
+        let configs = create_default_configs_for_replicas(n_parsed, t);
+
         let req_view_change = ReqViewChange {
-            prev_view: View(2),
-            next_view: View(3),
+            prev_view,
+            next_view,
         };
-        let config = Config {
-            n: NonZeroU64::new(3).unwrap(),
-            t: 1,
-            id: ReplicaId::from_u64(0),
-            batch_timeout: Duration::from_secs(2),
-            max_batch_size: None,
-            initial_timeout_duration: Duration::from_secs(2),
-            checkpoint_period: NonZeroU64::new(2).unwrap(),
-        };
-        assert!(req_view_change
-            .validate(ReplicaId::from_u64(0), &config)
-            .is_ok());
+
+        for i in 0..n {
+            let rep_id = ReplicaId::from_u64(i);
+            let config = configs.get(&rep_id).unwrap();
+            assert!((req_view_change.validate(origin, config)).is_ok());
+        }
     }
 
     /// Tests if the validation of a [ReqViewChange], in which the next [View] is bigger
     /// but not subsequent to the previous [View], succeeds.
-    #[test]
-    fn validate_valid_req_view_change_jump() {
+    #[rstest]
+    fn validate_valid_req_view_change_next_jump(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        use rand::thread_rng;
+
+        use crate::tests::{
+            create_default_configs_for_replicas, get_random_included_index, get_random_replica_id,
+        };
+
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+        let origin = get_random_replica_id(n_parsed, &mut rng);
+
+        let rand_factor_0 = get_random_included_index(n as usize * 10, None, &mut rng);
+        let rand_summand = rng.gen_range(1..=n * 10);
+
+        let prev_view_nr = rng.gen_range(0..=rand_factor_0 as u64 * n);
+        let next_view_nr = prev_view_nr + rand_summand;
+
+        let t = n / 2;
+
+        let prev_view = View(prev_view_nr);
+        let next_view = View(next_view_nr);
+
+        let configs = create_default_configs_for_replicas(n_parsed, t);
+
         let req_view_change = ReqViewChange {
-            prev_view: View(2),
-            next_view: View(7),
+            prev_view,
+            next_view,
         };
-        let config = Config {
-            n: NonZeroU64::new(3).unwrap(),
-            t: 1,
-            id: ReplicaId::from_u64(0),
-            batch_timeout: Duration::from_secs(2),
-            max_batch_size: None,
-            initial_timeout_duration: Duration::from_secs(2),
-            checkpoint_period: NonZeroU64::new(2).unwrap(),
+
+        for i in 0..n {
+            let rep_id = ReplicaId::from_u64(i);
+            let config = configs.get(&rep_id).unwrap();
+            assert!((req_view_change.validate(origin, config)).is_ok());
+        }
+    }
+
+    /// Tests if a [ReqViewChange], in which the next [View] is smaller
+    /// and subsequent to the previous [View], is validated to false.
+    #[rstest]
+    fn validate_invalid_req_view_change_prev_dir_subsequent(
+        #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
+    ) {
+        use rand::thread_rng;
+
+        use crate::tests::{
+            create_default_configs_for_replicas, get_random_included_index, get_random_replica_id,
         };
-        assert!(req_view_change
-            .validate(ReplicaId::from_u64(0), &config)
-            .is_ok());
+
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+        let origin = get_random_replica_id(n_parsed, &mut rng);
+
+        let rand_factor_0 = get_random_included_index(n as usize * 10, None, &mut rng);
+
+        let prev_view_nr = rng.gen_range(1..=rand_factor_0 as u64 * n);
+        let next_view_nr = prev_view_nr - 1;
+
+        let t = n / 2;
+
+        let prev_view = View(prev_view_nr);
+        let next_view = View(next_view_nr);
+
+        let configs = create_default_configs_for_replicas(n_parsed, t);
+
+        let req_view_change = ReqViewChange {
+            prev_view,
+            next_view,
+        };
+
+        for i in 0..n {
+            let rep_id = ReplicaId::from_u64(i);
+            let config = configs.get(&rep_id).unwrap();
+            assert!((req_view_change.validate(origin, config)).is_err());
+        }
+    }
+
+    /// Tests if the validation of a [ReqViewChange], in which the next [View] is smaller
+    /// and subsequent to the previous [View], results in an error.
+    #[rstest]
+    fn validate_invalid_req_view_change_jump(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        use rand::thread_rng;
+
+        use crate::tests::{
+            create_default_configs_for_replicas, get_random_included_index, get_random_replica_id,
+        };
+
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+        let origin = get_random_replica_id(n_parsed, &mut rng);
+
+        let rand_factor_0 = get_random_included_index(n as usize * 10, None, &mut rng);
+        let rand_summand = rng.gen_range(1..=n * 10);
+
+        let next_view_nr = rng.gen_range(0..=rand_factor_0 as u64 * n);
+        let prev_view_nr = next_view_nr + rand_summand;
+
+        let t = n / 2;
+
+        let prev_view = View(prev_view_nr);
+        let next_view = View(next_view_nr);
+
+        let configs = create_default_configs_for_replicas(n_parsed, t);
+
+        let req_view_change = ReqViewChange {
+            prev_view,
+            next_view,
+        };
+
+        for i in 0..n {
+            let rep_id = ReplicaId::from_u64(i);
+            let config = configs.get(&rep_id).unwrap();
+            assert!((req_view_change.validate(origin, config)).is_err());
+        }
     }
 }
