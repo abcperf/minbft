@@ -238,11 +238,12 @@ pub(crate) mod test {
 
     use crate::{
         peer_message::usig_message::view_change::test::{
-            create_message_log, create_view_change, setup_view_change_tests,
+            create_message_log, create_view_change, setup_view_change_tests, ViewChangeSetup,
         },
         tests::{
             create_attested_usigs_for_replicas, create_default_configs_for_replicas,
-            get_random_view_with_max, get_shuffled_remaining_replicas, get_two_different_indexes,
+            get_random_included_index, get_random_view_with_max, get_shuffled_remaining_replicas,
+            get_two_different_indexes,
         },
         View,
     };
@@ -451,9 +452,91 @@ pub(crate) mod test {
         }
     }
 
-    #[ignore]
-    fn validate_invalid_new_view_cert_invalid_vchange_msgs() {
-        todo!();
+    #[rstest]
+    fn validate_invalid_new_view_cert_invalid_vchange_msgs(
+        #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
+    ) {
+        use usig::noop::Signature;
+
+        use crate::{
+            peer_message::usig_message::view_change::{
+                test::{
+                    create_invalid_vchange_cert_empty_log,
+                    create_invalid_vchange_cert_log_first_not_cp,
+                    create_invalid_vchange_counter_greater_0_empty_msg_log_no_cert,
+                    create_invalid_vchange_msg_log_first_missing,
+                    create_invalid_vchange_msg_log_hole,
+                    create_invalid_vchange_msg_log_last_missing,
+                },
+                ViewChange,
+            },
+            tests::DummyPayload,
+        };
+
+        let fns_create_invalid_vchange: Vec<
+            fn(
+                u64,
+                Option<&mut ViewChangeSetup>,
+            ) -> (ViewChange<DummyPayload, Signature>, Option<ViewChangeSetup>),
+        > = vec![
+            create_invalid_vchange_cert_empty_log,
+            create_invalid_vchange_cert_log_first_not_cp,
+            create_invalid_vchange_counter_greater_0_empty_msg_log_no_cert,
+            create_invalid_vchange_msg_log_hole,
+            create_invalid_vchange_msg_log_first_missing,
+            create_invalid_vchange_msg_log_last_missing,
+        ];
+
+        for fn_create_invalid_vchange in fns_create_invalid_vchange {
+            let mut view_changes = Vec::new();
+
+            let mut vc_setup = setup_view_change_tests(n);
+
+            let shuffled_replicas =
+                get_shuffled_remaining_replicas(vc_setup.n_parsed, None, &mut vc_setup.rng);
+
+            let shuffled_set = shuffled_replicas.iter().take(vc_setup.t as usize + 1);
+
+            let random_rep =
+                get_random_included_index(vc_setup.t as usize + 1, None, &mut vc_setup.rng);
+
+            for (index, shuffled_rep) in shuffled_set.enumerate() {
+                let amount_messages: u64 = vc_setup.rng.gen_range(5..10);
+
+                let message_log = create_message_log(
+                    *shuffled_rep,
+                    amount_messages,
+                    None,
+                    &mut vc_setup.rng,
+                    &vc_setup.configs,
+                    &mut vc_setup.usigs,
+                );
+
+                let usig_origin = vc_setup.usigs.get_mut(shuffled_rep).unwrap();
+
+                let view_change = if index == random_rep {
+                    fn_create_invalid_vchange(n, Some(&mut vc_setup)).0
+                } else {
+                    create_view_change(
+                        *shuffled_rep,
+                        vc_setup.next_view,
+                        None,
+                        message_log,
+                        usig_origin,
+                    )
+                };
+
+                view_changes.push(view_change);
+            }
+
+            let new_view_cert = NewViewCertificate { view_changes };
+
+            for shuffled_replica in &shuffled_replicas {
+                let config = vc_setup.configs.get(shuffled_replica).unwrap();
+                let usig = vc_setup.usigs.get_mut(shuffled_replica).unwrap();
+                assert!(new_view_cert.validate(config, usig).is_err());
+            }
+        }
     }
 
     #[ignore]
