@@ -12,8 +12,9 @@ use shared_ids::ReplicaId;
 use usig::{noop::UsigNoOp, Usig};
 
 use crate::{
-    output::TimeoutRequest, peer_message::usig_message::checkpoint::CheckpointHash,
-    timeout::StopClass, Config, MinBft, Output, RequestPayload, ValidatedPeerMessage, View,
+    client_request::test::create_batch, output::TimeoutRequest,
+    peer_message::usig_message::checkpoint::CheckpointHash, timeout::StopClass, Config, MinBft,
+    Output, RequestPayload, ValidatedPeerMessage, View,
 };
 
 use super::{Prepare, PrepareContent, TimeoutType};
@@ -337,4 +338,29 @@ pub(crate) fn get_random_included_replica_id(
     let remaining_replica_ids = get_shuffled_remaining_replicas(n, Some(excluded_rep_id), rng);
     let random_index = rng.gen_range(0..remaining_replica_ids.len() as u64) as usize;
     remaining_replica_ids[random_index]
+}
+
+pub(crate) fn get_random_included_index(
+    excluded_max_index: usize,
+    excluded_index: Option<usize>,
+    rng: &mut ThreadRng,
+) -> usize {
+    let mut random_index = rng.gen_range(0..excluded_max_index);
+    if let Some(excluded_index) = excluded_index {
+        while random_index == excluded_index {
+            random_index = rng.gen_range(0..excluded_max_index);
+        }
+    }
+    random_index
+}
+
+pub(crate) fn increase_usig_of_replica(usig: &mut UsigNoOp) {
+    let _ = Prepare::sign(
+        PrepareContent {
+            origin: ReplicaId::from_u64(0),
+            view: View(0),
+            request_batch: create_batch(),
+        },
+        usig,
+    );
 }
