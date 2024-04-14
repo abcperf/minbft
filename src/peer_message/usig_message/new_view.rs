@@ -231,24 +231,26 @@ impl<P: RequestPayload, Sig: Serialize + Counter + Debug> NewViewCertificate<P, 
 
 #[cfg(test)]
 pub(crate) mod test {
-    use std::num::NonZeroU64;
+    use std::{collections::HashMap, num::NonZeroU64};
 
-    use rand::{thread_rng, Rng};
+    use rand::{rngs::ThreadRng, thread_rng, Rng};
     use rstest::rstest;
+    use usig::{noop::UsigNoOp, AnyId, ReplicaId};
 
     use crate::{
         peer_message::usig_message::view_change::test::{
-            create_message_log, create_view_change, setup_view_change_tests, ViewChangeSetup,
+            create_message_log, create_view_change, setup_view_change_tests,
         },
         tests::{
             create_attested_usigs_for_replicas, create_default_configs_for_replicas,
-            get_random_included_index, get_random_view_with_max, get_shuffled_remaining_replicas,
-            get_two_different_indexes,
+            get_random_included_index, get_random_included_replica_id, get_random_replica_id,
+            get_random_view_with_max, get_shuffled_remaining_replicas, get_two_different_indexes,
+            DummyPayload,
         },
-        View,
+        Config, View,
     };
 
-    use super::NewViewCertificate;
+    use super::{NewView, NewViewCertificate, NewViewContent};
 
     #[rstest]
     fn validate_valid_new_view_cert(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
@@ -456,29 +458,14 @@ pub(crate) mod test {
     fn validate_invalid_new_view_cert_invalid_vchange_msgs(
         #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
     ) {
-        use usig::noop::Signature;
-
-        use crate::{
-            peer_message::usig_message::view_change::{
-                test::{
-                    create_invalid_vchange_cert_empty_log,
-                    create_invalid_vchange_cert_log_first_not_cp,
-                    create_invalid_vchange_counter_greater_0_empty_msg_log_no_cert,
-                    create_invalid_vchange_msg_log_first_missing,
-                    create_invalid_vchange_msg_log_hole,
-                    create_invalid_vchange_msg_log_last_missing,
-                },
-                ViewChange,
-            },
-            tests::DummyPayload,
+        use crate::peer_message::usig_message::view_change::test::{
+            create_invalid_vchange_cert_empty_log, create_invalid_vchange_cert_log_first_not_cp,
+            create_invalid_vchange_counter_greater_0_empty_msg_log_no_cert,
+            create_invalid_vchange_msg_log_first_missing, create_invalid_vchange_msg_log_hole,
+            create_invalid_vchange_msg_log_last_missing, ViewChangeCreation,
         };
 
-        let fns_create_invalid_vchange: Vec<
-            fn(
-                u64,
-                Option<&mut ViewChangeSetup>,
-            ) -> (ViewChange<DummyPayload, Signature>, Option<ViewChangeSetup>),
-        > = vec![
+        let fns_create_invalid_vchange: Vec<ViewChangeCreation> = vec![
             create_invalid_vchange_cert_empty_log,
             create_invalid_vchange_cert_log_first_not_cp,
             create_invalid_vchange_counter_greater_0_empty_msg_log_no_cert,
@@ -539,18 +526,140 @@ pub(crate) mod test {
         }
     }
 
-    #[ignore]
-    fn validate_valid_new_view() {
-        todo!();
+    pub(crate) struct NewViewSetup {
+        pub(crate) n_parsed: NonZeroU64,
+        pub(crate) origin: ReplicaId,
+        pub(crate) next_view: View,
+        pub(crate) rng: ThreadRng,
+        pub(crate) configs: HashMap<ReplicaId, Config>,
+        pub(crate) usigs: HashMap<ReplicaId, UsigNoOp>,
     }
 
-    #[ignore]
-    fn validate_invalid_new_view_origin() {
-        todo!();
+    pub(crate) fn setup_new_view_tests(n: u64) -> NewViewSetup {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+        let origin = get_random_replica_id(n_parsed, &mut rng);
+
+        let t = n / 2;
+
+        let rand_factor = get_random_included_index(n as usize * 10, None, &mut rng);
+
+        let next_view = View(origin.as_u64() + rand_factor as u64 * n);
+
+        let configs = create_default_configs_for_replicas(n_parsed, t);
+        let usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
+
+        NewViewSetup {
+            n_parsed,
+            origin,
+            next_view,
+            rng,
+            configs,
+            usigs,
+        }
     }
 
-    #[ignore]
-    fn validate_invalid_new_view_signature() {
-        todo!();
+    #[rstest]
+    fn validate_valid_new_view(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let mut nv_setup = setup_new_view_tests(n);
+
+        let certificate: NewViewCertificate<DummyPayload, usig::noop::Signature> =
+            NewViewCertificate {
+                view_changes: Vec::new(),
+            };
+
+        let usig_origin = nv_setup.usigs.get_mut(&nv_setup.origin).unwrap();
+
+        let new_view = NewView::sign(
+            NewViewContent {
+                origin: nv_setup.origin,
+                next_view: nv_setup.next_view,
+                certificate,
+            },
+            usig_origin,
+        )
+        .unwrap();
+
+        for i in 0..n {
+            let rep_id = ReplicaId::from_u64(i);
+            let config = nv_setup.configs.get(&rep_id).unwrap();
+            let usig = nv_setup.usigs.get_mut(&rep_id).unwrap();
+            assert!((new_view.validate(config, usig)).is_ok());
+        }
+    }
+
+    #[rstest]
+    fn validate_invalid_new_view_origin(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let mut nv_setup = setup_new_view_tests(n);
+
+        let certificate: NewViewCertificate<DummyPayload, usig::noop::Signature> =
+            NewViewCertificate {
+                view_changes: Vec::new(),
+            };
+
+        let usig_origin = nv_setup.usigs.get_mut(&nv_setup.origin).unwrap();
+
+        let rand_rep =
+            get_random_included_replica_id(nv_setup.n_parsed, nv_setup.origin, &mut nv_setup.rng);
+        let rand_factor = get_random_included_index(n as usize * 10, None, &mut nv_setup.rng);
+
+        let next_view = View(rand_rep.as_u64() + rand_factor as u64 * n);
+
+        let new_view = NewView::sign(
+            NewViewContent {
+                origin: nv_setup.origin,
+                next_view,
+                certificate,
+            },
+            usig_origin,
+        )
+        .unwrap();
+
+        for i in 0..n {
+            let rep_id = ReplicaId::from_u64(i);
+            let config = nv_setup.configs.get(&rep_id).unwrap();
+            let usig = nv_setup.usigs.get_mut(&rep_id).unwrap();
+            assert!((new_view.validate(config, usig)).is_err());
+        }
+    }
+
+    #[rstest]
+    fn validate_invalid_new_view_signature(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+        let origin = get_random_replica_id(n_parsed, &mut rng);
+
+        let t = n / 2;
+
+        let rand_factor = get_random_included_index(n as usize * 10, None, &mut rng);
+
+        let next_view = View(origin.as_u64() + rand_factor as u64 * n);
+
+        let configs = create_default_configs_for_replicas(n_parsed, t);
+        let mut usigs = create_attested_usigs_for_replicas(n_parsed, vec![origin]);
+
+        let certificate: NewViewCertificate<DummyPayload, usig::noop::Signature> =
+            NewViewCertificate {
+                view_changes: Vec::new(),
+            };
+
+        let usig_origin = usigs.get_mut(&origin).unwrap();
+
+        let new_view = NewView::sign(
+            NewViewContent {
+                origin,
+                next_view,
+                certificate,
+            },
+            usig_origin,
+        )
+        .unwrap();
+
+        for i in 0..n {
+            let rep_id = ReplicaId::from_u64(i);
+            let config = configs.get(&rep_id).unwrap();
+            let usig = usigs.get_mut(&rep_id).unwrap();
+            assert!((new_view.validate(config, usig)).is_err());
+        }
     }
 }
