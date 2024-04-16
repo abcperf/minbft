@@ -41,13 +41,13 @@ impl<P: Clone, Sig: Clone> CollectorViewChanges<P, Sig> {
             msg.next_view,
         );
         let mut retrieved = self.retrieve(msg.next_view, config)?;
-        let mut retrieved_single = Vec::new();
-        retrieved_single.push(retrieved.0);
-        retrieved_single.append(&mut retrieved.1);
+        let mut retrieved_all = Vec::new();
+        retrieved_all.push(retrieved.0);
+        retrieved_all.append(&mut retrieved.1);
         debug!(
             "Successfully retrieved ViewChanges (next view: {:?}).",
             msg.next_view
         );
-        Some(retrieved_single)
+        Some(retrieved_all)
     }
 }
