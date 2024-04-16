@@ -32,7 +32,7 @@ where
                     warn!("Processing ReqViewChange (origin: {from:?}, previous view: {:?}, next view: {:?}) resulted in ignoring it (whilst in view): Previous view set in message is smaller than current view.", req.prev_view, req.next_view);
                     return;
                 };
-                let amount_collected = self.collector_rvc.collect(&req, from, &self.config);
+                let amount_collected = self.collector_rvc.collect(&req, from);
                 let to_become_prev_view = in_view.view;
                 (amount_collected, to_become_prev_view)
             }
@@ -44,7 +44,7 @@ where
                     warn!("Processing ReqViewChange (origin: {from:?}, previous view: {:?}, next view: {:?}) (whilst in view-change): Previous view set in message is smaller than previous view set in state or they are equal but next view in message is smaller than next view set in state.", req.prev_view, req.next_view);
                     return;
                 }
-                let amount_collected = self.collector_rvc.collect(&req, from, &self.config);
+                let amount_collected = self.collector_rvc.collect(&req, from);
                 let to_become_prev_view = in_progress.prev_view;
                 (amount_collected, to_become_prev_view)
             }
