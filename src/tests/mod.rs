@@ -13,7 +13,7 @@ use usig::{noop::UsigNoOp, Usig};
 
 use crate::{
     client_request::test::create_batch, output::TimeoutRequest,
-    peer_message::usig_message::checkpoint::CheckpointHash, timeout::StopClass, Config, MinBft,
+    peer_message::{req_view_change::ReqViewChange, usig_message::checkpoint::CheckpointHash}, timeout::StopClass, Config, MinBft,
     Output, RequestPayload, ValidatedPeerMessage, View,
 };
 
@@ -363,4 +363,41 @@ pub(crate) fn increase_usig_of_replica(usig: &mut UsigNoOp) {
         },
         usig,
     );
+}
+
+pub(crate) fn create_random_valid_req_vc_next_dir_subsequent(
+    n: NonZeroU64,
+    rng: &mut ThreadRng,
+) -> ReqViewChange {
+    let rand_factor_0 = get_random_included_index(n.get() as usize * 10, None, rng);
+
+    let prev_view_nr = rng.gen_range(0..=rand_factor_0 as u64 * n.get());
+    let next_view_nr = prev_view_nr + 1;
+
+    let prev_view = View(prev_view_nr);
+    let next_view = View(next_view_nr);
+
+    ReqViewChange {
+        prev_view,
+        next_view,
+    }
+}
+
+pub(crate) fn create_random_valid_req_vc_next_jump(
+    n: NonZeroU64,
+    rng: &mut ThreadRng,
+) -> ReqViewChange {
+    let rand_factor_0 = get_random_included_index(n.get() as usize * 10, None, rng);
+    let rand_summand = rng.gen_range(1..=n.get() * 10);
+
+    let prev_view_nr = rng.gen_range(0..=rand_factor_0 as u64 * n.get());
+    let next_view_nr = prev_view_nr + rand_summand;
+
+    let prev_view = View(prev_view_nr);
+    let next_view = View(next_view_nr);
+
+    ReqViewChange {
+        prev_view,
+        next_view,
+    }
 }

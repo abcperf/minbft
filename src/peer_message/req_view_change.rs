@@ -54,11 +54,18 @@ impl ReqViewChange {
 mod tests {
     use std::num::NonZeroU64;
 
-    use crate::View;
-    use rand::Rng;
+    use crate::{
+        tests::{
+            create_default_configs_for_replicas, create_random_valid_req_vc_next_dir_subsequent,
+            create_random_valid_req_vc_next_jump, get_random_replica_id,
+        },
+        View,
+    };
+
+    use rand::{thread_rng, Rng};
+
     use rstest::rstest;
-    use shared_ids::AnyId;
-    use shared_ids::ReplicaId;
+    use shared_ids::{AnyId, ReplicaId};
 
     use super::ReqViewChange;
 
@@ -68,32 +75,15 @@ mod tests {
     fn validate_valid_req_view_change_next_dir_subsequent(
         #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
     ) {
-        use rand::thread_rng;
-
-        use crate::tests::{
-            create_default_configs_for_replicas, get_random_included_index, get_random_replica_id,
-        };
-
         let n_parsed = NonZeroU64::new(n).unwrap();
         let mut rng = thread_rng();
         let origin = get_random_replica_id(n_parsed, &mut rng);
 
-        let rand_factor_0 = get_random_included_index(n as usize * 10, None, &mut rng);
-
-        let prev_view_nr = rng.gen_range(0..=rand_factor_0 as u64 * n);
-        let next_view_nr = prev_view_nr + 1;
-
         let t = n / 2;
-
-        let prev_view = View(prev_view_nr);
-        let next_view = View(next_view_nr);
 
         let configs = create_default_configs_for_replicas(n_parsed, t);
 
-        let req_view_change = ReqViewChange {
-            prev_view,
-            next_view,
-        };
+        let req_view_change = create_random_valid_req_vc_next_dir_subsequent(n_parsed, &mut rng);
 
         for i in 0..n {
             let rep_id = ReplicaId::from_u64(i);
@@ -106,33 +96,15 @@ mod tests {
     /// but not subsequent to the previous [View], succeeds.
     #[rstest]
     fn validate_valid_req_view_change_next_jump(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
-        use rand::thread_rng;
-
-        use crate::tests::{
-            create_default_configs_for_replicas, get_random_included_index, get_random_replica_id,
-        };
-
         let n_parsed = NonZeroU64::new(n).unwrap();
         let mut rng = thread_rng();
         let origin = get_random_replica_id(n_parsed, &mut rng);
 
-        let rand_factor_0 = get_random_included_index(n as usize * 10, None, &mut rng);
-        let rand_summand = rng.gen_range(1..=n * 10);
-
-        let prev_view_nr = rng.gen_range(0..=rand_factor_0 as u64 * n);
-        let next_view_nr = prev_view_nr + rand_summand;
-
         let t = n / 2;
-
-        let prev_view = View(prev_view_nr);
-        let next_view = View(next_view_nr);
 
         let configs = create_default_configs_for_replicas(n_parsed, t);
 
-        let req_view_change = ReqViewChange {
-            prev_view,
-            next_view,
-        };
+        let req_view_change = create_random_valid_req_vc_next_jump(n_parsed, &mut rng);
 
         for i in 0..n {
             let rep_id = ReplicaId::from_u64(i);
