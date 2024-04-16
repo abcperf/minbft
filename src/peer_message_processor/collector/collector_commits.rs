@@ -3,14 +3,12 @@
 //! The Commits must share the same next [crate::View].
 
 use crate::Prepare;
-use std::collections::{hash_map::Entry, BTreeMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
-use tracing::debug;
-use usig::{Count, Counter};
+use tracing::trace;
+use usig::{Count, Counter, ReplicaId};
 
-use crate::{config::Config, peer_message::usig_message::view_peer_message::ViewPeerMessage};
-
-use super::CollectorBools;
+use crate::peer_message::usig_message::view_peer_message::ViewPeerMessage;
 
 /// Collects received Commits.
 #[derive(Debug, Clone)]
@@ -20,7 +18,7 @@ pub(crate) struct CollectorCommits<P, Sig> {
     /// [crate::Prepare]s are seen as Commits, too.
     /// In other words, if i is the ID of the primary, element i (index) in the vector is set to true upon receival of the [crate::Prepare].
     /// The receival of the [crate::Prepare] may be either indirect (through a Commit) or direct (actual [crate::Prepare] broadcast by primary).
-    recv_commits: CollectorBools<Count>,
+    recv_commits: HashMap<Count, HashSet<ReplicaId>>,
     prepare: BTreeMap<Count, Prepare<P, Sig>>,
     t: u64,
 }
@@ -34,33 +32,38 @@ impl<P: Clone, Sig: Counter + Clone> CollectorCommits<P, Sig> {
     /// Creates a new collector of Commits.
     pub(crate) fn new(t: u64) -> CollectorCommits<P, Sig> {
         CollectorCommits {
-            recv_commits: CollectorBools::new(),
+            recv_commits: HashMap::new(),
             prepare: BTreeMap::new(),
             t,
         }
     }
     /// Collects a [ViewPeerMessage] (Prepare or Commit) and returns the amount of valid
     /// Commits received for the Prepare to which the received Commit belongs to.
-    pub(crate) fn collect(
-        &mut self,
-        msg: ViewPeerMessage<P, Sig>,
-        config: &Config,
-    ) -> Vec<Prepare<P, Sig>> {
+    pub(crate) fn collect(&mut self, msg: ViewPeerMessage<P, Sig>) -> Vec<Prepare<P, Sig>> {
         match msg {
             ViewPeerMessage::Prepare(prepare) => {
-                debug!(
+                trace!(
                     "Collecting Prepare (origin: {:?}, view: {:?}, counter: {:?}) ...",
                     prepare.origin,
                     prepare.view,
                     prepare.counter(),
                 );
 
-                self.recv_commits
-                    .collect(prepare.counter(), prepare.origin, config);
+                match self.recv_commits.get_mut(&prepare.counter()) {
+                    Some(collected_commit_origins) => {
+                        collected_commit_origins.insert(prepare.origin);
+                    }
+                    None => {
+                        let mut collected_commit_origins = HashSet::new();
+                        collected_commit_origins.insert(prepare.origin);
+                        self.recv_commits
+                            .insert(prepare.counter(), collected_commit_origins);
+                    }
+                }
                 self.prepare.insert(prepare.counter(), prepare);
             }
             ViewPeerMessage::Commit(commit) => {
-                debug!(
+                trace!(
                     "Collecting Commit (origin: {:?}, counter: {:?}, Prepare: [origin: {:?}, view: {:?}, counter: {:?}]) ...",
                     commit.origin,
                     commit.counter(),
@@ -68,8 +71,19 @@ impl<P: Clone, Sig: Counter + Clone> CollectorCommits<P, Sig> {
                     commit.prepare.view,
                     commit.prepare.counter(),
                 );
-                self.recv_commits
-                    .collect(commit.prepare.counter(), commit.origin, config);
+
+                match self.recv_commits.get_mut(&commit.prepare.counter()) {
+                    Some(collected_commit_origins) => {
+                        collected_commit_origins.insert(commit.origin);
+                    }
+                    None => {
+                        let mut collected_commit_origins = HashSet::new();
+                        collected_commit_origins.insert(commit.origin);
+                        self.recv_commits
+                            .insert(commit.prepare.counter(), collected_commit_origins);
+                    }
+                }
+
                 self.prepare
                     .insert(commit.prepare.counter(), commit.prepare.clone());
             }
@@ -78,15 +92,13 @@ impl<P: Clone, Sig: Counter + Clone> CollectorCommits<P, Sig> {
         let mut vec = Vec::new();
 
         while let Some(entry) = self.prepare.first_entry() {
-            let amount = self.recv_commits.0.entry(*entry.key());
-            let amount = match amount {
-                Entry::Occupied(amount) => amount,
-                Entry::Vacant(_) => unreachable!(),
-            };
-            if amount.get().counter <= self.t {
+            let commits = self.recv_commits.get_mut(entry.key()).unwrap();
+
+            if commits.len() <= self.t.try_into().unwrap() {
                 break;
             }
-            amount.remove();
+
+            self.recv_commits.remove_entry(entry.key());
             vec.push(entry.remove());
         }
 
@@ -114,9 +126,8 @@ mod test {
         View,
     };
 
-    #[ignore]
     #[rstest]
-    fn insert_new_commit(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+    fn collect_commit_single(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
         let mut rng = thread_rng();
         let t = n / 2;
@@ -130,27 +141,30 @@ mod test {
 
         let backup_id = get_random_included_replica_id(n_parsed, primary_id, &mut rng);
         let mut usig_backup = UsigNoOp::default();
-        let config_backup = create_config_default(n_parsed, t, backup_id);
         let commit = create_commit(backup_id, prepare.clone(), &mut usig_backup);
 
         let vp_msg = ViewPeerMessage::from(commit.clone());
 
         let mut collector = CollectorCommits::new(t);
 
-        let retrieved = collector.collect(vp_msg, &config_backup);
+        let acceptable_prepares = collector.collect(vp_msg);
 
-        if t == 1 {
-            assert_eq!(retrieved.len(), t as usize);
-            assert_eq!(retrieved[0], prepare);
-        } else {
-            assert!(retrieved.is_empty());
-            assert_eq!(collector.recv_commits.0.len(), 1);
-            let bool_array = collector.recv_commits.0.get(&prepare.counter());
-            assert!(bool_array.is_some());
-            let bool_array = bool_array.unwrap();
-            assert_eq!(bool_array.counter, 1);
-            let is_collected = bool_array.bools.get(commit.origin.as_u64() as usize);
-            assert!(is_collected.is_some());
-        }
+        assert!(acceptable_prepares.is_empty());
+        assert!(collector
+            .recv_commits
+            .get(&commit.prepare.counter())
+            .is_some());
+        let collected_commit_origins = collector
+            .recv_commits
+            .get(&commit.prepare.counter())
+            .unwrap();
+        assert!(collected_commit_origins.contains(&commit.origin));
+        assert_eq!(collector.prepare.len(), 1);
+        assert!(collector.prepare.contains_key(&prepare.counter()));
+        let collected_prepare = collector.prepare.get(&prepare.counter()).unwrap();
+        assert_eq!(collected_prepare.counter(), prepare.counter());
+        assert_eq!(collected_prepare.origin, prepare.origin);
+        assert_eq!(collected_prepare.view, prepare.view);
+        assert_eq!(collected_prepare.request_batch, prepare.request_batch);
     }
 }
