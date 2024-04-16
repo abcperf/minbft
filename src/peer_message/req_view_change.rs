@@ -159,8 +159,8 @@ mod tests {
 
         let rand_factor_0 = get_random_included_index(n as usize * 10, None, &mut rng);
 
-        let prev_view_nr = rng.gen_range(1..=rand_factor_0 as u64 * n);
-        let next_view_nr = prev_view_nr - 1;
+        let next_view_nr = rng.gen_range(0..=rand_factor_0 as u64 * n);
+        let prev_view_nr = next_view_nr + 1;
 
         let t = n / 2;
 
