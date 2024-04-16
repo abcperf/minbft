@@ -4,16 +4,18 @@
 
 use serde::{Deserialize, Serialize};
 use shared_ids::ReplicaId;
-use std::{cmp::Ordering, hash::Hash};
-use tracing::debug;
+use std::{
+    cmp::Ordering,
+    collections::{HashMap, HashSet},
+    hash::Hash,
+};
+use tracing::{debug, trace};
 
-use crate::{peer_message::req_view_change::ReqViewChange, Config, View};
-
-use super::CollectorBools;
+use crate::{peer_message::req_view_change::ReqViewChange, View};
 
 /// The purpose of the struct is to collect messages of type ReqViewChange.
 #[derive(Debug, Clone)]
-pub(crate) struct CollectorReqViewChanges(CollectorBools<KeyRVC>);
+pub(crate) struct CollectorReqViewChanges(HashMap<KeyRVC, HashSet<ReplicaId>>);
 
 /// Defines the key for the collector.
 /// The key must be the previous and next [crate::View]s.
@@ -70,25 +72,37 @@ impl Ord for KeyRVC {
 impl CollectorReqViewChanges {
     /// Creates a new collector of ReqViewChanges.
     pub(crate) fn new() -> Self {
-        Self(CollectorBools::new())
+        Self(HashMap::new())
     }
     /// Inserts a ReqViewChange message and returns the amount of collected ReqViewChanges
     /// received for the same previous and next [View] as the input.
-    pub(crate) fn collect(&mut self, msg: &ReqViewChange, from: ReplicaId, config: &Config) -> u64 {
-        debug!(
+    pub(crate) fn collect(&mut self, msg: &ReqViewChange, from: ReplicaId) -> u64 {
+        trace!(
             "Collecting ReqViewChange (origin: {from:?}, previous view: {:?}, next view: {:?}) ...",
-            msg.prev_view, msg.next_view,
+            msg.prev_view,
+            msg.next_view,
         );
         let key = KeyRVC {
             prev_view: msg.prev_view,
             next_view: msg.next_view,
         };
-        let amount_collected = self.0.collect(key, from, config);
-        debug!(
+
+        match self.0.get_mut(&key) {
+            Some(collected_rvc) => {
+                collected_rvc.insert(from);
+            }
+            None => {
+                let mut collected_rvc = HashSet::new();
+                collected_rvc.insert(from);
+                self.0.insert(key.clone(), collected_rvc);
+            }
+        }
+        let amount_collected = self.0.get(&key).unwrap().len();
+        trace!(
             "Successfully collected ReqViewChange (origin: {from:?}, previous view: {:?}, next view: {:?}).",
             msg.prev_view, msg.next_view,
         );
-        amount_collected
+        amount_collected.try_into().unwrap()
     }
 
     /// Cleans up the collection by retaining only ReqViewChanges with
@@ -100,7 +114,7 @@ impl CollectorReqViewChanges {
             prev_view,
             next_view,
         };
-        self.0.clean_up(key)
+        self.0.retain(|k, _| k > &key);
     }
 }
 
@@ -109,43 +123,177 @@ impl CollectorReqViewChanges {
 mod test {
     use rstest::rstest;
 
-    use crate::tests::get_random_replica_id;
+    use std::num::NonZeroU64;
+
+    use rand::{thread_rng, Rng};
+
+    use crate::{
+        peer_message::req_view_change::ReqViewChange,
+        peer_message_processor::collector::collector_req_view_changes::CollectorReqViewChanges,
+        tests::{
+            create_random_valid_req_vc_next_dir_subsequent, get_random_included_replica_id,
+            get_random_replica_id,
+        },
+    };
 
     #[rstest]
-    fn insert_new_req_vc(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
-        use std::{num::NonZeroU64, time::Duration};
+    fn collect_req_vc_single(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
 
-        use rand::thread_rng;
-
-        use crate::{
-            peer_message::req_view_change::ReqViewChange,
-            peer_message_processor::collector::collector_req_view_changes::CollectorReqViewChanges,
-            Config, View,
-        };
-
-        let req_view_change = ReqViewChange {
-            prev_view: View(1),
-            next_view: View(2),
-        };
+        let req_view_change = create_random_valid_req_vc_next_dir_subsequent(n_parsed, &mut rng);
 
         let mut collector = CollectorReqViewChanges::new();
 
         let n_parsed = NonZeroU64::new(n).unwrap();
         let mut rng = thread_rng();
 
-        let t = n / 2;
         let rep_id = get_random_replica_id(n_parsed, &mut rng);
-        let config = Config {
-            n: n_parsed,
-            t,
-            id: rep_id,
-            batch_timeout: Duration::from_secs(2),
-            max_batch_size: None,
-            initial_timeout_duration: Duration::from_secs(2),
-            checkpoint_period: NonZeroU64::new(2).unwrap(),
-        };
 
-        let retrieved = collector.collect(&req_view_change, rep_id, &config);
+        let retrieved = collector.collect(&req_view_change, rep_id);
+        assert_eq!(retrieved, 1);
+    }
+
+    #[rstest]
+    fn collect_req_vc_multiple_diff_origins(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+
+        let first_req_view_change =
+            create_random_valid_req_vc_next_dir_subsequent(n_parsed, &mut rng);
+
+        let mut collector = CollectorReqViewChanges::new();
+
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+
+        let first_rep_id = get_random_replica_id(n_parsed, &mut rng);
+
+        let retrieved = collector.collect(&first_req_view_change, first_rep_id);
+        assert_eq!(retrieved, 1);
+
+        let second_req_view_change = first_req_view_change.clone();
+        let second_rep_id = get_random_included_replica_id(n_parsed, first_rep_id, &mut rng);
+        let retrieved = collector.collect(&second_req_view_change, second_rep_id);
+        assert_eq!(retrieved, 2);
+    }
+
+    #[rstest]
+    fn collect_req_vc_multiple_same_origin(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+
+        let first_req_view_change =
+            create_random_valid_req_vc_next_dir_subsequent(n_parsed, &mut rng);
+
+        let mut collector = CollectorReqViewChanges::new();
+
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+
+        let rep_id = get_random_replica_id(n_parsed, &mut rng);
+
+        let retrieved = collector.collect(&first_req_view_change, rep_id);
+        assert_eq!(retrieved, 1);
+
+        let second_req_view_change = first_req_view_change.clone();
+        let retrieved = collector.collect(&second_req_view_change, rep_id);
+        assert_eq!(retrieved, 1);
+    }
+
+    #[rstest]
+    fn collect_req_vc_multiple_diff_views(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+
+        let first_req_view_change =
+            create_random_valid_req_vc_next_dir_subsequent(n_parsed, &mut rng);
+
+        let mut collector = CollectorReqViewChanges::new();
+
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+
+        let first_rep_id = get_random_replica_id(n_parsed, &mut rng);
+
+        let retrieved = collector.collect(&first_req_view_change, first_rep_id);
+        assert_eq!(retrieved, 1);
+
+        let rand_summand = rng.gen_range(1..=n * 10);
+
+        let second_req_view_change = ReqViewChange {
+            prev_view: first_req_view_change.prev_view + rand_summand,
+            next_view: first_req_view_change.next_view + rand_summand,
+        };
+        let second_rep_id = get_random_included_replica_id(n_parsed, first_rep_id, &mut rng);
+        let retrieved = collector.collect(&second_req_view_change, second_rep_id);
+        assert_eq!(retrieved, 1);
+
+        let retrieved = collector.collect(&first_req_view_change, first_rep_id);
+        assert_eq!(retrieved, 1);
+    }
+
+    #[rstest]
+    fn collect_req_vc_multiple_diff_prev_view(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+
+        let first_req_view_change =
+            create_random_valid_req_vc_next_dir_subsequent(n_parsed, &mut rng);
+
+        let mut collector = CollectorReqViewChanges::new();
+
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+
+        let first_rep_id = get_random_replica_id(n_parsed, &mut rng);
+
+        let retrieved = collector.collect(&first_req_view_change, first_rep_id);
+        assert_eq!(retrieved, 1);
+
+        let rand_summand = rng.gen_range(1..=n * 10);
+
+        let second_req_view_change = ReqViewChange {
+            prev_view: first_req_view_change.prev_view + rand_summand,
+            next_view: first_req_view_change.next_view,
+        };
+        let second_rep_id = get_random_included_replica_id(n_parsed, first_rep_id, &mut rng);
+        let retrieved = collector.collect(&second_req_view_change, second_rep_id);
+        assert_eq!(retrieved, 1);
+
+        let retrieved = collector.collect(&first_req_view_change, first_rep_id);
+        assert_eq!(retrieved, 1);
+    }
+
+    #[rstest]
+    fn collect_req_vc_multiple_diff_next_view(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+
+        let first_req_view_change =
+            create_random_valid_req_vc_next_dir_subsequent(n_parsed, &mut rng);
+
+        let mut collector = CollectorReqViewChanges::new();
+
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+
+        let first_rep_id = get_random_replica_id(n_parsed, &mut rng);
+
+        let retrieved = collector.collect(&first_req_view_change, first_rep_id);
+        assert_eq!(retrieved, 1);
+
+        let rand_summand = rng.gen_range(1..=n * 10);
+
+        let second_req_view_change = ReqViewChange {
+            prev_view: first_req_view_change.prev_view,
+            next_view: first_req_view_change.next_view + rand_summand,
+        };
+        let second_rep_id = get_random_included_replica_id(n_parsed, first_rep_id, &mut rng);
+        let retrieved = collector.collect(&second_req_view_change, second_rep_id);
+        assert_eq!(retrieved, 1);
+
+        let retrieved = collector.collect(&first_req_view_change, first_rep_id);
         assert_eq!(retrieved, 1);
     }
 }
