@@ -19,14 +19,14 @@ where
     pub(crate) fn process_checkpoint(&mut self, checkpoint: Checkpoint<U::Signature>) {
         let amount_collected = self
             .collector_checkpoints
-            .collect(&self.config, checkpoint.clone());
+            .collect_checkpoint(checkpoint.clone());
         if amount_collected <= self.config.t {
             debug!("Processing Checkpoint (origin: {:?}, counter latest accepted Prepare: {:?}, amount accepted batches: {:?}) resulted in ignoring creation of Certificate: A sufficient amount of Checkpoints has not been collected yet (collected: {:?}, required: {:?}).", checkpoint.origin, checkpoint.counter_latest_prep, checkpoint.total_amount_accepted_batches, amount_collected, self.config.t + 1);
             return;
         }
         if let Some(cert) = self
             .collector_checkpoints
-            .retrieve(&checkpoint, &self.config)
+            .retrieve_collected_checkpoints(&checkpoint, &self.config)
         {
             // The Replica can discard all entries in its log with a sequence number less than the counter value of its own Checkpoint.
             debug!(
