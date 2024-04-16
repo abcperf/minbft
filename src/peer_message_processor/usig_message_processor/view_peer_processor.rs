@@ -72,7 +72,7 @@ where
 
                 let acceptable_prepares = in_view
                     .collector_commits
-                    .collect(ViewPeerMessage::Prepare(prepare));
+                    .collect(ViewPeerMessage::Prepare(prepare), &self.config);
                 for acceptable_prepare in acceptable_prepares {
                     let count = acceptable_prepare.counter();
                     if let Some(checkpoint_content) = self.request_processor.accept_prepare(
@@ -121,7 +121,7 @@ where
                 assert!(Some(commit.prepare.counter()) > self.counter_last_accepted_prep);
                 let acceptable_prepares = in_view
                     .collector_commits
-                    .collect(ViewPeerMessage::Commit(commit));
+                    .collect(ViewPeerMessage::Commit(commit), &self.config);
                 for acceptable_prepare in acceptable_prepares {
                     let count = acceptable_prepare.counter();
                     if let Some(checkpoint_content) = self.request_processor.accept_prepare(

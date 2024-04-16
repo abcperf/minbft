@@ -2,7 +2,7 @@
 //! After a sufficient amount (t + 1) of Commits are received and collected, the respective batch of client-requests is accepted.
 //! The Commits must share the same next [crate::View].
 
-use crate::Prepare;
+use crate::{Config, Prepare};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use tracing::trace;
@@ -20,7 +20,6 @@ pub(crate) struct CollectorCommits<P, Sig> {
     /// The receival of the [crate::Prepare] may be either indirect (through a Commit) or direct (actual [crate::Prepare] broadcast by primary).
     recv_commits: HashMap<Count, HashSet<ReplicaId>>,
     prepare: BTreeMap<Count, Prepare<P, Sig>>,
-    t: u64,
 }
 
 /// Defines the key for the collector.
@@ -30,16 +29,19 @@ struct KeyCommits(Count);
 
 impl<P: Clone, Sig: Counter + Clone> CollectorCommits<P, Sig> {
     /// Creates a new collector of Commits.
-    pub(crate) fn new(t: u64) -> CollectorCommits<P, Sig> {
+    pub(crate) fn new() -> CollectorCommits<P, Sig> {
         CollectorCommits {
             recv_commits: HashMap::new(),
             prepare: BTreeMap::new(),
-            t,
         }
     }
     /// Collects a [ViewPeerMessage] (Prepare or Commit) and returns the amount of valid
     /// Commits received for the Prepare to which the received Commit belongs to.
-    pub(crate) fn collect(&mut self, msg: ViewPeerMessage<P, Sig>) -> Vec<Prepare<P, Sig>> {
+    pub(crate) fn collect(
+        &mut self,
+        msg: ViewPeerMessage<P, Sig>,
+        config: &Config,
+    ) -> Vec<Prepare<P, Sig>> {
         match msg {
             ViewPeerMessage::Prepare(prepare) => {
                 trace!(
@@ -94,7 +96,7 @@ impl<P: Clone, Sig: Counter + Clone> CollectorCommits<P, Sig> {
         while let Some(entry) = self.prepare.first_entry() {
             let commits = self.recv_commits.get_mut(entry.key()).unwrap();
 
-            if commits.len() <= self.t.try_into().unwrap() {
+            if commits.len() <= config.t.try_into().unwrap() {
                 break;
             }
 
@@ -114,7 +116,7 @@ mod test {
     use std::num::NonZeroU64;
 
     use rand::thread_rng;
-    use usig::{noop::UsigNoOp, AnyId};
+    use usig::AnyId;
 
     use crate::{
         client_request::test::create_batch,
@@ -123,9 +125,8 @@ mod test {
         },
         peer_message_processor::collector::collector_commits::CollectorCommits,
         tests::{
-            create_attested_usigs_for_replicas, create_config_default,
-            create_default_configs_for_replicas, get_random_included_replica_id,
-            get_random_replica_id, get_shuffled_remaining_replicas,
+            create_attested_usigs_for_replicas, create_default_configs_for_replicas,
+            get_random_included_replica_id, get_random_replica_id, get_shuffled_remaining_replicas,
         },
         View,
     };
@@ -138,20 +139,26 @@ mod test {
 
         let primary_id = get_random_replica_id(n_parsed, &mut rng);
         let view = View(primary_id.as_u64());
-        let mut usig_primary = UsigNoOp::default();
-        let config_primary = create_config_default(n_parsed, t, primary_id);
         let request_batch = create_batch();
-        let prepare = create_prepare(view, request_batch, &config_primary, &mut usig_primary);
+
+        let configs = create_default_configs_for_replicas(n_parsed, t);
+        let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
+
+        let config_primary = configs.get(&primary_id).unwrap();
+        let usig_primary = usigs.get_mut(&primary_id).unwrap();
+
+        let prepare = create_prepare(view, request_batch, config_primary, usig_primary);
 
         let backup_id = get_random_included_replica_id(n_parsed, primary_id, &mut rng);
-        let mut usig_backup = UsigNoOp::default();
-        let commit = create_commit(backup_id, prepare.clone(), &mut usig_backup);
+        let usig_backup = usigs.get_mut(&backup_id).unwrap();
+
+        let commit = create_commit(backup_id, prepare.clone(), usig_backup);
 
         let vp_msg = ViewPeerMessage::from(commit.clone());
 
-        let mut collector = CollectorCommits::new(t);
+        let mut collector = CollectorCommits::new();
 
-        let acceptable_prepares = collector.collect(vp_msg);
+        let acceptable_prepares = collector.collect(vp_msg, config_primary);
 
         assert!(acceptable_prepares.is_empty());
         assert!(collector
@@ -195,8 +202,9 @@ mod test {
 
         let shuffled_set = shuffled_backup_reps.iter().take((t).try_into().unwrap());
 
-        let mut collector = CollectorCommits::new(t);
-        let mut acceptable_prepares = collector.collect(ViewPeerMessage::Prepare(prepare.clone()));
+        let mut collector = CollectorCommits::new();
+        let mut acceptable_prepares =
+            collector.collect(ViewPeerMessage::Prepare(prepare.clone()), config_primary);
         assert!(acceptable_prepares.is_empty());
 
         let mut counter_collected_commits = 1;
@@ -206,7 +214,7 @@ mod test {
 
             let vp_msg = ViewPeerMessage::from(commit.clone());
 
-            acceptable_prepares = collector.collect(vp_msg);
+            acceptable_prepares = collector.collect(vp_msg, config_primary);
             counter_collected_commits += 1;
 
             if counter_collected_commits <= t {
@@ -243,8 +251,9 @@ mod test {
 
         let shuffled_set = shuffled_backup_reps.iter().take((t).try_into().unwrap());
 
-        let mut collector = CollectorCommits::new(t);
-        let mut acceptable_prepares = collector.collect(ViewPeerMessage::Prepare(prepare.clone()));
+        let mut collector = CollectorCommits::new();
+        let mut acceptable_prepares =
+            collector.collect(ViewPeerMessage::Prepare(prepare.clone()), config_primary);
         assert!(acceptable_prepares.is_empty());
 
         let mut counter_collected_commits = 1;
@@ -254,7 +263,7 @@ mod test {
 
             let vp_msg = ViewPeerMessage::from(commit.clone());
 
-            acceptable_prepares = collector.collect(vp_msg);
+            acceptable_prepares = collector.collect(vp_msg, config_primary);
             counter_collected_commits += 1;
 
             if counter_collected_commits <= t {
@@ -289,8 +298,10 @@ mod test {
             .iter()
             .take((t).try_into().unwrap());
 
-        let mut acceptable_prepares =
-            collector.collect(ViewPeerMessage::Prepare(second_prepare.clone()));
+        let mut acceptable_prepares = collector.collect(
+            ViewPeerMessage::Prepare(second_prepare.clone()),
+            second_config_primary,
+        );
         assert!(acceptable_prepares.is_empty());
 
         let mut counter_collected_commits = 1;
@@ -300,7 +311,7 @@ mod test {
 
             let vp_msg = ViewPeerMessage::from(commit.clone());
 
-            acceptable_prepares = collector.collect(vp_msg);
+            acceptable_prepares = collector.collect(vp_msg, second_config_primary);
             counter_collected_commits += 1;
 
             if counter_collected_commits <= t {

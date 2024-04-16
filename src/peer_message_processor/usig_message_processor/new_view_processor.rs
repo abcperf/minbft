@@ -143,7 +143,7 @@ where
                 self.view_state = ViewState::InView(InView {
                     view: new_view.next_view,
                     has_requested_view_change: false,
-                    collector_commits: CollectorCommits::new(self.config.t),
+                    collector_commits: CollectorCommits::new(),
                 });
 
                 output.timeout_request(TimeoutRequest::new_stop_any_client_req());
