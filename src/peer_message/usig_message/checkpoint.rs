@@ -495,16 +495,8 @@ pub(crate) mod test {
         let mut other_checkpoints = Vec::new();
         let shuffled_remaining_reps = get_shuffled_remaining_replicas(n, Some(origin), rng);
 
-        let mut state_hash_diff = [0u8; 64];
         for other_rep_id in shuffled_remaining_reps.iter().take(t as usize) {
-            let random_byte_index = rng.gen_range(0..64) as usize;
-            for i in 0..64 {
-                if i == random_byte_index {
-                    state_hash_diff[i] = state_hash[i].wrapping_add(1);
-                } else {
-                    state_hash_diff[i] = state_hash[i];
-                }
-            }
+            let state_hash_diff = create_rand_state_hash_diff(state_hash, rng);
 
             let usig = usigs.get_mut(other_rep_id).unwrap();
             let other_checkpoint = create_checkpoint(
@@ -677,6 +669,22 @@ pub(crate) mod test {
         certs_invalid.push(cert_not_all_same_latest_prep);
 
         certs_invalid
+    }
+
+    pub(crate) fn create_rand_state_hash_diff(
+        state_hash: [u8; 64],
+        rng: &mut ThreadRng,
+    ) -> [u8; 64] {
+        let mut state_hash_diff = [0u8; 64];
+        let random_byte_index = rng.gen_range(0..64) as usize;
+        for i in 0..64 {
+            if i == random_byte_index {
+                state_hash_diff[i] = state_hash[i].wrapping_add(1);
+            } else {
+                state_hash_diff[i] = state_hash[i];
+            }
+        }
+        state_hash_diff
     }
 
     /// Tests if the validation of a [CheckpointCertificate], which does not

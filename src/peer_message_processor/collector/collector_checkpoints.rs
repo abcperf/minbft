@@ -112,7 +112,9 @@ mod test {
         get_shuffled_remaining_replicas,
     };
     use crate::{
-        peer_message::usig_message::checkpoint::test::create_checkpoint,
+        peer_message::usig_message::checkpoint::test::{
+            create_checkpoint, create_rand_state_hash_diff,
+        },
         tests::{
             create_attested_usigs_for_replicas, create_random_state_hash, get_random_replica_id,
         },
@@ -259,15 +261,7 @@ mod test {
         );
         collector.collect_checkpoint(checkpoint.clone());
 
-        let mut state_hash_diff = [0u8; 64];
-        let random_byte_index = rng.gen_range(0..64) as usize;
-        for i in 0..64 {
-            if i == random_byte_index {
-                state_hash_diff[i] = state_hash[i].wrapping_add(1);
-            } else {
-                state_hash_diff[i] = state_hash[i];
-            }
-        }
+        let state_hash_diff = create_rand_state_hash_diff(state_hash, &mut rng);
 
         let checkpoint_diff = create_checkpoint(
             origin,
