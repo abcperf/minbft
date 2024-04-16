@@ -456,7 +456,7 @@ pub(crate) mod test {
 
         let t = n / 2;
         let amount_messages: u64 = rng.gen_range(5..10);
-        let next_view = get_random_view_with_max(View(2 * n + 1));
+        let next_view = get_random_view_with_max(View(2 * n + 1)) + 1;
 
         let configs = create_default_configs_for_replicas(n_parsed, t);
         let usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
@@ -724,7 +724,7 @@ pub(crate) mod test {
 
         let t = n / 2;
         let amount_messages: u64 = rng.gen_range(5..10);
-        let next_view = get_random_view_with_max(View(2 * n + 1));
+        let next_view = get_random_view_with_max(View(2 * n + 1)) + 1;
 
         let configs = create_default_configs_for_replicas(n_parsed, t);
         let mut usigs = create_attested_usigs_for_replicas(n_parsed, vec![origin]);
