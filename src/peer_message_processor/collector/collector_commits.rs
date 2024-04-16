@@ -122,7 +122,11 @@ mod test {
             commit::test::create_commit, prepare::test::create_prepare, ViewPeerMessage,
         },
         peer_message_processor::collector::collector_commits::CollectorCommits,
-        tests::{create_config_default, get_random_included_replica_id, get_random_replica_id},
+        tests::{
+            create_attested_usigs_for_replicas, create_config_default,
+            create_default_configs_for_replicas, get_random_included_replica_id,
+            get_random_replica_id, get_shuffled_remaining_replicas,
+        },
         View,
     };
 
@@ -166,5 +170,53 @@ mod test {
         assert_eq!(collected_prepare.origin, prepare.origin);
         assert_eq!(collected_prepare.view, prepare.view);
         assert_eq!(collected_prepare.request_batch, prepare.request_batch);
+    }
+
+    #[rstest]
+    fn collect_sufficient_commits(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
+        let t = n / 2;
+
+        let primary_id = get_random_replica_id(n_parsed, &mut rng);
+        let view = View(primary_id.as_u64());
+        let request_batch = create_batch();
+
+        let configs = create_default_configs_for_replicas(n_parsed, t);
+        let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
+
+        let usig_primary = usigs.get_mut(&primary_id).unwrap();
+        let config_primary = configs.get(&primary_id).unwrap();
+
+        let prepare = create_prepare(view, request_batch, config_primary, usig_primary);
+
+        let shuffled_backup_reps =
+            get_shuffled_remaining_replicas(n_parsed, Some(primary_id), &mut rng);
+
+        let shuffled_set = shuffled_backup_reps.iter().take((t).try_into().unwrap());
+
+        let mut collector = CollectorCommits::new(t);
+        let mut acceptable_prepares = collector.collect(ViewPeerMessage::Prepare(prepare.clone()));
+        assert!(acceptable_prepares.is_empty());
+
+        let mut counter_collected_commits = 1;
+        for backup_rep_id in shuffled_set {
+            let usig_backup = usigs.get_mut(backup_rep_id).unwrap();
+            let commit = create_commit(*backup_rep_id, prepare.clone(), usig_backup);
+
+            let vp_msg = ViewPeerMessage::from(commit.clone());
+
+            acceptable_prepares = collector.collect(vp_msg);
+            counter_collected_commits += 1;
+
+            if counter_collected_commits <= t {
+                assert!(acceptable_prepares.is_empty())
+            }
+        }
+
+        assert_eq!(collector.prepare.len(), 0);
+        assert!(!acceptable_prepares.is_empty());
+        assert_eq!(acceptable_prepares.len(), 1);
+        assert!(acceptable_prepares.contains(&prepare));
     }
 }
