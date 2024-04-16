@@ -37,7 +37,7 @@ where
                 }
 
                 // Only the new primary runs following code.
-                let amount_collected = self.collector_vc.collect(msg.clone(), &self.config);
+                let amount_collected = self.collector_vc.collect_view_change(msg.clone());
 
                 if msg.next_view != in_progress.next_view {
                     debug!("Processing ViewChange (origin: {:?}, next view: {:?}) resulted in ignoring creation of NewView: Next view set in message is not the same as the current (to become) next view.", msg.origin, msg.next_view);
@@ -49,7 +49,9 @@ where
                     return;
                 }
 
-                let view_changes = self.collector_vc.retrieve(&msg, &self.config);
+                let view_changes = self
+                    .collector_vc
+                    .retrieve_collected_view_changes(&msg, &self.config);
 
                 if view_changes.is_none() {
                     return;
