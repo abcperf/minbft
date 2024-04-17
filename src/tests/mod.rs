@@ -12,9 +12,11 @@ use shared_ids::ReplicaId;
 use usig::{noop::UsigNoOp, Usig};
 
 use crate::{
-    client_request::test::create_batch, output::TimeoutRequest,
-    peer_message::{req_view_change::ReqViewChange, usig_message::checkpoint::CheckpointHash}, timeout::StopClass, Config, MinBft,
-    Output, RequestPayload, ValidatedPeerMessage, View,
+    client_request::test::create_batch,
+    output::TimeoutRequest,
+    peer_message::{req_view_change::ReqViewChange, usig_message::checkpoint::CheckpointHash},
+    timeout::StopClass,
+    Config, Error, MinBft, Output, PeerMessage, RequestPayload, ValidatedPeerMessage, View,
 };
 
 use super::{Prepare, PrepareContent, TimeoutType};
@@ -400,4 +402,337 @@ pub(crate) fn create_random_valid_req_vc_next_jump(
         prev_view,
         next_view,
     }
+}
+
+/// Setups n [MinBft]s configured with the given parameters.
+/// Moreover, it returns the [TimeoutHandler]s of the [MinBft]s.
+fn setup_set(
+    n: u64,
+    t: u64,
+    checkpoint_period: u64,
+) -> (
+    Vec<MinBft<DummyPayload, UsigNoOp>>,
+    HashMap<ReplicaId, TimeoutHandler>,
+) {
+    let mut minbfts = Vec::new();
+    let mut timeout_handlers = HashMap::new();
+
+    let mut all_broadcasts = Vec::new();
+
+    let mut hello_done_count = 0;
+
+    for i in 0..n {
+        let replica = ReplicaId::from_u64(i);
+        let (
+            (
+                minbft,
+                Output {
+                    broadcasts,
+                    responses,
+                    timeout_requests,
+                    errors,
+                    ready_for_client_requests,
+                    primary: _,
+                    view_info: _,
+                    round: _,
+                },
+            ),
+            timeout_handler,
+        ) = minimal_setup(n, t, replica, checkpoint_period);
+        assert_eq!(responses.len(), 0);
+        assert_eq!(errors.len(), 0);
+        assert_eq!(timeout_requests.len(), 0);
+        if ready_for_client_requests {
+            hello_done_count += 1;
+        }
+        // hello should only be done when n = 1
+        // otherwise, replicas still should have to attest themselves.
+        assert!(!ready_for_client_requests || n == 1);
+        all_broadcasts.push((replica, broadcasts));
+        minbfts.push(minbft);
+        timeout_handlers.insert(replica, timeout_handler);
+    }
+
+    for (id, broadcasts) in all_broadcasts.into_iter() {
+        for broadcast in Vec::from(broadcasts).into_iter() {
+            // remove once https://github.com/rust-lang/rust/issues/59878 is fixed
+            for (_, minbft) in minbfts
+                .iter_mut()
+                .enumerate()
+                .filter(|&(i, _)| ReplicaId::from_u64(i as u64) != id)
+            {
+                let Output {
+                    broadcasts,
+                    responses,
+                    timeout_requests,
+                    errors,
+                    ready_for_client_requests,
+                    primary: _,
+                    view_info: _,
+                    round: _,
+                } = minbft.handle_peer_message(id, broadcast.clone());
+                assert_eq!(broadcasts.len(), 0);
+                assert_eq!(responses.len(), 0);
+                assert_eq!(errors.len(), 0);
+                assert_eq!(timeout_requests.len(), 0);
+                if ready_for_client_requests {
+                    hello_done_count += 1;
+                }
+            }
+        }
+    }
+
+    assert_eq!(hello_done_count, n);
+
+    (minbfts, timeout_handlers)
+}
+
+/// Defines a NotValidadedPeerMessage for testing (UsigNoOp as Usig).
+type PeerMessageTest =
+    PeerMessage<<UsigNoOp as Usig>::Attestation, DummyPayload, <UsigNoOp as Usig>::Signature>;
+
+/// Contains the collected [Output] (responses, errors, timeout requests) of the [MinBft]s.
+#[derive(Default)]
+struct CollectedOutput {
+    responses: HashMap<ReplicaId, Vec<(ClientId, DummyPayload)>>,
+    errors: HashMap<ReplicaId, Vec<Error>>,
+    timeout_requests: HashMap<ReplicaId, Vec<TimeoutRequest>>,
+}
+
+impl CollectedOutput {
+    /// Returns the relevant timeouts to handle.
+    fn timeouts_to_handle(
+        &self,
+        timeout_handlers: &mut HashMap<ReplicaId, TimeoutHandler>,
+    ) -> HashMap<ReplicaId, Vec<TimeoutType>> {
+        let mut timeouts_to_handle = HashMap::new();
+        for (replica, timeout_requests) in self.timeout_requests.iter() {
+            let timeout_handler = timeout_handlers.get_mut(replica).unwrap();
+            timeout_handler.handle_timeout_requests(timeout_requests.to_vec());
+            timeouts_to_handle.insert(*replica, timeout_handler.retrieve_timeouts_ordered());
+        }
+        timeouts_to_handle
+    }
+}
+
+/// Handle messages to be broadcast.
+fn handle_broadcasts(
+    minbfts: &mut [MinBft<DummyPayload, UsigNoOp>],
+    broadcasts_with_origin: Vec<(ReplicaId, Box<[PeerMessageTest]>)>,
+    collected_output: &mut CollectedOutput,
+) {
+    // to collect possibly new added messages to broadcast
+    // see below (1)
+    let mut all_broadcasts = Vec::new();
+    for (from, messages_to_broadcast) in broadcasts_with_origin {
+        for message_to_broadcast in Vec::from(messages_to_broadcast).into_iter() {
+            // remove once https://github.com/rust-lang/rust/issues/59878 is fixed
+            // all other Replicas other than the origin handle the message
+            for minbft in minbfts.iter_mut().filter(|m| m.config.id != from) {
+                let Output {
+                    broadcasts,
+                    responses,
+                    timeout_requests: timeouts,
+                    errors,
+                    ready_for_client_requests,
+                    primary: _,
+                    view_info: _,
+                    round: _,
+                } = minbft.handle_peer_message(from, message_to_broadcast.clone());
+                assert!(ready_for_client_requests);
+                // collect the responses of the Replica
+                collected_output
+                    .responses
+                    .entry(minbft.config.id)
+                    .or_default()
+                    .append(&mut Vec::from(responses));
+                // collect the errors of the Replica
+                collected_output
+                    .errors
+                    .entry(minbft.config.id)
+                    .or_default()
+                    .append(&mut Vec::from(errors));
+                // collect the timeouts of the Replica
+                collected_output
+                    .timeout_requests
+                    .entry(minbft.config.id)
+                    .or_default()
+                    .append(&mut Vec::from(timeouts));
+                // (1) if the handling of the peer message triggered the creation of new messages that need to be broadcasted,
+                // push these new messages to the Vec of all broadcasts to be sent
+                if !broadcasts.is_empty() {
+                    all_broadcasts.push((minbft.config.id, broadcasts));
+                }
+            }
+        }
+    }
+    // handle the possibly new added messages to broadcast
+    // see above (1)
+    if !all_broadcasts.is_empty() {
+        handle_broadcasts(minbfts, all_broadcasts, collected_output);
+    }
+}
+
+/// Try to send a client request.
+fn try_client_request(
+    minbfts: &mut [MinBft<DummyPayload, UsigNoOp>],
+    client_id: ClientId,
+    payload: DummyPayload,
+) -> CollectedOutput {
+    // to collect the output of each Replica generated by handling the client request
+    let mut collected_output = CollectedOutput::default();
+
+    // to collect all messages to be broadcasted generated by handling the client message
+    let mut all_broadcasts = Vec::new();
+    // each Replica handles the client message
+    for minbft in minbfts.iter_mut() {
+        let Output {
+            broadcasts,
+            responses,
+            timeout_requests: timeouts,
+            errors,
+            ready_for_client_requests,
+            primary: _,
+            view_info: _,
+            round: _,
+        } = minbft.handle_client_message(client_id, payload);
+        assert!(ready_for_client_requests);
+        // collect the responses of the Replica
+        collected_output
+            .responses
+            .entry(minbft.config.id)
+            .or_default()
+            .append(&mut Vec::from(responses));
+        // collect the errors of the Replica
+        collected_output
+            .errors
+            .entry(minbft.config.id)
+            .or_default()
+            .append(&mut Vec::from(errors));
+        // collect the timeouts of the Replica
+        collected_output
+            .timeout_requests
+            .entry(minbft.config.id)
+            .or_default()
+            .append(&mut Vec::from(timeouts));
+        // (1) If the handling of the client message triggered the creation of new messages that need to be broadcasted,
+        // push these new messages to the Vec of all broadcasts to be sent.
+        if !broadcasts.is_empty() {
+            all_broadcasts.push((minbft.config.id, broadcasts));
+        }
+    }
+
+    // handle the new messages to be broadcasted
+    // see above (1)
+    handle_broadcasts(minbfts, all_broadcasts, &mut collected_output);
+
+    collected_output
+}
+
+/// Forces the provided [MinBft]s to handle the given timeouts.
+fn force_timeout(
+    minbfts: &mut [MinBft<DummyPayload, UsigNoOp>],
+    timeouts: &HashMap<ReplicaId, Vec<TimeoutType>>,
+) -> CollectedOutput {
+    // to collect the output of each Replica generated by handling the client request
+    let mut collected_output = CollectedOutput::default();
+    // client message is received and handled
+    let mut all_broadcasts = Vec::new();
+
+    for minbft in minbfts.iter_mut() {
+        if let Some(timeouts_to_handle) = timeouts.get(&minbft.config.id) {
+            for timeout_to_handle in timeouts_to_handle {
+                let timeout_type = timeout_to_handle.to_owned();
+                let Output {
+                    broadcasts,
+                    responses,
+                    timeout_requests: timeouts,
+                    errors,
+                    ready_for_client_requests,
+                    primary: _,
+                    view_info: _,
+                    round: _,
+                } = minbft.handle_timeout(timeout_type);
+                // collect the responses of the Replica
+                assert!(ready_for_client_requests);
+                collected_output
+                    .responses
+                    .entry(minbft.config.id)
+                    .or_default()
+                    .append(&mut Vec::from(responses));
+                // collect the errors of the Replica
+                collected_output
+                    .errors
+                    .entry(minbft.config.id)
+                    .or_default()
+                    .append(&mut Vec::from(errors));
+                // collect the timeouts of the Replica
+                collected_output
+                    .timeout_requests
+                    .entry(minbft.config.id)
+                    .or_default()
+                    .append(&mut Vec::from(timeouts));
+                if !broadcasts.is_empty() {
+                    all_broadcasts.push((minbft.config.id, broadcasts));
+                }
+            }
+        }
+    }
+
+    handle_broadcasts(minbfts, all_broadcasts, &mut collected_output);
+    collected_output
+}
+
+/// Forces the provided [MinBft]s to handle the given timeouts.
+/// An error is expected (for testing purposes).
+fn force_timeout_expect_error(
+    minbfts: &mut [MinBft<DummyPayload, UsigNoOp>],
+    timeouts: &HashMap<ReplicaId, Vec<TimeoutType>>,
+) {
+    // to collect the output of each Replica generated by handling the client request
+    let mut collected_output = CollectedOutput::default();
+
+    // client message is received and handled
+    let mut all_broadcasts = Vec::new();
+    for timeouts_to_handle in timeouts.values() {
+        for timeout_to_handle in timeouts_to_handle {
+            for minbft in minbfts.iter_mut() {
+                let timeout_type = timeout_to_handle.to_owned();
+                let Output {
+                    broadcasts,
+                    responses,
+                    timeout_requests: timeouts,
+                    errors,
+                    ready_for_client_requests,
+                    primary: _,
+                    view_info: _,
+                    round: _,
+                } = minbft.handle_timeout(timeout_type);
+
+                assert!(ready_for_client_requests);
+                collected_output
+                    .responses
+                    .entry(minbft.config.id)
+                    .or_default()
+                    .append(&mut Vec::from(responses));
+                // collect the errors of the Replica
+                collected_output
+                    .errors
+                    .entry(minbft.config.id)
+                    .or_default()
+                    .append(&mut Vec::from(errors));
+                // collect the timeouts of the Replica
+                collected_output
+                    .timeout_requests
+                    .entry(minbft.config.id)
+                    .or_default()
+                    .append(&mut Vec::from(timeouts));
+                if !broadcasts.is_empty() {
+                    all_broadcasts.push((minbft.config.id, broadcasts));
+                }
+            }
+        }
+    }
+
+    handle_broadcasts(minbfts, all_broadcasts, &mut collected_output);
 }
