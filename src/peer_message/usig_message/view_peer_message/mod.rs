@@ -76,7 +76,7 @@ impl<P: RequestPayload, Sig: Serialize> ViewPeerMessage<P, Sig> {
     ///
     /// # Arguments
     ///
-    /// * `config` - The [Config] of the algorithm.
+    /// * `config` - The [Config] of the replica.
     /// * `usig` - The USIG signature that should be a valid one for this
     ///            [ViewPeerMessage].
     pub(crate) fn validate(
@@ -91,7 +91,8 @@ impl<P: RequestPayload, Sig: Serialize> ViewPeerMessage<P, Sig> {
     }
 }
 impl<P, Sig> ViewPeerMessage<P, Sig> {
-    /// Returns the inner type of the [ViewPeerMessage] as a String slice.
+    /// Returns the name of the inner type of the [ViewPeerMessage] as a String
+    /// slice.
     pub(crate) fn msg_type(&self) -> &'static str {
         match self {
             ViewPeerMessage::Commit(_) => "Commit",
@@ -124,6 +125,12 @@ mod test {
         View,
     };
 
+    /// Tests if the validation of a valid ViewPeerMessage succeeds.
+    /// The inner type of the ViewPeerMessage is a Prepare.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn validate_valid_vp_msg_from_prep(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
@@ -153,6 +160,12 @@ mod test {
         }
     }
 
+    /// Tests if the validation of a valid ViewPeerMessage succeeds.
+    /// The inner type of the ViewPeerMessage is a Commit.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn validate_valid_vp_msg_from_commit(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
@@ -183,6 +196,13 @@ mod test {
         }
     }
 
+    /// Tests if the validation of an invalid ViewPeerMessage fails.
+    /// The inner type of the ViewPeerMessage is a Prepare.
+    /// All variants of an invalid Prepare are tested.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn validate_invalid_vp_msg_from_prepare(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
@@ -226,6 +246,12 @@ mod test {
         }
     }
 
+    /// Tests if the validation of an invalid ViewPeerMessage fails.
+    /// The inner type of the ViewPeerMessage is a Commit.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn validate_invalid_vp_msg_from_commit(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
