@@ -1,16 +1,6 @@
 //! Defines a message of type [Commit].
-//! A [Commit] consists of two main parts.
-//! The first part is its content, the [CommitContent].
-//! It contains the origin of the [Commit], i.e., the ID of the replica
-//! ([ReplicaId]) which created the [Commit].
-//! Moreover, it contains the [Prepare] to which the [Commit] belongs to.
-//! The second part is its signature, as [Commit]s must be signed by a USIG.
-//! For further explanation to why these messages (alongside other ones) must be
-//! signed by a USIG,
-//! refer to the paper "Efficient Byzantine Fault Tolerance" by Veronese et al.
-//! A [Commit] is broadcast by a backup replica, i.e., all replicas besides the
-//! current primary,
-//! in response to a received [Prepare] (only sent by the current primary).
+//! A [Commit] is broadcast by a backup replica in response to a received
+//! [Prepare] from the primary replica.
 
 use core::fmt;
 
@@ -31,8 +21,8 @@ use super::prepare::Prepare;
 
 /// The content of a message of type [Commit].
 /// Consists of the [Prepare] to which the [Commit] belongs to.
-/// Furthermore, the ID of the backup replica that created the [Commit] is
-/// necessary.
+/// Furthermore, it contains the ID of the backup replica that created the
+/// [Commit].
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct CommitContent<P, Sig> {
     /// The replica which the [Commit] originates from.
@@ -58,11 +48,9 @@ impl<P: Serialize, Sig: Serialize> UsigSignable for CommitContent<P, Sig> {
 }
 
 /// The message of type [Commit].
-/// A [Commit] consists of, inter alia, its content and must be signed by a
-/// USIG.
+/// A [Commit] consists of its content and must be signed by a USIG.
 /// Such a message is broadcast by a backup replica in response to a received
-/// [Prepare] (only sent by the current primary).
-/// They can and should be validated.
+/// [Prepare] sent by the current primary.
 pub(crate) type Commit<P, Sig> = UsigSigned<CommitContent<P, Sig>, Sig>;
 
 impl<P: RequestPayload, Sig: Serialize> fmt::Display for Commit<P, Sig> {
@@ -76,8 +64,7 @@ impl<P: RequestPayload, Sig: Serialize> Commit<P, Sig> {
     /// Following conditions must be met for the [Commit] to be valid:
     ///     (1) The [Commit] must originate from a backup replica, i.a. a
     ///         replica other than the current primary.
-    ///     (2) The [Prepare] must be valid (for further explanation regarding
-    ///         the validation of [Prepare]s see the equally named function).
+    ///     (2) The [Prepare] must be valid.
     ///     (3) Additionally, the USIG signature of the [Commit] must be
     ///         valid.
     ///
@@ -151,6 +138,13 @@ pub(crate) mod test {
 
     use super::Commit;
 
+    /// Create a commit for the tests below.
+    ///
+    /// # Arguments
+    ///
+    /// * `origin` - The ID of the replica to which the Commit belongs to.
+    /// * `prepare` - The Prepare to which the Commit belongs to.
+    /// * `usig` - The USIG signature to use to sign the CommitContent.
     pub(crate) fn create_commit(
         origin: ReplicaId,
         prepare: Prepare<DummyPayload, Signature>,
@@ -160,6 +154,8 @@ pub(crate) mod test {
     }
 
     /// Tests if the validation of a valid [Commit] succeeds.
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn validate_valid_commit(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
@@ -188,6 +184,12 @@ pub(crate) mod test {
         }
     }
 
+    /// Tests if the validation of an invalid Commit fails.
+    /// The Commit's origin is that of the primary.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn validate_invalid_commit_origin(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
@@ -216,6 +218,13 @@ pub(crate) mod test {
         }
     }
 
+    /// Tests if the validation of an invalid Commit fails.
+    /// The Commit originates from an unknown (and therefore untrusted) remote
+    /// party.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn validate_invalid_commit_unknown_party(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
@@ -243,7 +252,12 @@ pub(crate) mod test {
         }
     }
 
-    /// Tests if the validation of a valid [Commit] succeeds.
+    /// Tests if the validation of an invalid Commit fails.
+    /// The Prepare is invalid.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn validate_invalid_commit_invalid_prepare(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
