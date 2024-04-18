@@ -1,16 +1,6 @@
-//! Defines a message of type [ViewChange].
-//! A [ViewChange] consists of two main parts.
-//! The first part is its content, the [ViewChangeContent].
-//! It contains the ID of the replica ([ReplicaId]) which created the [ViewChange].
-//! Moreover, it contains the next [View] to which the replicas should change to.
-//! Furthermore, it contains the most recent checkpoint of the replica.
-//! Additionally, it may contain a log of messages or not, according to the
-//! variant of the [ViewChange].
-//! The messages that are logged are the ones broadcast by the replica since the
-//! most recent checkpoint.
-//! The second part is its signature, as [ViewChange]s must be signed by a USIG.
+//! Defines a message of type [ViewChange].\
 //! A [ViewChange] is broadcast by a replica when enough [crate::ReqViewChange]s
-//! have been collected.
+//! have been collected.\
 //! For further explanation, see the documentation in [crate::MinBft] or the
 //! paper "Efficient Byzantine Fault-Tolerance" by Veronese et al.
 
@@ -31,7 +21,7 @@ use super::{
     UsigMessage, UsigMessageV,
 };
 
-/// The trait for the variants of a [ViewChange] message.
+/// The trait for the variants of a [ViewChange] message.\
 /// It can either be the variant with a message log or the variant with no log.
 pub(crate) trait ViewChangeVariant<P, Sig> {
     type Hash<'s>: AsRef<[u8]>
@@ -44,7 +34,7 @@ pub(crate) trait ViewChangeVariant<P, Sig> {
         Sig: Serialize;
 }
 
-/// A [ViewChange] message contains a message log.
+/// A [ViewChange] message contains a message log.\
 /// However, the messages in the message log must not contain a message log
 /// themselves.
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -89,7 +79,7 @@ impl<P, Sig> ViewChangeVariant<P, Sig> for ViewChangeVariantNoLog {
     }
 }
 
-/// The struct defines the content of a [ViewChange] message.
+/// The struct defines the content of a [ViewChange] message.\
 /// For further explanation, see the documentation in the module.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct ViewChangeContent<V: ViewChangeVariant<P, Sig>, P, Sig> {
@@ -139,11 +129,11 @@ impl<V: ViewChangeVariant<P, Sig>, P, Sig> AsRef<ReplicaId> for ViewChangeConten
     }
 }
 
-/// The types for defining a message of type ViewChange.
+/// The types for defining a message of type ViewChange.\
 /// The type ViewChangeV can either be a ViewChange with a log or without it.
 pub(crate) type ViewChangeV<V, P, Sig> = UsigSigned<ViewChangeContent<V, P, Sig>, Sig>;
 
-/// The type [ViewChange] is always a [ViewChangeV<ViewChangeVariantLog>].
+/// The type [ViewChange] is always a [ViewChangeV<ViewChangeVariantLog>].\
 /// For further explanation see the documentation of the module.
 pub(crate) type ViewChange<P, Sig> = ViewChangeV<ViewChangeVariantLog<P, Sig>, P, Sig>;
 
@@ -174,7 +164,7 @@ impl<P: Serialize, Sig: Clone + Serialize> ViewChange<P, Sig> {
 impl<P: Serialize, Sig: Serialize> UsigSignable
     for ViewChangeContent<ViewChangeVariantLog<P, Sig>, P, Sig>
 {
-    /// Hashes the content of a message of type [ViewChange].
+    /// Hashes the content of a message of type [ViewChange].\
     /// Required for signing and verifying a message of type [ViewChange].
     fn hash_content<H: Update>(&self, hasher: &mut H) {
         hasher.update(&self.origin.as_u64().to_be_bytes());
@@ -185,7 +175,7 @@ impl<P: Serialize, Sig: Serialize> UsigSignable
 }
 
 impl<P: RequestPayload, Sig: Counter + Serialize + Debug> ViewChange<P, Sig> {
-    /// Validates the ViewChange.
+    /// Validates the ViewChange.\
     /// See below for the different steps regarding the validation.
     pub(crate) fn validate(
         &self,
