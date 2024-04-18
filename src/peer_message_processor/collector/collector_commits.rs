@@ -1,5 +1,6 @@
-//! Defines the collector of messages of type Commit.
-//! After a sufficient amount (t + 1) of Commits are received and collected, the respective batch of client-requests is accepted.
+//! Defines the collector of messages of type Commit.\
+//! After a sufficient amount (`t + 1`) of Commits are received and collected,
+//! the respective batch of client-requests is accepted.\
 //! The Commits must share the same next [crate::View].
 
 use crate::{Config, Prepare};
@@ -13,17 +14,22 @@ use crate::peer_message::usig_message::view_peer_message::ViewPeerMessage;
 /// Collects received Commits.
 #[derive(Debug, Clone)]
 pub(crate) struct CollectorCommits<P, Sig> {
-    /// For each Prepare received, a counter and a vector of bools is created.
-    /// If the element i (index) in the vector is set to true, a Commit has been received by the replica with ID = i.
-    /// [crate::Prepare]s are seen as Commits, too.
-    /// In other words, if i is the ID of the primary, element i (index) in the vector is set to true upon receival of the [crate::Prepare].
-    /// The receival of the [crate::Prepare] may be either indirect (through a Commit) or direct (actual [crate::Prepare] broadcast by primary).
+    /// For each Prepare received, a counter and a vector of bools is created.\
+    /// If the element i (index) in the vector is set to true, a Commit has been
+    /// received by the replica with ID = i.\
+    /// [crate::Prepare]s are seen as Commits, too.\
+    /// In other words, if i is the ID of the primary, element i (index) in the
+    /// vector is set to true upon receival of the [crate::Prepare].\
+    /// The receival of the [crate::Prepare] may be either indirect (through a
+    /// Commit) or direct (actual [crate::Prepare] broadcast by primary).
     recv_commits: HashMap<Count, HashSet<ReplicaId>>,
+    /// The Prepares ordered by their counter.
     prepare: BTreeMap<Count, Prepare<P, Sig>>,
 }
 
-/// Defines the key for the collector.
-/// The key must be the counter of the [crate::Prepare] to which the Commit belongs to.
+/// Defines the key for the collector.\
+/// The key must be the counter of the [crate::Prepare] to which the Commit
+/// belongs to.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct KeyCommits(Count);
 
