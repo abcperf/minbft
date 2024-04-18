@@ -1,5 +1,6 @@
-//! Defines the collector of messages of type ReqViewChange.
-//! After a sufficient amount (t + 1) of ReqViewChanges are received and collected, a ViewChange is broadcast.
+//! Defines the collector of messages of type ReqViewChange.\
+//! After a sufficient amount (t + 1) of ReqViewChanges are received and
+//! collected, a ViewChange is broadcast.\
 //! The ReqViewChanges must share the same previous and next [crate::View]s.
 
 use serde::{Deserialize, Serialize};
@@ -17,13 +18,15 @@ use crate::{peer_message::req_view_change::ReqViewChange, View};
 #[derive(Debug, Clone)]
 pub(crate) struct CollectorReqViewChanges(HashMap<KeyRVC, HashSet<ReplicaId>>);
 
-/// Defines the key for the collector.
+/// Defines the key for the collector.\
 /// The key must be the previous and next [crate::View]s.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct KeyRVC {
-    // The previous View that turned out to be faulty for the sender of the received ReqViewChange.
+    // The previous View that turned out to be faulty for the sender of the
+    // received ReqViewChange.
     prev_view: View,
-    // The next View to which the sender of the received ReqViewChange message wants to change to.
+    // The next View to which the sender of the received ReqViewChange message
+    // wants to change to.
     next_view: View,
 }
 
@@ -45,8 +48,9 @@ impl Hash for KeyRVC {
 impl Eq for KeyRVC {}
 
 impl PartialOrd for KeyRVC {
-    /// Partially compares the previous Views with each other.
-    /// If the previous Views are equal, then the next Views are partially compared with each other.
+    /// Partially compares the previous Views with each other.\
+    /// If the previous Views are equal, then the next Views are partially
+    /// compared with each other.
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match self.prev_view.partial_cmp(&other.prev_view) {
             Some(Ordering::Less) => Some(Ordering::Less),
@@ -59,7 +63,8 @@ impl PartialOrd for KeyRVC {
 
 impl Ord for KeyRVC {
     /// Compares the previous Views with each other.
-    /// If the previous Views are equal, then the next Views are compared with each other.
+    /// If the previous Views are equal, then the next Views are compared with
+    /// each other.
     fn cmp(&self, other: &Self) -> Ordering {
         match self.prev_view.cmp(&other.prev_view) {
             Ordering::Less => Ordering::Less,
@@ -74,8 +79,8 @@ impl CollectorReqViewChanges {
     pub(crate) fn new() -> Self {
         Self(HashMap::new())
     }
-    /// Inserts a ReqViewChange message and returns the amount of collected ReqViewChanges
-    /// received for the same previous and next [View] as the input.
+    /// Inserts a ReqViewChange message and returns the amount of collected
+    /// ReqViewChanges received for the same previous and next [View] as the input.
     pub(crate) fn collect(&mut self, msg: &ReqViewChange, from: ReplicaId) -> u64 {
         trace!(
             "Collecting ReqViewChange (origin: {from:?}, previous view: {:?}, next view: {:?}) ...",
