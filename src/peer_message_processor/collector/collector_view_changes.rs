@@ -1,5 +1,6 @@
-//! Defines the collector of messages of type ViewChange.
-//! After a sufficient amount (t + 1) of ViewChanges are received and collected, the next [View] broadcasts a NewView message.
+//! Defines the collector of messages of type ViewChange.\
+//! After a sufficient amount (t + 1) of ViewChanges are received and collected,
+//! the next [View] broadcasts a NewView message.\
 //! The Commits must share the same next [crate::View].
 
 use tracing::debug;
@@ -28,9 +29,11 @@ impl<P: Clone, Sig: Clone> CollectorViewChanges<P, Sig> {
         amount_collected
     }
 
-    /// Retrieves a collection of at least t + 1 ViewChanges if they are valid and
-    /// if already at least t + 1 ViewChanges have been received for the same next [View].
-    /// Is this the case, then the collection only retains ViewChanges which are for a higher next [View].
+    /// Retrieves a collection of at least `t + 1` ViewChanges if they are valid and
+    /// if already at least `t + 1` ViewChanges have been received for the same
+    /// next [View].\
+    /// Is this the case, then the collection only retains ViewChanges which are
+    /// for a higher next [View].
     pub(crate) fn retrieve_collected_view_changes(
         &mut self,
         msg: &ViewChange<P, Sig>,
