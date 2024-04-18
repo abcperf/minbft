@@ -1,9 +1,10 @@
-//! Defines a message of type [ReqViewChange].
-//! A [ReqViewChange] consists of a previous and of a next [View].
-//! The previous [View] is the [View] that turned out to be faulty.
-//! The next [View] is the [View] to which is to be changed to.
-//! A replica should broadcast a [ReqViewChange] when the current primary turns out to be faulty.
-//! For further explanation, see the paper "Efficient Byzantine Fault Tolerance" by Veronese et al.
+//! Defines a message of type [ReqViewChange].\
+//! A replica should broadcast a [ReqViewChange] when the current primary turns
+//! out to be faulty.\
+//! The primary is seen as faulty if it does not respond to a client request
+//! within the set timeout duration.\
+//! For further explanation, see the paper "Efficient Byzantine Fault Tolerance"
+//! by Veronese et al.
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -12,7 +13,7 @@ use tracing::debug;
 
 use crate::{error::InnerError, Config, View};
 
-/// Defines a message of type [ReqViewChange].
+/// Defines a message of type [ReqViewChange].\
 /// Contains the previous [View] and the next [View] ([View] to be changed to).
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct ReqViewChange {
@@ -23,7 +24,7 @@ pub(crate) struct ReqViewChange {
 }
 
 impl ReqViewChange {
-    /// Validates the [ReqViewChange].
+    /// Validates the [ReqViewChange].\
     /// The previous [View] must be smaller than the next [View].
     pub(crate) fn validate(&self, origin: ReplicaId, config: &Config) -> Result<(), InnerError> {
         debug!(
