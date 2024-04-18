@@ -1,7 +1,7 @@
-//! Defines a message of type [PeerMessage].
-//! A [PeerMessage] is a message that is received from another peer, i.e. replica.
-//! A [PeerMessage] can be a Hello, a [ReqViewChange] or a [UsigMessage].
-//! Received [PeerMessage]s must be processed (see [crate::MinBft]).
+//! Defines a message of type [PeerMessage].\
+//! A [PeerMessage] is a message that is received from another peer, i.e. replica.\
+//! A [PeerMessage] can be a Hello, a [ReqViewChange] or a [UsigMessage].\
+//! Received [PeerMessage]s must be processed (see [crate::MinBft]).\
 //! The processing depends on the inner type of the [PeerMessage].
 
 use serde::{Deserialize, Serialize};
@@ -55,10 +55,10 @@ impl<Att, T: Into<UsigMessage<P, Sig>>, P, Sig> From<T> for ValidatedPeerMessage
     }
 }
 
-/// Defines a message that originates from a replica and is broadcasted to all replicas.
-/// All received [PeerMessage]s must be processed (see the documentation of the module).
+/// Defines a message that originates from a replica and is broadcasted to all replicas.\
+/// All received [PeerMessage]s must be processed (see the documentation of the module).\
 //
-// The struct acts like a wrapper.
+// The struct acts like a wrapper.\
 // Its purpose is to make sure the peer-message is first validated.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[repr(transparent)]
@@ -76,7 +76,7 @@ impl<Att, P, Sig> PeerMessage<Att, P, Sig> {
 }
 
 impl<Att, P: RequestPayload, Sig: Serialize + Counter + Debug> PeerMessage<Att, P, Sig> {
-    /// Validate the [PeerMessage].
+    /// Validate the [PeerMessage].\
     /// The validation is done according to the inner type of the message.
     pub(crate) fn validate(
         self,
