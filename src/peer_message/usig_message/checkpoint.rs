@@ -1,21 +1,8 @@
-//! Defines a message of type [Checkpoint].
-//! A [Checkpoint] consists of two main parts.
-//! The first part is its content.
-//! It contains the origin of the [Checkpoint], i.e., the ID of the replica
-//! ([ReplicaId]) which created the [Checkpoint].
-//! Moreover, it contains the hash of the [crate::MinBft]'s state, i.e. the
-//! [CheckpointHash].
-//! Furthermore, it contains the counter of the most recently accepted
-//! [crate::Prepare] by the replica.
-//! It also keeps track of the total amount of accepted batches until this
-//! [Checkpoint].
-//! The second part is its USIG signature.
+//! Defines a message of type [Checkpoint].\
+//! A [Checkpoint] is broadcast by a replica when enough client requests have
+//! been accepted.\
 //! In our implementation, [Checkpoint]s are USIG signed - this seems to differ
 //! from the paper "Efficient Byzantine Fault Tolerance" by Veronese et al.
-//! A [Checkpoint] is broadcast by a replica when enough client requests have
-//! been accepted.
-//! For further explanation, refer to the documentation in [crate::MinBft] or
-//! the paper "Efficient Byzantine Fault-Tolerance" by Veronese et al.
 
 use core::fmt;
 use std::collections::HashSet;
@@ -33,23 +20,25 @@ use super::signed::{UsigSignable, UsigSigned};
 
 pub(crate) type CheckpointHash = [u8; 64];
 
-/// The content of a message of type [Checkpoint].
-/// Consists of the hash of the state of the [crate::MinBft].
-/// Furthermore, the origin that created the [Checkpoint] is necessary.
+/// The content of a message of type Checkpoint.\
+/// Contains the ID of the replica to which the Checkpoint belongs to.\
+/// Contains the counter of the most recently accepted Prepare.\
+/// Consists of the hash of the state of the MinBft\.
+/// Furthermore, it contains the amount of accepted batches until now.
 #[serde_as]
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct CheckpointContent {
     /// Used for keeping track of which replica created the message of type
     /// Checkpoint.
     pub(crate) origin: ReplicaId,
-    /// The counter of the most recently accepted [crate::Prepare].
+    /// The counter of the most recently accepted Prepare.
     pub(crate) counter_latest_prep: Count,
-    /// The hash of the [crate::MinBft]'s state.
+    /// The hash of the MinBft's state.\
     /// All replicas must have equal state.
     #[serde_as(as = "serde_with::Bytes")]
     pub(crate) state_hash: CheckpointHash,
     /// Keeps count of the total amount of accepted batches until this
-    /// [Checkpoint].
+    /// Checkpoint.
     pub(crate) total_amount_accepted_batches: u64,
 }
 
@@ -70,12 +59,11 @@ impl UsigSignable for CheckpointContent {
     }
 }
 
-/// The message of type [Checkpoint].
-/// [Checkpoint]s consist of their content and must be signed by a USIG.
+/// The message of type [Checkpoint].\
+/// [Checkpoint]s consist of their content and must be signed by a USIG.\
 /// Such a message is broadcast by a replica in response to having accepted a
 /// sufficient amount of client requests (for further explanation, refer to
-/// [crate::Config], [crate::request_processor::RequestProcessor]).
-/// [Checkpoint]s can and should be validated.
+/// [crate::Config], [crate::request_processor::RequestProcessor]).\
 pub(crate) type Checkpoint<Sig> = UsigSigned<CheckpointContent, Sig>;
 
 impl<Sig> fmt::Display for Checkpoint<Sig> {
@@ -90,12 +78,12 @@ impl<Sig> fmt::Display for Checkpoint<Sig> {
 }
 
 impl<Sig: Serialize> Checkpoint<Sig> {
-    /// Validates a message of type [Checkpoint].
-    /// To validate it, its USIG signature must be verified.
+    /// Validates a message of type [Checkpoint].\
+    /// To validate it, its USIG signature must be valid.\
     ///
     /// # Arguments
     ///
-    /// * `config` - The [Config] of the algorithm.
+    /// * `config` - The [Config] of the replica.
     /// * `usig` - The [USIG] signature that should be a valid one for the
     ///            [Checkpoint] message.
     pub(crate) fn validate(
@@ -155,22 +143,22 @@ impl<Sig: Serialize> Checkpoint<Sig> {
 }
 
 /// The (stable) certificate containing a set of valid messages of type
-/// [Checkpoint].
+/// [Checkpoint].\
 /// Following conditions must be met for the certificate to become stable:
-///     (1) The certificate must contain at least `t + 1` [Checkpoint]s
-///         (for further explanation regarding `t`, see [crate::Config]).
-///     (2) They have to originate from different replicas.
-///     (3) They have to share the same [CheckpointHash].
-///     (4) They have to share the same counter of the latest accepted [crate::Prepare].
+/// 1. The certificate must contain at least `t + 1` [Checkpoint]s
+///    (for further explanation regarding `t`, see [crate::Config]).
+/// 2. They have to originate from different replicas.
+/// 3. They have to share the same [CheckpointHash].
+/// 4. They have to share the same counter of the latest accepted [crate::Prepare].
 /// If a certificate does not (yet) meet all aforementioned conditions, it is
 /// refered to as non-stable until the conditions are met.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct CheckpointCertificate<Sig> {
-    /// The message of type [Checkpoint] created by the replica itself.
-    /// In its details, the struct differs from the paper.
+    /// The message of type [Checkpoint] created by the replica itself.\
+    /// In its details, the struct differs from the paper.\
     /// Reason: We have to clear all messages from the replica's log of sent
     ///         messages that have a counter lower than the counter of its
-    ///         [Checkpoint].
+    ///         [Checkpoint].\
     ///         By saving at this stage the replica's own [Checkpoint],
     ///         we can safely remove all aforementioned messages.
     pub(crate) my_checkpoint: Checkpoint<Sig>,
@@ -183,13 +171,13 @@ impl<Sig: Serialize> CheckpointCertificate<Sig> {
     /// Validates the [CheckpointCertificate].
     /// Following conditions must be met for the certificate to be considered
     /// valid:
-    ///     (1) The certificate must contain at least `t + 1` [Checkpoint]s
-    ///         (for further explanation regarding `t`, see [crate::Config]).
-    ///     (2) They have to originate from different replicas.
-    ///     (3) They have to share the same [CheckpointHash].
-    ///     (4) They have to share the same counter of the latest accepted
-    ///         prepare.
-    ///     (5) Their USIG signatures have to be valid.
+    /// 1. The certificate must contain at least `t + 1` [Checkpoint]s
+    ///    (for further explanation regarding `t`, see [crate::Config]).
+    /// 2. They have to originate from different replicas.
+    /// 3. They have to share the same [CheckpointHash].
+    /// 4. They have to share the same counter of the latest accepted
+    ///    prepare.
+    /// 5. Their USIG signatures have to be valid.
     ///
     /// # Arguments
     ///
