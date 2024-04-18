@@ -1,7 +1,10 @@
-//! Defines the collector of messages of type [Checkpoint].
-//! A [CheckpointCertificate] is generated when sufficient valid [Checkpoint]s have been collected.
-//! The [Checkpoint]s must share the same state hash and the same counter of the latest [crate::Prepare] accepted.
-//! For further explanation, see the paper "Efficient Byzantine Fault Tolerance" by Veronese et al.
+//! Defines the collector of messages of type [Checkpoint].\
+//! A [CheckpointCertificate] is generated when sufficient valid [Checkpoint]s
+//! have been collected.\
+//! The [Checkpoint]s must share the same state hash and the same amount of
+//! accepted batches.\
+//! For further explanation, see the paper "Efficient Byzantine Fault Tolerance"
+//! by Veronese et al.
 
 use std::cmp::Ordering;
 
@@ -18,16 +21,15 @@ use crate::{
 use super::CollectorMessages;
 
 /// [Checkpoint]s (collection of messages of type [Checkpoint]) are unstable
-/// until the Replica's own message and t (see [crate::Config]) other messages of type Checkpoint
-/// with equal state hash are successfully received.
-/// Additionally, all messages of type [Checkpoint] must originate from different replicas.
-/// The struct allows to save received messages of type [Checkpoint].
-// #[derive(Clone, Debug, Serialize, Deserialize)]
-// pub(crate) struct CollectorCheckpoints<Sig>(CollectorMessages<KeyCheckpoints, Checkpoint<Sig>>);
+/// until the Replica's own message and t (see [crate::Config]) other messages
+/// of type Checkpoint with equal state hash are successfully received.\
+/// Additionally, all messages of type [Checkpoint] must originate from
+/// different replicas.\
+/// The struct allows to save received messages of type [Checkpoint].\
 
 pub(crate) type CollectorCheckpoints<Sig> = CollectorMessages<KeyCheckpoints, Checkpoint<Sig>>;
 
-/// Defines the key for the collector.
+/// Defines the key for the collector.\
 /// The key must be the state hash and the counter of the last accepted prepare.
 #[serde_as]
 #[derive(Debug, Clone, Hash, PartialEq, Serialize, Deserialize, Eq)]
@@ -66,12 +68,13 @@ impl<Sig: Clone> CollectorCheckpoints<Sig> {
         amount_collected
     }
 
-    /// Generate a new checkpoint certificate.
+    /// Generate a new checkpoint certificate.\
     /// Due to the struct field's type choice and the insert method
     /// already guaranteeing that the replica's own message was already received,
-    /// and that all other messages have the same state hash and counter of last accepted [crate::Prepare]
-    /// as the replica's own message, it only remains to be checked
-    /// if at least t + 1 messages have already been received (one being implicitly the replica's own message).
+    /// and that all other messages have the same state hash and amount of
+    /// accepted batches as the replica's own message, it only remains to be checked
+    /// if at least t + 1 messages have already been received
+    /// (one being implicitly the replica's own message).\
     /// If all these requirements are met, a new checkpoint certificate is generated.
     pub(crate) fn retrieve_collected_checkpoints(
         &mut self,
