@@ -1,15 +1,4 @@
-//! Defines a message of type [Prepare].
-//! A [Prepare] consists of two main parts.
-//! The first part is its content, the [PrepareContent].
-//! It contains the origin of the [Prepare], i.e., the ID of the replica
-//! ([ReplicaId]) which created the [Prepare].
-//! Moreover, it contains the [View] to which the [Prepare] belongs to.
-//! Furthermore, it contains the batch of requests ([RequestBatch]) to which it
-//! belongs to.
-//! The second part is its signature, as [Prepare]s must be signed by a USIG.
-//! For further explanation to why these messages (alongside other ones) must be
-//! signed by a USIG,
-//! refer to the paper "Efficient Byzantine Fault Tolerance" by Veronese et al.
+//! Defines a message of type [Prepare].\
 //! A [Prepare] is broadcast by the current primary (no other replicas are
 //! allowed to send a [Prepare]) in response to a received client request.
 
@@ -29,13 +18,13 @@ use crate::{
     Config, RequestPayload, View,
 };
 
-/// The content of a message of type [Prepare].
-/// Consists of the [View] and the batch of client requests to which the
-/// [Prepare] belongs to.
-/// Furthermore, the origin that created the [Prepare] is necessary.
+/// The content of a message of type [Prepare].\
+/// Contains the ID of the replica that created the [Prepare].\
+/// Additionally, it consists of the [View] and the batch of client requests
+/// for which the [Prepare] is for.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct PrepareContent<P> {
-    /// The replica which the [Prepare] originates from.
+    /// The ID of the replica which the [Prepare] originates from.
     pub(crate) origin: ReplicaId,
     /// The [View] to which the [Prepare] belongs to.
     pub(crate) view: View,
@@ -52,7 +41,7 @@ impl<P> AsRef<ReplicaId> for PrepareContent<P> {
 }
 
 impl<P: Serialize> UsigSignable for PrepareContent<P> {
-    /// Hashes the content of a message of type [Prepare].
+    /// Hashes the content of a message of type [Prepare].\
     /// Required for signing and verifying a message of type [Prepare].
     fn hash_content<H: Update>(&self, hasher: &mut H) {
         let encoded = bincode::serialize(self).unwrap();
@@ -60,13 +49,12 @@ impl<P: Serialize> UsigSignable for PrepareContent<P> {
     }
 }
 
-/// The message of type [Prepare].
+/// The message of type [Prepare].\
 /// [Prepare]s consist of their content ([PrepareContent]) and must be signed by
-/// a USIG.
+/// a USIG.\
 /// Such a message is broadcast by the current primary in response to a received
-/// client request.
+/// client request.\
 /// Only the current primary is allowed to create a [Prepare] and broadcast it.
-/// [Prepare]s can and should be validated.
 pub(crate) type Prepare<P, Sig> = UsigSigned<PrepareContent<P>, Sig>;
 
 impl<P: RequestPayload, Sig> fmt::Display for Prepare<P, Sig> {
@@ -100,13 +88,13 @@ impl<P, Sig: Counter> Ord for Prepare<P, Sig> {
 }
 
 impl<P: RequestPayload, Sig> Prepare<P, Sig> {
-    /// Validates a message of type [Prepare].
-    /// Following conditions must be met for the [Prepare] to be valid:
-    ///     (1) The [Prepare] must originate from the current primary.
-    ///     (2) The batch of requests to which the [Prepare] belongs to must be
-    ///         valid.
-    ///         In other words, each batched request must be valid.
-    ///     (3) Additionally, the signature of the [Prepare] must be verified.    ///
+    /// Validates a message of type [Prepare].\
+    /// Following conditions must be met for the [Prepare] to be valid:\
+    /// 1. The [Prepare] must originate from the current primary.\
+    /// 2. The batch of requests to which the [Prepare] belongs to must be
+    ///    valid.\
+    ///    In other words, each batched request must be valid.\
+    /// 3. Additionally, the signature of the [Prepare] must be verified.
     ///
     /// # Arguments
     ///
@@ -179,6 +167,15 @@ pub(crate) mod test {
 
     use super::{Prepare, PrepareContent};
 
+    /// Create a Prepare for the tests below.
+    ///
+    /// # Arguments
+    ///
+    /// * `view` - The [View] to which the [Prepare] belongs to.
+    /// * `request_batch` - The batch of client requests to which the [Prepare]
+    /// belongs to.
+    /// * `config` - The [Config] of the replica.
+    /// * `usig` - The USIG signature to be used to sign the [PrepareContent].
     pub(crate) fn create_prepare(
         view: View,
         request_batch: RequestBatch<DummyPayload>,
@@ -197,6 +194,15 @@ pub(crate) mod test {
         .unwrap()
     }
 
+    /// Create an invalid [Prepare].\
+    /// The [Prepare] contains invalid client requests.
+    ///
+    /// # Arguments
+    ///
+    /// * `view` - The [View] to which the [Prepare] belongs to.
+    /// * `config` - The [Config] of the replica.
+    /// * `usig` - The USIG signature to be used to sign the [PrepareContent].
+    /// * `rng` - The thread-local random number generator to be used.
     pub(crate) fn create_prepare_invalid_reqs(
         view: View,
         config: &Config,
@@ -220,6 +226,18 @@ pub(crate) mod test {
         .unwrap()
     }
 
+    /// Create an invalid [Prepare].\
+    /// The origin of the [Prepare] is invalid (replica is not, as demanded, the
+    /// primary).
+    ///
+    /// # Arguments
+    ///
+    /// * `view` - The [View] to which the [Prepare] belongs to.
+    /// * `request_batch` - The batch of client requests to which the [Prepare]
+    /// belongs to.
+    /// * `config` - The [Config] of the replica.
+    /// * `usig` - The USIG signature to be used to sign the [PrepareContent].
+    /// * `rng` - The thread-local random number generator to be used.
     pub(crate) fn create_prepare_invalid_origin(
         view: View,
         request_batch: RequestBatch<DummyPayload>,
@@ -240,6 +258,17 @@ pub(crate) mod test {
         .unwrap()
     }
 
+    /// Create invalid [Prepare]s.\
+    /// The [Prepare]s are all invalid for different reasons.
+    ///
+    /// # Arguments
+    ///
+    /// * `view` - The [View] to which the [Prepare]s belong to.
+    /// * `request_batch` - The batch of client requests to which the [Prepare]s
+    /// belongs to.
+    /// * `config` - The [Config] of the replica.
+    /// * `usig` - The USIG signature to be used to sign the [PrepareContent]s.
+    /// * `rng` - The thread-local random number generator to be used.
     pub(crate) fn create_invalid_prepares(
         view: View,
         request_batch: RequestBatch<DummyPayload>,
@@ -253,8 +282,11 @@ pub(crate) mod test {
         vec![prep_invalid_origin, prep_invalid_reqs]
     }
 
-    /// Tests if the validation of a valid [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare)
-    /// succeeds.
+    /// Tests if the validation of a valid Prepare succeeds.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn validate_valid_prepare(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
@@ -282,9 +314,12 @@ pub(crate) mod test {
         }
     }
 
-    /// Tests if the validation of an invalid [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare),
-    /// in which the origin of the [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare)
-    /// is not the primary, results in an error.
+    /// Tests if the validation of an invalid Prepare fails.\
+    /// The origin of the Prepare is not the primary.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn validate_invalid_prep_not_primary(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
@@ -320,6 +355,12 @@ pub(crate) mod test {
         }
     }
 
+    /// Test if the validation of an invalid Prepare fails.\
+    /// The Prepare contains invalid requests.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn validate_invalid_prep_reqs(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
@@ -349,9 +390,12 @@ pub(crate) mod test {
         }
     }
 
-    /// Tests if the validation of an invalid [Prepare](crate::peer_message::usig_message::view_peer_message::Prepare),
-    /// in which the replica is unknown (not previously added as remote party),
-    /// results in an error.
+    /// Tests if the validation of an invalid Prepare fails.\
+    /// The origin of the Prepare is an unknown remote party.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn validate_invalid_prepare_unknown_remote_party(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
