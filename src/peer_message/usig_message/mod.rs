@@ -1,8 +1,7 @@
-//! Defines a message of type [UsigMessage].
+//! Defines a message of type [UsigMessage].\
 //! Such messages are either of inner type [ViewPeerMessage], [ViewChangeV],
-//! [NewView] or [Checkpoint].
-//! Moreover, messages of type [UsigMessage] are signed by a USIG.
-//! For further explanation of the inner types, see the specific documentation.
+//! [NewView] or [Checkpoint].\
+//! Moreover, messages of type [UsigMessage] are signed by a USIG.\
 
 pub(crate) mod checkpoint;
 pub(crate) mod new_view;
@@ -27,14 +26,14 @@ use self::{
 
 /// A [UsigMessageV] is a message that contains a USIG signature,
 /// and is either a [UsigMessageV::View], [UsigMessageV::ViewChange],
-/// [UsigMessageV::NewView] or a [UsigMessageV::Checkpoint].
+/// [UsigMessageV::NewView] or a [UsigMessageV::Checkpoint].\
 ///
 /// A [UsigMessageV::View] should be created when the USIG signed message is
-/// internally a [ViewPeerMessage].
+/// internally a [ViewPeerMessage].\
 /// A [UsigMessageV::ViewChange] should be created when the USIG signed message
-/// is internally a [ViewChangeV] message.
+/// is internally a [ViewChangeV] message.\
 /// A [UsigMessageV::NewView] should be created when the USIG signed message is
-/// internally a [NewView] message.
+/// internally a [NewView] message.\
 /// A [UsigMessageV::Checkpoint] should be created when the USIG signed message
 /// is internally a [Checkpoint] message.
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -162,59 +161,75 @@ impl<V: ViewChangeVariant<P, Sig>, P, Sig> UsigMessageV<V, P, Sig> {
 mod test {
     use rstest::rstest;
 
-    use crate::tests::create_random_valid_commit_with_usig;
-
     use std::num::NonZeroU64;
 
-    use crate::{
-        peer_message::usig_message::{view_peer_message::ViewPeerMessage, UsigMessage},
-        tests::create_random_valid_prepare_with_usig,
-    };
     use usig::noop::UsigNoOp;
 
-    /// Validate a valid UsigMessage and check if `Ok` is returned.
+    use rand::thread_rng;
+    use usig::{AnyId, Usig};
+
+    use crate::{
+        client_request::test::create_batch,
+        peer_message::usig_message::{
+            view_peer_message::{
+                commit::test::create_commit, prepare::test::create_prepare, ViewPeerMessage,
+            },
+            UsigMessage,
+        },
+        tests::{
+            add_attestations, create_config_default, get_random_included_replica_id,
+            get_random_replica_id,
+        },
+        View,
+    };
+
+    /// Test if the validation of a valid UsigMessage succeeds.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn validate_valid_usig_message(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
-        use usig::Usig;
-
-        use crate::tests::{add_attestations, create_config_default};
-
         let n_parsed = NonZeroU64::new(n).unwrap();
-        let mut usig_primary = UsigNoOp::default();
+        let mut rng = thread_rng();
 
         for t in 0..n / 2 {
             // ViewPeerMessage.
-            let prep = create_random_valid_prepare_with_usig(n_parsed, &mut usig_primary);
-            let id_primary = prep.origin;
+            let primary_id = get_random_replica_id(n_parsed, &mut rng);
+            let view = View(primary_id.as_u64());
+            let mut usig_primary = UsigNoOp::default();
+            let config_primary = create_config_default(n_parsed, t, primary_id);
+            let request_batch = create_batch();
+            let prep = create_prepare(view, request_batch, &config_primary, &mut usig_primary);
             let view_peer_msg = ViewPeerMessage::from(prep.clone());
             let usig_message = UsigMessage::from(view_peer_msg.clone());
 
             // Add attestation of oneself.
-            usig_primary.add_remote_party(id_primary, ());
+            usig_primary.add_remote_party(primary_id, ());
 
             // Create a default config.
-            let config_primary = create_config_default(n_parsed, t, id_primary);
+            let config_primary = create_config_default(n_parsed, t, primary_id);
 
             // Validate UsigMessage using the previously created config and USIG.
             let res_usig_msg_validation = usig_message.validate(&config_primary, &mut usig_primary);
 
             assert!(res_usig_msg_validation.is_ok());
 
+            let backup_id = get_random_included_replica_id(n_parsed, primary_id, &mut rng);
             let mut usig_backup = UsigNoOp::default();
-            let commit = create_random_valid_commit_with_usig(n_parsed, prep, &mut usig_backup);
-            let id_backup = commit.origin;
+            let commit = create_commit(backup_id, prep, &mut usig_backup);
             let view_peer_msg = ViewPeerMessage::from(commit.clone());
             let usig_message = UsigMessage::from(view_peer_msg);
 
             // Add attestations.
-            let usigs = vec![
-                (id_primary, &mut usig_primary),
-                (id_backup, &mut usig_backup),
+            let mut usigs = vec![
+                (primary_id, &mut usig_primary),
+                (backup_id, &mut usig_backup),
             ];
-            add_attestations(usigs);
+            add_attestations(&mut usigs);
 
             // Create config of backup.
-            let config = create_config_default(n_parsed, t, id_backup);
+            let config = create_config_default(n_parsed, t, backup_id);
 
             let res_usig_msg_validation = usig_message.validate(&config, &mut usig_primary);
 
