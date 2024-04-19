@@ -176,6 +176,10 @@ pub(crate) mod test {
     /// belongs to.
     /// * `config` - The [Config] of the replica.
     /// * `usig` - The USIG signature to be used to sign the [PrepareContent].
+    ///
+    /// # Return Value
+    ///
+    /// The created Prepare.
     pub(crate) fn create_prepare(
         view: View,
         request_batch: RequestBatch<DummyPayload>,
@@ -203,6 +207,10 @@ pub(crate) mod test {
     /// * `config` - The [Config] of the replica.
     /// * `usig` - The USIG signature to be used to sign the [PrepareContent].
     /// * `rng` - The thread-local random number generator to be used.
+    ///
+    /// # Return Value
+    ///
+    /// The created Prepare with the invalid requests.
     pub(crate) fn create_prepare_invalid_reqs(
         view: View,
         config: &Config,
@@ -238,6 +246,10 @@ pub(crate) mod test {
     /// * `config` - The [Config] of the replica.
     /// * `usig` - The USIG signature to be used to sign the [PrepareContent].
     /// * `rng` - The thread-local random number generator to be used.
+    ///
+    /// # Return Value
+    ///
+    /// The created Prepare with the invalid origin.
     pub(crate) fn create_prepare_invalid_origin(
         view: View,
         request_batch: RequestBatch<DummyPayload>,
@@ -269,6 +281,10 @@ pub(crate) mod test {
     /// * `config` - The [Config] of the replica.
     /// * `usig` - The USIG signature to be used to sign the [PrepareContent]s.
     /// * `rng` - The thread-local random number generator to be used.
+    ///
+    /// # Return Value
+    ///
+    /// The created invalid Prepares, all invalid for different reasons.
     pub(crate) fn create_invalid_prepares(
         view: View,
         request_batch: RequestBatch<DummyPayload>,
