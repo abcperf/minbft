@@ -79,8 +79,18 @@ impl CollectorReqViewChanges {
     pub(crate) fn new() -> Self {
         Self(HashMap::new())
     }
-    /// Inserts a ReqViewChange message and returns the amount of collected
-    /// ReqViewChanges received for the same previous and next [View] as the input.
+
+    /// Inserts a ReqViewChange message and
+    ///
+    /// # Arguments
+    ///
+    /// * `msg` - The ReqViewChange message to be collected.
+    /// * `from` - The origin of the message to be collected.
+    ///
+    /// # Return Value
+    ///
+    /// The amount of collected ReqViewChanges received for the same previous
+    /// and next [View] as the input.
     pub(crate) fn collect(&mut self, msg: &ReqViewChange, from: ReplicaId) -> u64 {
         trace!(
             "Collecting ReqViewChange (origin: {from:?}, previous view: {:?}, next view: {:?}) ...",
@@ -111,8 +121,15 @@ impl CollectorReqViewChanges {
     }
 
     /// Cleans up the collection by retaining only ReqViewChanges with
-    /// their previous [View] set as higher than the provided one, or
+    /// their previous [View] set higher than the provided one, or
     /// the same but their next [View] is set higher.
+    ///
+    /// # Arguments
+    ///
+    /// * `prev_view` - The previous [View] that should be used to filter out
+    ///                 old, no longer necessary messages.
+    /// * `next_view` - The next [View] that should be used to filter out old,
+    ///                 no longer necessary messages.
     pub(crate) fn clean_up(&mut self, prev_view: View, next_view: View) {
         debug!("Cleaning up collector of ReqViewChanges: Removing ReqViewChanges with previous view less than {:?} or equal to it and next view less than {:?}", prev_view, next_view);
         let key = KeyRVC {
@@ -141,6 +158,11 @@ mod test {
         },
     };
 
+    /// Tests if the collection of a single ReqViewChange succeeds.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn collect_req_vc_single(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
@@ -159,6 +181,12 @@ mod test {
         assert_eq!(retrieved, 1);
     }
 
+    /// Tests if the collection of multiple ReqViewChanges with different
+    /// origins succeeds.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn collect_req_vc_multiple_diff_origins(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
@@ -183,6 +211,13 @@ mod test {
         assert_eq!(retrieved, 2);
     }
 
+    /// Tests if the collection of multiple ReqViewChanges with same
+    /// origins behaves as expected.
+    /// That is, they should not be grouped together.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn collect_req_vc_multiple_same_origin(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
@@ -206,6 +241,13 @@ mod test {
         assert_eq!(retrieved, 1);
     }
 
+    /// Tests if the collection of multiple ReqViewChanges for different
+    /// views behaves as expected.
+    /// That is, they should not be grouped together.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn collect_req_vc_multiple_diff_views(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
@@ -238,6 +280,13 @@ mod test {
         assert_eq!(retrieved, 1);
     }
 
+    /// Tests if the collection of multiple ReqViewChanges for different
+    /// previous views behaves as expected.
+    /// That is, they should not be grouped together.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn collect_req_vc_multiple_diff_prev_view(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
@@ -270,6 +319,13 @@ mod test {
         assert_eq!(retrieved, 1);
     }
 
+    /// Tests if the collection of multiple ReqViewChanges for different next
+    /// views behaves as expected.
+    /// That is, they should not be grouped together.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn collect_req_vc_multiple_diff_next_view(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
