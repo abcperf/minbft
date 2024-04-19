@@ -1,8 +1,6 @@
 //! Defines the collector of messages of type [Checkpoint].\
 //! A [CheckpointCertificate] is generated when sufficient valid [Checkpoint]s
 //! have been collected.\
-//! The [Checkpoint]s must share the same state hash and the same amount of
-//! accepted batches.\
 //! For further explanation, see the paper "Efficient Byzantine Fault Tolerance"
 //! by Veronese et al.
 
@@ -21,7 +19,7 @@ use crate::{
 use super::CollectorMessages;
 
 /// [Checkpoint]s (collection of messages of type [Checkpoint]) are unstable
-/// until the Replica's own message and t (see [crate::Config]) other messages
+/// until the replica's own message and `t` (see [crate::Config]) other messages
 /// of type Checkpoint with equal state hash are successfully received.\
 /// Additionally, all messages of type [Checkpoint] must originate from
 /// different replicas.\
@@ -68,14 +66,34 @@ impl<Sig: Clone> CollectorCheckpoints<Sig> {
         amount_collected
     }
 
-    /// Generate a new checkpoint certificate.\
-    /// Due to the struct field's type choice and the insert method
-    /// already guaranteeing that the replica's own message was already received,
-    /// and that all other messages have the same state hash and amount of
-    /// accepted batches as the replica's own message, it only remains to be checked
-    /// if at least t + 1 messages have already been received
-    /// (one being implicitly the replica's own message).\
-    /// If all these requirements are met, a new checkpoint certificate is generated.
+    /// Generates a new checkpoint certificate.\
+    /// It only remains to be checked if at least `t + 1` messages have already
+    /// been received (one being implicitly the replica's own message).\
+    /// This is because the struct field's type choice and the insert method
+    /// already guarantee ...\
+    ///
+    /// 1. that the replica's own message was already received,
+    /// 2. that all other messages have the same state hash,
+    /// 3. that all other messages have the same amount of accepted batches
+    /// as the replica's own message\
+    ///
+    /// If all these requirements are met, a new checkpoint certificate is
+    /// generated.
+    ///
+    /// # Arguments
+    ///
+    /// * `msg` - One of or, normally, the last received [Checkpoint] message
+    /// that belongs to the same group of collected checkpoints until now.
+    /// * `config` - The [Config] of the replica.
+    ///
+    /// # Return Value
+    ///
+    /// If the collected checkpoints of the same group (same state hash,
+    /// same amount of accepted batches) are stable (`t + 1` messages
+    /// originating from different replicas), a checkpoint certificate
+    /// consisting of the checkpoints is returned.
+    /// Otherwise, [None] is returned.
+    ///
     pub(crate) fn retrieve_collected_checkpoints(
         &mut self,
         msg: &Checkpoint<Sig>,
@@ -123,6 +141,11 @@ mod test {
         },
     };
 
+    /// Tests if the collection of a single Checkpoint succeeds.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn collect_checkpoint_single(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
@@ -171,6 +194,13 @@ mod test {
         );
     }
 
+    /// Tests if the retrieval of Checkpoints is as expected.
+    /// Both the case of the checkpoint certificate not being stable yet as well
+    /// as when it is stable are tested.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn retrieve_checkpoint(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
@@ -240,6 +270,14 @@ mod test {
         );
     }
 
+    /// Tests if the collection of different Checkpoints (not belonging to the
+    /// same group of state hashes and amount of accepted batches) behaves as
+    /// expectedly, i.e., the checkpoint certificate should not be stable
+    /// as not enough checkpoints have been collected.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn collect_diff_checkpoints(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
