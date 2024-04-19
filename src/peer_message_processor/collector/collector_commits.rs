@@ -1,7 +1,6 @@
 //! Defines the collector of messages of type Commit.\
 //! After a sufficient amount (`t + 1`) of Commits are received and collected,
 //! the respective batch of client-requests is accepted.\
-//! The Commits must share the same next [crate::View].
 
 use crate::{Config, Prepare};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -14,22 +13,18 @@ use crate::peer_message::usig_message::view_peer_message::ViewPeerMessage;
 /// Collects received Commits.
 #[derive(Debug, Clone)]
 pub(crate) struct CollectorCommits<P, Sig> {
-    /// For each Prepare received, a counter and a vector of bools is created.\
-    /// If the element i (index) in the vector is set to true, a Commit has been
-    /// received by the replica with ID = i.\
-    /// [crate::Prepare]s are seen as Commits, too.\
-    /// In other words, if i is the ID of the primary, element i (index) in the
-    /// vector is set to true upon receival of the [crate::Prepare].\
+    /// For each Prepare received, the Commits with respect to the Prepare
+    /// are collected.\
     /// The receival of the [crate::Prepare] may be either indirect (through a
     /// Commit) or direct (actual [crate::Prepare] broadcast by primary).
     recv_commits: HashMap<Count, HashSet<ReplicaId>>,
-    /// The Prepares ordered by their counter.
+    /// The Prepares are ordered by their counter.
     prepare: BTreeMap<Count, Prepare<P, Sig>>,
 }
 
 /// Defines the key for the collector.\
-/// The key must be the counter of the [crate::Prepare] to which the Commit
-/// belongs to.
+/// The key must be the counter of the [crate::Prepare] to which the Commits
+/// belong to.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct KeyCommits(Count);
 
@@ -41,8 +36,17 @@ impl<P: Clone, Sig: Counter + Clone> CollectorCommits<P, Sig> {
             prepare: BTreeMap::new(),
         }
     }
-    /// Collects a [ViewPeerMessage] (Prepare or Commit) and returns the amount of valid
-    /// Commits received for the Prepare to which the received Commit belongs to.
+    /// Collects a [ViewPeerMessage] (Prepare or Commit).
+    ///
+    /// # Arguments
+    ///
+    /// * `msg` - The message to be collected (Prepare or Commit).
+    /// * `config` - The configuration of the replica.
+    ///
+    /// # Return Value
+    ///
+    /// Returns the Prepare(s) that with the collection of the provided Commit
+    /// can be regarded as accepted.
     pub(crate) fn collect(
         &mut self,
         msg: ViewPeerMessage<P, Sig>,
@@ -137,6 +141,11 @@ mod test {
         View,
     };
 
+    /// Test if the collection of a single Commit succeeds.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn collect_commit_single(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
@@ -185,6 +194,12 @@ mod test {
         assert_eq!(collected_prepare.request_batch, prepare.request_batch);
     }
 
+    /// Test if the collection of sufficient Commits results in the retrieval
+    /// of the correct Prepare.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn collect_sufficient_commits_single_prep(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
@@ -234,6 +249,8 @@ mod test {
         assert!(acceptable_prepares.contains(&prepare));
     }
 
+    /// Tests if the collection of sufficient Commits (for different Prepares)
+    /// results in the retrieval of the two Prepares.
     #[rstest]
     fn collect_sufficient_commits_two_preps(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
