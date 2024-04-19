@@ -12,7 +12,6 @@ use shared_ids::ReplicaId;
 use usig::{noop::UsigNoOp, Usig};
 
 use crate::{
-    client_request::test::create_batch,
     output::TimeoutRequest,
     peer_message::{req_view_change::ReqViewChange, usig_message::checkpoint::CheckpointHash},
     timeout::StopClass,
@@ -354,17 +353,6 @@ pub(crate) fn get_random_included_index(
         }
     }
     random_index
-}
-
-pub(crate) fn increase_usig_of_replica(usig: &mut UsigNoOp) {
-    let _ = Prepare::sign(
-        PrepareContent {
-            origin: ReplicaId::from_u64(0),
-            view: View(0),
-            request_batch: create_batch(),
-        },
-        usig,
-    );
 }
 
 pub(crate) fn create_random_valid_req_vc_next_dir_subsequent(
