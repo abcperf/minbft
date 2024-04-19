@@ -16,6 +16,20 @@ where
     U::Signature: Debug,
 {
     /// Process a received message of type [Checkpoint].
+    /// The steps are as following:
+    ///
+    /// 1. Collect the received [Checkpoint] with the collector of Checkpoints.
+    /// 2. Retrieve a checkpoint certificate of the collected Checkpoints if
+    /// they can be retrieved (see the documentation of collector).
+    /// 3. Discard all entries in the message log of the replica that have
+    /// a counter value less than its own [Checkpoint] using the checkpoint
+    /// certificate.
+    /// 4. Update the inner state of the replica by updating the last checkpoint
+    /// cert generated.
+    ///
+    /// # Arguments
+    ///
+    /// * `checkpoint` - The Checkpoint message to be processed.
     pub(crate) fn process_checkpoint(&mut self, checkpoint: Checkpoint<U::Signature>) {
         let amount_collected = self
             .collector_checkpoints
