@@ -83,6 +83,16 @@ impl<P: Serialize, Sig: Serialize> UsigSignable for NewViewContent<P, Sig> {
 impl<P: RequestPayload, Sig: Serialize + Counter + Debug> NewView<P, Sig> {
     /// Validates the [NewView].\
     /// See below for the different steps regarding the validation.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - The config of the replica.
+    /// * `usig` - The USIG signature that should be a valid one for the
+    ///
+    /// # Return Value
+    ///
+    /// [Ok] if the the validation succeeds, otherwise [InnerError].
+    /// [NewView].
     pub(crate) fn validate(
         &self,
         config: &Config,
@@ -157,6 +167,13 @@ pub(crate) struct NewViewCertificate<P, Sig> {
 impl<P: RequestPayload, Sig: Serialize + Counter + Debug> NewViewCertificate<P, Sig> {
     /// Validates the [NewViewCertificate].\
     /// See below for the different steps regarding the validation.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - The config of the replica.
+    /// * `usig` - The USIG signature that should be a valid one for the
+    /// [NewView].
+    ///
     pub(crate) fn validate(
         &self,
         config: &Config,
@@ -240,6 +257,11 @@ pub(crate) mod test {
 
     use super::{NewView, NewViewCertificate, NewViewContent};
 
+    /// Tests if the validation of a valid NewViewCertificate succeeds.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn validate_valid_new_view_cert(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let mut view_changes = Vec::new();
@@ -283,6 +305,12 @@ pub(crate) mod test {
         }
     }
 
+    /// Tests if the validation of an invalid NewViewCertificate fails.
+    /// The NewViewCertificate contains an unsufficient amount of messages.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn validate_invalid_new_view_cert_unsuff_msgs(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let mut vc_setup = setup_view_change_tests(n);
@@ -329,6 +357,13 @@ pub(crate) mod test {
         }
     }
 
+    /// Tests if the validation of an invalid NewViewCertificate fails.
+    /// The NewViewCertificate consists of messages that do not share the same
+    /// next View.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn validate_invalid_new_view_cert_not_all_same_next_view(
         #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
@@ -387,6 +422,13 @@ pub(crate) mod test {
         }
     }
 
+    /// Tests if the validation of an invalid NewViewCertificate fails.
+    /// The NewViewCertificate consists of messages that do not all originate
+    /// from different replicas.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn validate_invalid_new_view_cert_not_all_diff_origin(
         #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
@@ -442,6 +484,12 @@ pub(crate) mod test {
         }
     }
 
+    /// Tests if the validation of an invalid NewViewCertificate fails.
+    /// The NewViewCertificate consists of invalid ViewChange messages.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn validate_invalid_new_view_cert_invalid_vchange_msgs(
         #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
@@ -514,15 +562,31 @@ pub(crate) mod test {
         }
     }
 
+    /// Defines the setup state for [NewView] messages.
     pub(crate) struct NewViewSetup {
+        /// The parsed number of replicas.
         pub(crate) n_parsed: NonZeroU64,
+        /// The origin of the NewView.
         pub(crate) origin: ReplicaId,
+        /// The next View of the NewView.
         pub(crate) next_view: View,
+        /// The random number generator.
         pub(crate) rng: ThreadRng,
+        /// The configs of the replicas.
         pub(crate) configs: HashMap<ReplicaId, Config>,
+        /// The USIGs of the replicas.
         pub(crate) usigs: HashMap<ReplicaId, UsigNoOp>,
     }
 
+    /// Sets up the [NewView] tests.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
+    ///
+    /// # Return Value
+    ///
+    /// Returns the created setup for [NewView] tests.
     pub(crate) fn setup_new_view_tests(n: u64) -> NewViewSetup {
         let n_parsed = NonZeroU64::new(n).unwrap();
         let mut rng = thread_rng();
@@ -547,6 +611,11 @@ pub(crate) mod test {
         }
     }
 
+    /// Tests if the validation of a valid NewView succeeds.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn validate_valid_new_view(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let mut nv_setup = setup_new_view_tests(n);
@@ -576,6 +645,12 @@ pub(crate) mod test {
         }
     }
 
+    /// Tests if the validation of an invalid NewView fails.
+    /// The NewView contains an invalid origin.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn validate_invalid_new_view_origin(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let mut nv_setup = setup_new_view_tests(n);
@@ -611,6 +686,12 @@ pub(crate) mod test {
         }
     }
 
+    /// Tests if the validation of an invalid NewView fails.
+    /// The NewView contains an invalid signature.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn validate_invalid_new_view_signature(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
