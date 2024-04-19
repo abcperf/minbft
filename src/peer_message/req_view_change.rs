@@ -26,6 +26,16 @@ pub(crate) struct ReqViewChange {
 impl ReqViewChange {
     /// Validates the [ReqViewChange].\
     /// The previous [View] must be smaller than the next [View].
+    ///
+    /// # Arguments
+    ///
+    /// * `origin`- The ID of the replica from which the [ReqViewChange]
+    /// originates.
+    /// * `config` - The config of the replica.
+    ///
+    /// # Return Value
+    ///
+    /// [Ok] if the validation succeeds, otherwise [InnerError].
     pub(crate) fn validate(&self, origin: ReplicaId, config: &Config) -> Result<(), InnerError> {
         debug!(
             "Validating ReqViewChange (previous view: {:?}, next view: {:?}) ...",
@@ -70,8 +80,12 @@ mod tests {
 
     use super::ReqViewChange;
 
-    /// Tests if the validation of a [ReqViewChange], in which the next [View] is bigger
-    /// and directly subsequent to the previous [View], succeeds.
+    /// Tests if the validation of a [ReqViewChange], in which the next [View]
+    /// is bigger and directly subsequent to the previous [View], succeeds.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn validate_valid_req_view_change_next_dir_subsequent(
         #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
@@ -95,6 +109,10 @@ mod tests {
 
     /// Tests if the validation of a [ReqViewChange], in which the next [View] is bigger
     /// but not subsequent to the previous [View], succeeds.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn validate_valid_req_view_change_next_jump(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
@@ -116,6 +134,10 @@ mod tests {
 
     /// Tests if a [ReqViewChange], in which the next [View] is smaller
     /// and subsequent to the previous [View], is validated to false.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn validate_invalid_req_view_change_prev_dir_subsequent(
         #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
@@ -156,6 +178,10 @@ mod tests {
 
     /// Tests if the validation of a [ReqViewChange], in which the next [View] is smaller
     /// and subsequent to the previous [View], results in an error.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn validate_invalid_req_view_change_jump(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         use rand::thread_rng;
