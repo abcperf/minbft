@@ -1,7 +1,6 @@
 //! Defines the collector of messages of type ViewChange.\
 //! After a sufficient amount (t + 1) of ViewChanges are received and collected,
 //! the next [View] broadcasts a NewView message.\
-//! The Commits must share the same next [crate::View].
 
 use tracing::debug;
 
@@ -12,8 +11,14 @@ use super::CollectorMessages;
 pub(crate) type CollectorViewChanges<P, Sig> = CollectorMessages<View, ViewChange<P, Sig>>;
 
 impl<P: Clone, Sig: Clone> CollectorViewChanges<P, Sig> {
-    /// Inserts a ViewChange message and returns the amount of so far collected
-    /// ViewChanges for the same next [View] as the given message.
+    /// # Arguments
+    ///
+    /// * `msg` - The ViewChange message to be collected.
+    ///
+    /// # Return Value
+    ///
+    /// The amount of so far collected ViewChanges for the same next [View] as
+    /// the given message.
     pub(crate) fn collect_view_change(&mut self, msg: ViewChange<P, Sig>) -> u64 {
         let origin = msg.origin;
         let next_view = msg.next_view;
@@ -29,11 +34,22 @@ impl<P: Clone, Sig: Clone> CollectorViewChanges<P, Sig> {
         amount_collected
     }
 
-    /// Retrieves a collection of at least `t + 1` ViewChanges if they are valid and
-    /// if already at least `t + 1` ViewChanges have been received for the same
-    /// next [View].\
+    /// Retrieves a collection of at least `t + 1` ViewChanges if they are valid
+    /// and if already at least `t + 1` ViewChanges have been received for the
+    /// same next [View].\
     /// Is this the case, then the collection only retains ViewChanges which are
     /// for a higher next [View].
+    ///
+    /// # Arguments
+    ///
+    /// * `msg` - The [ViewChange] message to be collected.
+    /// * `config` - The [Config] of the replica.
+    ///
+    /// # Return Value
+    ///
+    /// If at least `t + 1` ViewChanges have been collected that share the same
+    /// next [View], a [Vec] containing said ViewChanges is returned.
+    /// Otherwise, [None] is returned.
     pub(crate) fn retrieve_collected_view_changes(
         &mut self,
         msg: &ViewChange<P, Sig>,
@@ -78,6 +94,11 @@ mod test {
         View,
     };
 
+    /// Tests if the collection of a single ViewChange succeeds.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn collect_vc_single(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let mut vc_setup = setup_view_change_tests(n);
@@ -121,6 +142,11 @@ mod test {
         );
     }
 
+    /// Tests if the collection of a single ViewChange succeeds.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
     fn retrieve_checkpoint(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
@@ -196,8 +222,14 @@ mod test {
         );
     }
 
+    /// Tests if the collection of different ViewChanges behaves as expected.
+    /// That is, if they are grouped together when sharing the same next view.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
     #[rstest]
-    fn collect_diff_checkpoints(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+    fn collect_diff_view_changes(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
         let mut rng = thread_rng();
 
@@ -217,7 +249,7 @@ mod test {
 
         let mut collector = CollectorViewChanges::new();
 
-        // Create first view change message and collect it.
+        // Create first ViewChange message and collect it.
         let first_rep_id = shuffled_set.next().unwrap();
         let amount_messages: u64 = rng.gen_range(5..10);
         let message_log = create_message_log(
@@ -235,7 +267,7 @@ mod test {
 
         assert_eq!(collector.0.len(), 1);
 
-        // Create second view change message and collect it.
+        // Create second ViewChange message and collect it.
         let second_rep_id = shuffled_set.next().unwrap();
         let amount_messages: u64 = rng.gen_range(5..10);
         let message_log = create_message_log(
@@ -271,7 +303,7 @@ mod test {
             first_view_change.data.variant.message_log.len()
         );
 
-        // Check if second created checkpoint was collected successfully.
+        // Check if second created ViewChange was collected successfully.
         let second_key = second_view_change.next_view;
         assert!(collector.0.get(&second_key).is_some());
         let collected_view_changes = collector.0.get(&second_key).unwrap();
