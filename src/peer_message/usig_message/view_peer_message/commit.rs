@@ -73,6 +73,11 @@ impl<P: RequestPayload, Sig: Serialize> Commit<P, Sig> {
     /// * `config` - The [Config] of the algorithm.
     /// * `usig` - The USIG signature that should be a valid one for this
     ///            [Commit] message.
+    ///
+    /// # Return Value
+    ///
+    /// * `config` - The config of the replica.
+    /// * `usig` - The USIG signature that should be a valid one for the Commit.
     pub(crate) fn validate(
         &self,
         config: &Config,
