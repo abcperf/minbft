@@ -86,6 +86,10 @@ impl<Sig: Serialize> Checkpoint<Sig> {
     /// * `config` - The [Config] of the replica.
     /// * `usig` - The [USIG] signature that should be a valid one for the
     ///            [Checkpoint] message.
+    ///
+    /// # Return Value
+    ///
+    /// [Ok] if the validation succeeds, otherwise an [InnerError] is returned.
     pub(crate) fn validate(
         &self,
         config: &Config,
@@ -184,6 +188,10 @@ impl<Sig: Serialize> CheckpointCertificate<Sig> {
     /// * `config` - The [Config] of the algorithm.
     /// * `usig` - The [USIG] signature that should be a valid one for the
     ///            [Checkpoint] messages.
+    ///
+    /// # Return Value
+    ///
+    /// [Ok] if the validation succeeds, otherwise an [InnerError] is returned.
     pub(crate) fn validate(
         &self,
         config: &Config,
@@ -336,6 +344,16 @@ pub(crate) mod test {
 
     use super::{Checkpoint, CheckpointCertificate, CheckpointContent};
 
+    /// Creates a Checkpoint based on the given parameters.
+    ///
+    /// # Arguments
+    ///
+    /// * `origin` - The ID of the replica that the Checkpoint originates from.
+    /// * `state_hash` - The state hash to use in the Checkpoint.
+    /// * `counter_latest_prep` - The counter of the latest accepted Prepare.
+    /// * `usig` - The USIG signature to be used for creating the Checkpoint.
+    ///
+    /// # The created Checkpoint.
     pub(crate) fn create_checkpoint(
         origin: ReplicaId,
         state_hash: [u8; 64],
@@ -355,6 +373,20 @@ pub(crate) mod test {
         .unwrap()
     }
 
+    /// Create a Checkpoint certificate with random inner state.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
+    /// * `t` - The maximum number of faulty replicas that the algorithm
+    /// tolerates.
+    /// * `origin` - The ID of the replica from which the Checkpoint originates.
+    /// * `rng` - The random number generator to be used.
+    /// * `usigs` - The USIG signature to be used to sign the Checkpoint.
+    ///
+    /// # Return Value
+    ///
+    /// * `The created Checkpoint certificate.`
     pub(crate) fn create_checkpoint_cert_random(
         n: NonZeroU64,
         t: u64,
@@ -377,6 +409,25 @@ pub(crate) mod test {
         )
     }
 
+    /// Create a Checkpoint certificate with all provided parameters.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
+    /// * `t` - The maximum number of faulty replicas that the algorithm
+    /// tolerates.
+    /// * `origin` - The ID of the replica from which the Checkpoint originates.
+    /// * `state_hash` - The state hash to be used when creating the Checkpoint.
+    /// * `counter_latest_prep` - The counter of the last accepted Prepare to
+    /// be used when creating the Checkpoint.
+    /// * `total_amount_accepted_batches` - The total amount of accepted batches
+    /// to be used when creating the Checkpoint.
+    /// * `rng` - The random number generator to be used.
+    /// * `usigs` - The USIG signature to be used to sign the Checkpoint.
+    ///
+    /// # Return Value
+    ///
+    /// * `The created Checkpoint certificate.`
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_checkpoint_cert_with_all_params(
         n: NonZeroU64,
@@ -417,6 +468,26 @@ pub(crate) mod test {
         }
     }
 
+    /// Create an invalid Checkpoint certificate.
+    /// The Checkpoint certificate contains an unsufficient amount of messages.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
+    /// * `t` - The maximum number of faulty replicas that the algorithm
+    /// tolerates.
+    /// * `origin` - The ID of the replica from which the Checkpoint originates.
+    /// * `state_hash` - The state hash to be used when creating the Checkpoint.
+    /// * `counter_latest_prep` - The counter of the last accepted Prepare to
+    /// be used when creating the Checkpoint.
+    /// * `total_amount_accepted_batches` - The total amount of accepted batches
+    /// to be used when creating the Checkpoint.
+    /// * `rng` - The random number generator to be used.
+    /// * `usigs` - The USIG signature to be used to sign the Checkpoint.
+    ///
+    /// # Return Value
+    ///
+    /// * `The created invalid Checkpoint certificate.`
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_invalid_checkpoint_cert_unsuff_msgs(
         n: NonZeroU64,
@@ -460,6 +531,27 @@ pub(crate) mod test {
         }
     }
 
+    /// Create an invalid Checkpoint certificate.
+    /// The Checkpoint certificate consists of messages that do not share the
+    /// same state hash.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
+    /// * `t` - The maximum number of faulty replicas that the algorithm
+    /// tolerates.
+    /// * `origin` - The ID of the replica from which the Checkpoint originates.
+    /// * `state_hash` - The state hash to be used when creating the Checkpoint.
+    /// * `counter_latest_prep` - The counter of the last accepted Prepare to
+    /// be used when creating the Checkpoint.
+    /// * `total_amount_accepted_batches` - The total amount of accepted batches
+    /// to be used when creating the Checkpoint.
+    /// * `rng` - The random number generator to be used.
+    /// * `usigs` - The USIG signature to be used to sign the Checkpoint.
+    ///
+    /// # Return Value
+    ///
+    /// * `The created invalid Checkpoint certificate.`
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_invalid_checkpoint_cert_not_same_hash(
         n: NonZeroU64,
@@ -502,6 +594,27 @@ pub(crate) mod test {
         }
     }
 
+    /// Create an invalid Checkpoint certificate.
+    /// The Checkpoint certificate consists of messages that do not all
+    /// originate from different replicas.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
+    /// * `t` - The maximum number of faulty replicas that the algorithm
+    /// tolerates.
+    /// * `origin` - The ID of the replica from which the Checkpoint originates.
+    /// * `state_hash` - The state hash to be used when creating the Checkpoint.
+    /// * `counter_latest_prep` - The counter of the last accepted Prepare to
+    /// be used when creating the Checkpoint.
+    /// * `total_amount_accepted_batches` - The total amount of accepted batches
+    /// to be used when creating the Checkpoint.
+    /// * `rng` - The random number generator to be used.
+    /// * `usigs` - The USIG signature to be used to sign the Checkpoint.
+    ///
+    /// # Return Value
+    ///
+    /// * `The created invalid Checkpoint certificate.`
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_invalid_checkpoint_cert_not_all_diff_origin(
         n: NonZeroU64,
@@ -549,6 +662,27 @@ pub(crate) mod test {
         }
     }
 
+    /// Create an invalid Checkpoint certificate.
+    /// The Checkpoint certificate consists of messages that do not share the
+    /// same counter of last accepted Prepares.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
+    /// * `t` - The maximum number of faulty replicas that the algorithm
+    /// tolerates.
+    /// * `origin` - The ID of the replica from which the Checkpoint originates.
+    /// * `state_hash` - The state hash to be used when creating the Checkpoint.
+    /// * `counter_latest_prep` - The counter of the last accepted Prepare to
+    /// be used when creating the Checkpoint.
+    /// * `total_amount_accepted_batches` - The total amount of accepted batches
+    /// to be used when creating the Checkpoint.
+    /// * `rng` - The random number generator to be used.
+    /// * `usigs` - The USIG signature to be used to sign the Checkpoint.
+    ///
+    /// # Return Value
+    ///
+    /// * `The created invalid Checkpoint certificate.`
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_invalid_checkpoint_cert_not_all_same_latest_prep(
         n: NonZeroU64,
@@ -594,6 +728,26 @@ pub(crate) mod test {
         }
     }
 
+    /// Create invalid Checkpoint certificates.
+    /// The Checkpoint certificate are invalid for different reasons.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
+    /// * `t` - The maximum number of faulty replicas that the algorithm
+    /// tolerates.
+    /// * `origin` - The ID of the replica from which the Checkpoint originates.
+    /// * `state_hash` - The state hash to be used when creating the Checkpoint.
+    /// * `counter_latest_prep` - The counter of the last accepted Prepare to
+    /// be used when creating the Checkpoint.
+    /// * `total_amount_accepted_batches` - The total amount of accepted batches
+    /// to be used when creating the Checkpoint.
+    /// * `rng` - The random number generator to be used.
+    /// * `usigs` - The USIG signature to be used to sign the Checkpoint.
+    ///
+    /// # Return Value
+    ///
+    /// * `The created invalid Checkpoint certificate.`
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_invalid_checkpoint_certs(
         n: NonZeroU64,
@@ -659,6 +813,17 @@ pub(crate) mod test {
         certs_invalid
     }
 
+    /// Create a random different state hash.
+    ///
+    /// # Arguments
+    ///
+    /// * `state_hash` - The state hash from which the generated one should
+    /// differ.
+    /// * `rng` - The random number generator to be used.
+    ///
+    /// # Return Value
+    ///
+    /// * `The created state hash.`
     pub(crate) fn create_rand_state_hash_diff(
         state_hash: [u8; 64],
         rng: &mut ThreadRng,
@@ -718,7 +883,8 @@ pub(crate) mod test {
     }
 
     /// Tests if the validation of a [CheckpointCertificate], in which all
-    /// contained [Checkpoint]s do not have the same state hash, results in an error.
+    /// contained [Checkpoint]s do not have the same state hash, results in an
+    /// error.
     #[rstest]
     fn validate_cert_not_all_same_state_hash(#[values(5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
@@ -802,7 +968,8 @@ pub(crate) mod test {
     }
 
     /// Tests if the validation of a [CheckpointCertificate], in which not all
-    /// [Checkpoint]s originate from known replicas (previously added as remote parties), results in an error.
+    /// [Checkpoint]s originate from known replicas (previously added as remote
+    /// parties), results in an error.
     #[rstest]
     fn validate_cert_checkpoint_invalid_usig(#[values(5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
