@@ -100,6 +100,19 @@ impl<P: Serialize + Clone, Sig: Serialize + Clone>
     ViewChangeContent<ViewChangeVariantLog<P, Sig>, P, Sig>
 {
     /// Create a new ViewChangeContent.
+    ///
+    /// # Arguments
+    ///
+    /// * `origin` - The ID of the replica from which the content of the
+    /// [ViewChange] originates.
+    /// * `next_view` - The next [View] to change to.
+    /// * `checkpoint` - The last [CheckpointCertificate] generated.
+    /// * `message_log` - The message log containing the messages broadcast
+    /// by the replica since the last [CheckpointCertificate].
+    ///
+    /// # Return Value
+    ///
+    /// The created [ViewChangeContent].
     pub(crate) fn new<'a>(
         origin: ReplicaId,
         next_view: View,
@@ -177,6 +190,11 @@ impl<P: Serialize, Sig: Serialize> UsigSignable
 impl<P: RequestPayload, Sig: Counter + Serialize + Debug> ViewChange<P, Sig> {
     /// Validates the ViewChange.\
     /// See below for the different steps regarding the validation.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - The config of the replica.
+    /// * `usig` - The USIG signature that should be valid for the [ViewChange].
     pub(crate) fn validate(
         &self,
         config: &Config,
@@ -346,18 +364,36 @@ pub(crate) mod test {
         Config, View,
     };
 
+    /// Defines the type for the creation of a [ViewChange] for the tests.
     pub(crate) type ViewChangeCreation =
         fn(
             u64,
             Option<&mut ViewChangeSetup>,
         ) -> (ViewChange<DummyPayload, Signature>, Option<ViewChangeSetup>);
 
+    /// Enumerates the different types of message log manipulation.
     pub(crate) enum MessageLogManipulation {
         PopFirst,
         PopLast,
         RemoveRandomInBetween,
     }
 
+    /// Creates a [ViewChange] with the given parameters.
+    ///
+    /// # Arguments
+    ///
+    /// * `origin` - The ID of the replica from which the [ViewChange]
+    /// originates.
+    /// * `next_view` - The next [View] to which it should be changed to.
+    /// * `checkpoint_cert` - The last [CheckpointCertificate] generated, if
+    /// there is one, else [None].
+    /// * `message_log` - The message log containing the messages broadcast by
+    /// the replica itself since the last [CheckpointCertificate].
+    /// * `usig` - The USIG signature to be used to sign the [ViewChange].
+    ///
+    /// # Return Value
+    ///
+    /// The created [ViewChange].
     pub(crate) fn create_view_change(
         origin: ReplicaId,
         next_view: View,
@@ -378,6 +414,19 @@ pub(crate) mod test {
         .unwrap()
     }
 
+    /// Creates an invalid [ViewChange].
+    /// The message log of the [ViewChange] is manipulated with the given
+    /// variant.
+    ///
+    /// # Arguments
+    ///
+    /// * `manipulation` - The message log manipulation variant, if any.
+    /// * `vc_setup` - The [ViewChangeSetup] to be used to create the invalid
+    /// [ViewChange].
+    ///
+    /// # Return Value
+    ///
+    /// The created invalid [ViewChange].
     pub(crate) fn create_invalid_view_change_log_manipulated(
         manipulation: Option<MessageLogManipulation>,
         vc_setup: &mut ViewChangeSetup,
@@ -402,6 +451,20 @@ pub(crate) mod test {
         )
     }
 
+    /// Create a message log.
+    ///
+    /// # Arguments
+    ///
+    /// * `origin` - The ID of the replica from which the log originates.
+    /// * `amount_messages` - The amount of messages to be contained in the log.
+    /// * `manipulation` - The message log manipulation variant, if any.
+    /// * `rng` - The random number generator.
+    /// * `configs` - The configs of the replicas.
+    /// * `usigs` - The USIGs of the replicas.
+    ///
+    /// # Return Value
+    ///
+    /// The created message log.
     pub(crate) fn create_message_log(
         origin: ReplicaId,
         amount_messages: u64,
@@ -439,6 +502,15 @@ pub(crate) mod test {
         message_log
     }
 
+    /// Sets up the [ViewChange] tests.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
+    ///
+    /// # Return Value
+    ///
+    /// The created [ViewChangeSetup].
     pub(crate) fn setup_view_change_tests(n: u64) -> ViewChangeSetup {
         let n_parsed = NonZeroU64::new(n).unwrap();
         let mut rng = thread_rng();
@@ -463,17 +535,33 @@ pub(crate) mod test {
         }
     }
 
+    /// Defines the setup state of [ViewChange] tests.
     pub(crate) struct ViewChangeSetup {
+        /// The parsed number of replicas.
         pub(crate) n_parsed: NonZeroU64,
+        /// The maximum number of replicas that can be faulty, but still
+        /// tolerated by the algorithm.
         pub(crate) t: u64,
+        /// The ID of the replica from which the [ViewChange] originates.
         pub(crate) origin: ReplicaId,
+        /// The next [View] to be changed to.
         pub(crate) next_view: View,
+        /// The amount of messages that the message log should contain.
         pub(crate) amount_messages: u64,
+        /// The random number generator.
         pub(crate) rng: ThreadRng,
+        /// The configs of the replicas.
         pub(crate) configs: HashMap<ReplicaId, Config>,
+        /// The USIGs of the replicas.
         pub(crate) usigs: HashMap<ReplicaId, UsigNoOp>,
     }
 
+    /// Tests if the validation of a valid [ViewChange] with no certificate
+    /// succeeds.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of the replicas.
     #[rstest]
     fn validate_valid_view_change_no_cert(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let mut vc_setup = setup_view_change_tests(n);
@@ -504,6 +592,12 @@ pub(crate) mod test {
         }
     }
 
+    /// Tests if the validation of a valid [ViewChange] with no certificate and
+    /// empty message log succeeds.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of the replicas.
     #[rstest]
     fn validate_valid_view_change_counter_eq_0_empty_msg_log_no_cert(
         #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
@@ -530,6 +624,16 @@ pub(crate) mod test {
         }
     }
 
+    /// Create a [ViewChange] with no certificate, but with counter greater than
+    /// zero, and empty message log.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of the replicas.
+    ///
+    /// # Return Value
+    ///
+    /// The created invalid [ViewChange].
     pub(crate) fn create_invalid_vchange_counter_greater_0_empty_msg_log_no_cert(
         n: u64,
         vc_setup: Option<&mut ViewChangeSetup>,
@@ -585,6 +689,14 @@ pub(crate) mod test {
         }
     }
 
+    /// Tests if the validation of an invalid [ViewChange] with no certificate
+    /// fails.
+    /// The [ViewChange] counter is greater zero, though the message log is
+    /// empty.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of the replicas.
     #[rstest]
     fn validate_invalid_view_change_counter_greater_0_empty_msg_log_no_cert(
         #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
@@ -601,6 +713,17 @@ pub(crate) mod test {
         }
     }
 
+    /// Creates an invalid [ViewChange] with no certificate.
+    /// The message log of the [ViewChange] contains a hole, i.e., a message
+    /// in-between is missing.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of the replicas.
+    ///
+    /// # Return Value
+    ///
+    /// The created invalid [ViewChange].
     pub(crate) fn create_invalid_vchange_msg_log_hole(
         n: u64,
         vc_setup: Option<&mut ViewChangeSetup>,
@@ -623,6 +746,14 @@ pub(crate) mod test {
         }
     }
 
+    /// Tests if the validation of an invalid [ViewChange] with no certificate
+    /// fails.
+    /// The message log of the [ViewChange] contains a hole, i.e., a message
+    /// in-between is missing.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of the replicas.
     #[rstest]
     fn validate_invalid_view_change_msg_log_hole(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let (view_change, vc_setup) = create_invalid_vchange_msg_log_hole(n, None);
@@ -636,6 +767,16 @@ pub(crate) mod test {
         }
     }
 
+    /// Creates an invalid [ViewChange] with no certificate.
+    /// The first message of the message log of the [ViewChange] is missing.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of the replicas.
+    ///
+    /// # Return Value
+    ///
+    /// The created invalid [ViewChange].
     pub(crate) fn create_invalid_vchange_msg_log_first_missing(
         n: u64,
         vc_setup: Option<&mut ViewChangeSetup>,
@@ -656,6 +797,13 @@ pub(crate) mod test {
         }
     }
 
+    /// Tests if the validation of an invalid [ViewChange] with no certificate
+    /// fails.
+    /// The first message of the message log of the [ViewChange] is missing.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of the replicas.
     #[rstest]
     fn validate_invalid_view_change_msg_log_first_missing(
         #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
@@ -671,6 +819,16 @@ pub(crate) mod test {
         }
     }
 
+    /// Creates an invalid [ViewChange] with no certificate.
+    /// The last message of the message log of the [ViewChange] is missing.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of the replicas.
+    ///
+    /// # Return Value
+    ///
+    /// The created invalid [ViewChange].
     pub(crate) fn create_invalid_vchange_msg_log_last_missing(
         n: u64,
         vc_setup: Option<&mut ViewChangeSetup>,
@@ -691,6 +849,13 @@ pub(crate) mod test {
         }
     }
 
+    /// Tests if the validation of an invalid [ViewChange] with no certificate
+    /// fails.
+    /// The last message of the message log of the [ViewChange] is missing.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of the replicas.
     #[rstest]
     fn validate_invalid_view_change_msg_log_last_missing(
         #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
@@ -706,6 +871,13 @@ pub(crate) mod test {
         }
     }
 
+    /// Tests if the validation of an invalid [ViewChange] with no certificate
+    /// fails.
+    /// The USIG signature of the [ViewChange] is unknown.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of the replicas.
     #[rstest]
     fn validate_invalid_view_change_signature(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
@@ -740,6 +912,12 @@ pub(crate) mod test {
         }
     }
 
+    /// Tests if the validation of a valid [ViewChange] with a certificate
+    /// succeeds.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of the replicas.
     #[rstest]
     fn validate_valid_view_change_with_cert(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let mut vc_setup = setup_view_change_tests(n);
@@ -793,6 +971,12 @@ pub(crate) mod test {
         }
     }
 
+    /// Tests if the validation of an invalid [ViewChange] with a certificate
+    /// fails.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of the replicas.
     #[rstest]
     fn validate_invalid_view_change_with_invalid_cert(#[values(5, 6, 7, 8, 9, 10)] n: u64) {
         let mut vc_setup = setup_view_change_tests(n);
@@ -852,6 +1036,13 @@ pub(crate) mod test {
         }
     }
 
+    /// Creates an invalid [ViewChange] with a certificate, but with an empty
+    /// log.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of the replicas.
+    /// * `vc_setup` - The [ViewChangeSetup].
     pub(crate) fn create_invalid_vchange_cert_empty_log(
         n: u64,
         vc_setup: Option<&mut ViewChangeSetup>,
@@ -923,6 +1114,12 @@ pub(crate) mod test {
         }
     }
 
+    /// Tests if the validation of an invalid [ViewChange] with a certificate,
+    /// but with an empty log, fails.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of the replicas.
     #[rstest]
     fn validate_invalid_view_change_with_cert_empty_log(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let (view_change, vc_setup) = create_invalid_vchange_cert_empty_log(n, None);
@@ -936,6 +1133,13 @@ pub(crate) mod test {
         }
     }
 
+    /// Creates an invalid [ViewChange] with a certificate, but the first
+    /// message in the log is not a Checkpoint.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of the replicas.
+    /// * `vc_setup` - The [ViewChangeSetup].
     pub(crate) fn create_invalid_vchange_cert_log_first_not_cp(
         n: u64,
         vc_setup: Option<&mut ViewChangeSetup>,
@@ -1024,6 +1228,12 @@ pub(crate) mod test {
         }
     }
 
+    /// Tests if the validation of an invalid [ViewChange] with a certificate,
+    /// but the first message of the message log is not a Checkpoint.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of the replicas.
     #[rstest]
     fn validate_invalid_view_change_with_cert_log_first_not_cp(
         #[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64,
