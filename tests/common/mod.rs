@@ -9,9 +9,12 @@ use minbft::{
     timeout::{StopClass, TimeoutType},
     Config, Error, MinBft, Output, PeerMessage, RequestPayload,
 };
+use rand::rngs::ThreadRng;
 use serde::{Deserialize, Serialize};
 use shared_ids::{AnyId, ClientId, ReplicaId, RequestId};
 use usig::{noop::UsigNoOp, Usig};
+
+use rand::prelude::SliceRandom;
 
 use anyhow::{anyhow, Result};
 
@@ -44,7 +47,7 @@ type MinBftSetup = (
 );
 
 type SetupSet = (
-    Vec<(ReplicaId, MinBft<DummyPayload, UsigNoOp>)>,
+    HashMap<ReplicaId, MinBft<DummyPayload, UsigNoOp>>,
     HashMap<ReplicaId, TimeoutHandler>,
 );
 
@@ -151,7 +154,7 @@ impl TimeoutHandler {
 /// Setups n [MinBft]s configured with the given parameters.
 /// Moreover, it returns the [TimeoutHandler]s of the [MinBft]s.
 pub(crate) fn setup_set(n: u64, t: u64, checkpoint_period: u64) -> SetupSet {
-    let mut minbfts = Vec::new();
+    let mut minbfts = HashMap::new();
     let mut timeout_handlers = HashMap::new();
 
     let mut all_broadcasts = Vec::new();
@@ -186,14 +189,14 @@ pub(crate) fn setup_set(n: u64, t: u64, checkpoint_period: u64) -> SetupSet {
         // otherwise, replicas still should have to attest themselves.
         assert!(!ready_for_client_requests || n == 1);
         all_broadcasts.push((replica, broadcasts));
-        minbfts.push((replica, minbft));
+        minbfts.insert(replica, minbft);
         timeout_handlers.insert(replica, timeout_handler);
     }
 
     for (id, broadcasts) in all_broadcasts.into_iter() {
         for broadcast in Vec::from(broadcasts).into_iter() {
             // remove once https://github.com/rust-lang/rust/issues/59878 is fixed
-            for (_, minbft) in minbfts.iter_mut().filter(|(i, _)| *i != id) {
+            for (_, minbft) in minbfts.iter_mut().filter(|(i, _)| **i != id) {
                 let Output {
                     broadcasts,
                     responses,
@@ -237,12 +240,18 @@ impl CollectedOutput {
     pub(crate) fn timeouts_to_handle(
         &self,
         timeout_handlers: &mut HashMap<ReplicaId, TimeoutHandler>,
+        rng: &mut ThreadRng,
     ) -> HashMap<ReplicaId, Vec<TimeoutType>> {
         let mut timeouts_to_handle = HashMap::new();
-        for (replica, timeout_requests) in self.timeout_requests.iter() {
-            let timeout_handler = timeout_handlers.get_mut(replica).unwrap();
+
+        let mut replica_ids: Vec<ReplicaId> = self.timeout_requests.keys().cloned().collect();
+        replica_ids.shuffle(rng);
+
+        for rep_id in &replica_ids {
+            let timeout_requests = self.timeout_requests.get(rep_id).unwrap();
+            let timeout_handler = timeout_handlers.get_mut(rep_id).unwrap();
             timeout_handler.handle_timeout_requests(timeout_requests.to_vec());
-            timeouts_to_handle.insert(*replica, timeout_handler.retrieve_timeouts_ordered());
+            timeouts_to_handle.insert(*rep_id, timeout_handler.retrieve_timeouts_ordered());
         }
         timeouts_to_handle
     }
@@ -250,9 +259,10 @@ impl CollectedOutput {
 
 /// Handle messages to be broadcast.
 pub(crate) fn handle_broadcasts(
-    minbfts: &mut [(ReplicaId, MinBft<DummyPayload, UsigNoOp>)],
+    minbfts: &mut HashMap<ReplicaId, MinBft<DummyPayload, UsigNoOp>>,
     broadcasts_with_origin: Vec<(ReplicaId, Box<[PeerMessageTest]>)>,
     collected_output: &mut CollectedOutput,
+    rng: &mut ThreadRng,
 ) {
     // to collect possibly new added messages to broadcast
     // see below (1)
@@ -260,8 +270,15 @@ pub(crate) fn handle_broadcasts(
     for (from, messages_to_broadcast) in broadcasts_with_origin {
         for message_to_broadcast in Vec::from(messages_to_broadcast).into_iter() {
             // remove once https://github.com/rust-lang/rust/issues/59878 is fixed
+
             // all other Replicas other than the origin handle the message
-            for (rep_id, minbft) in minbfts.iter_mut().filter(|(id, _)| *id != from) {
+            let mut replica_ids: Vec<ReplicaId> =
+                minbfts.keys().filter(|id| **id != from).cloned().collect();
+            replica_ids.shuffle(rng);
+
+            for rep_id in &replica_ids {
+                let minbft = minbfts.get_mut(rep_id).unwrap();
+
                 let Output {
                     broadcasts,
                     responses,
@@ -302,23 +319,29 @@ pub(crate) fn handle_broadcasts(
     // handle the possibly new added messages to broadcast
     // see above (1)
     if !all_broadcasts.is_empty() {
-        handle_broadcasts(minbfts, all_broadcasts, collected_output);
+        handle_broadcasts(minbfts, all_broadcasts, collected_output, rng);
     }
 }
 
 /// Try to send a client request.
 pub(crate) fn try_client_request(
-    minbfts: &mut [(ReplicaId, MinBft<DummyPayload, UsigNoOp>)],
+    minbfts: &mut HashMap<ReplicaId, MinBft<DummyPayload, UsigNoOp>>,
     client_id: ClientId,
     payload: DummyPayload,
+    rng: &mut ThreadRng,
 ) -> CollectedOutput {
     // to collect the output of each Replica generated by handling the client request
     let mut collected_output = CollectedOutput::default();
 
     // to collect all messages to be broadcasted generated by handling the client message
     let mut all_broadcasts = Vec::new();
-    // each Replica handles the client message
-    for (rep_id, minbft) in minbfts.iter_mut() {
+
+    // each Replica handles the client message in a randomized order
+    let mut replica_ids: Vec<ReplicaId> = minbfts.keys().cloned().collect();
+    replica_ids.shuffle(rng);
+
+    for rep_id in &replica_ids {
+        let minbft = minbfts.get_mut(rep_id).unwrap();
         let Output {
             broadcasts,
             responses,
@@ -357,22 +380,27 @@ pub(crate) fn try_client_request(
 
     // handle the new messages to be broadcasted
     // see above (1)
-    handle_broadcasts(minbfts, all_broadcasts, &mut collected_output);
+    handle_broadcasts(minbfts, all_broadcasts, &mut collected_output, rng);
 
     collected_output
 }
 
 /// Forces the provided [MinBft]s to handle the given timeouts.
 pub(crate) fn force_timeout(
-    minbfts: &mut [(ReplicaId, MinBft<DummyPayload, UsigNoOp>)],
+    minbfts: &mut HashMap<ReplicaId, MinBft<DummyPayload, UsigNoOp>>,
     timeouts: &HashMap<ReplicaId, Vec<TimeoutType>>,
+    rng: &mut ThreadRng,
 ) -> CollectedOutput {
     // to collect the output of each Replica generated by handling the client request
     let mut collected_output = CollectedOutput::default();
     // client message is received and handled
     let mut all_broadcasts = Vec::new();
 
-    for (rep_id, minbft) in minbfts.iter_mut() {
+    let mut replica_ids: Vec<ReplicaId> = minbfts.keys().cloned().collect();
+    replica_ids.shuffle(rng);
+
+    for rep_id in &replica_ids {
+        let minbft = minbfts.get_mut(rep_id).unwrap();
         if let Some(timeouts_to_handle) = timeouts.get(rep_id) {
             for timeout_to_handle in timeouts_to_handle {
                 let timeout_type = timeout_to_handle.to_owned();
@@ -412,6 +440,29 @@ pub(crate) fn force_timeout(
         }
     }
 
-    handle_broadcasts(minbfts, all_broadcasts, &mut collected_output);
+    handle_broadcasts(minbfts, all_broadcasts, &mut collected_output, rng);
     collected_output
+}
+
+pub(crate) fn remove_random_replicas_from_hashmap(
+    minbfts: &mut HashMap<ReplicaId, MinBft<DummyPayload, UsigNoOp>>,
+    amount_to_keep: usize,
+    explicitly_to_keep: Option<ReplicaId>,
+    rng: &mut ThreadRng,
+) {
+    assert!(minbfts.len() >= amount_to_keep);
+
+    let mut replica_ids: Vec<ReplicaId> = minbfts.keys().cloned().collect();
+    replica_ids.shuffle(rng);
+    replica_ids.truncate(amount_to_keep);
+
+    if let Some(explicitly_to_keep) = explicitly_to_keep {
+        assert!(0 <= amount_to_keep.try_into().unwrap());
+        if amount_to_keep != 0 && !replica_ids.contains(&explicitly_to_keep) {
+            replica_ids.pop();
+            replica_ids.push(explicitly_to_keep);
+        }
+    }
+
+    minbfts.retain(|i, _| replica_ids.contains(i));
 }
