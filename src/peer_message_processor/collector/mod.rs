@@ -1,10 +1,5 @@
-//! Defines types of collectors for collecting messages.
-//! One type is [CollectorMessages].
-//! The other type is [CollectorBools].
-//! The difference between the types is that the first one stores the actual messages
-//! whereas the second one only stores booleans.
-//! The booleans indicate if for a given replica a message has been received or not.
-//! Both types keep count of how many valid messages have been received.
+//! Defines the abstract collector type for collecting messages.
+//! The type is [CollectorMessages].´
 
 pub(crate) mod collector_checkpoints;
 pub(crate) mod collector_commits;
@@ -29,8 +24,17 @@ impl<K: Eq + Hash + PartialOrd + Clone, M> CollectorMessages<K, M> {
     pub(crate) fn new() -> Self {
         Self(HashMap::new())
     }
-    /// Inserts a message and returns the amount of so far collected
-    /// messages with the same key as the given message.
+    /// Collects a given message.
+    ///
+    /// # Arguments
+    ///
+    /// * `msg` - The message to be colleted.
+    /// * `from` - The ID of the replica from which the message originates.
+    ///
+    /// # Return Value
+    ///
+    /// The amount of so far collected messages with the same key as the given
+    /// message.
     fn collect(&mut self, msg: M, from: ReplicaId, key: K) -> u64 {
         match self.0.get_mut(&key) {
             Some(messages) => {
@@ -55,9 +59,15 @@ impl<K: Eq + Hash + PartialOrd + Clone, M> CollectorMessages<K, M> {
     }
 
     /// Retrieves a collection of at least t + 1 messages if they are valid and
-    /// if already at least t + 1 messages have been received with the same given key.
+    /// with the same given key.
     /// One of the messages must have been broadcast by the replica itself.
-    /// If this is the case, then the collection only retains messages which have a higher key.
+    /// If this is the case, then the collection only retains messages which
+    /// have a "higher" key, as the "lower" ones are no longer necessary.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - The key from which the collected messages should be retrieved.
+    /// * `config` - The config of the replica.
     fn retrieve(&mut self, key: K, config: &Config) -> Option<(M, Vec<M>)> {
         let messages = self.0.get_mut(&key);
 
