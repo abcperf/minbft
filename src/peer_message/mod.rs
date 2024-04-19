@@ -1,5 +1,6 @@
 //! Defines a message of type [PeerMessage].\
-//! A [PeerMessage] is a message that is received from another peer, i.e. replica.\
+//! A [PeerMessage] is a message that is received from another peer, i.e. a
+//! replica.\
 //! A [PeerMessage] can be a Hello, a [ReqViewChange] or a [UsigMessage].\
 //! Received [PeerMessage]s must be processed (see [crate::MinBft]).\
 //! The processing depends on the inner type of the [PeerMessage].
@@ -78,6 +79,17 @@ impl<Att, P, Sig> PeerMessage<Att, P, Sig> {
 impl<Att, P: RequestPayload, Sig: Serialize + Counter + Debug> PeerMessage<Att, P, Sig> {
     /// Validate the [PeerMessage].\
     /// The validation is done according to the inner type of the message.
+    ///
+    /// # Arguments
+    ///
+    /// * `replica` - The ID of the replica from which the message originates.
+    /// * `config` - The config of the replica.
+    /// * `usig` - The USIG signature that should be a valid one for the
+    /// [PeerMessage].
+    ///
+    /// # Return Value
+    ///
+    /// [Ok] if the validation succeeds, otherwise false.
     pub(crate) fn validate(
         self,
         replica: ReplicaId,
