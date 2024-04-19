@@ -79,6 +79,10 @@ impl<P: RequestPayload, Sig: Serialize> ViewPeerMessage<P, Sig> {
     /// * `config` - The [Config] of the replica.
     /// * `usig` - The USIG signature that should be a valid one for this
     ///            [ViewPeerMessage].
+    ///
+    /// # Return Value
+    ///
+    /// * `Ok if the validation succeeds, else InnerError`.
     pub(crate) fn validate(
         &self,
         config: &Config,
