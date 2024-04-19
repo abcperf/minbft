@@ -99,6 +99,10 @@ impl<V: ViewChangeVariant<P, Sig>, P, Sig> From<Checkpoint<Sig>> for UsigMessage
 impl<V: ViewChangeVariant<P, Sig>, P, Sig: Counter> Counter for UsigMessageV<V, P, Sig> {
     /// Returns the counter of the [UsigMessage] by returning the counter of its
     /// inner type.
+    ///
+    /// # Return Value
+    ///
+    /// The counter of the [UsigMessage].
     fn counter(&self) -> usig::Count {
         match self {
             Self::View(view) => view.counter(),
@@ -131,6 +135,10 @@ impl<P: RequestPayload, Sig: Serialize + Counter + Debug> UsigMessage<P, Sig> {
     /// * `config` - The [Config] of the algorithm.
     /// * `usig` - The USIG signature that should be a valid one for this
     ///            [UsigMessage] message.
+    ///
+    /// # Return Value
+    ///
+    /// [Ok] if the validation succeeds, otherwise [InnerError].
     pub(crate) fn validate(
         &self,
         config: &Config,
