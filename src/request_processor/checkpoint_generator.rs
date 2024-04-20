@@ -12,9 +12,9 @@ use crate::{
     Config, RequestPayload,
 };
 
-/// The purpose of the struct is to generate Checkpoints.
-/// In addition, it keeps track of the hash of the last Checkpoint generated and of the accepted log.
-/// The accepted log is the log of request batches that have been accepted since the last Checkpoint generated.
+/// The purpose of the struct is to generate Checkpoints.\
+/// In addition, it keeps track of the hash of the last Checkpoint generated and
+/// of the total amount of accepted batches.
 #[derive(Debug, Clone)]
 pub(crate) struct CheckpointGenerator<P: RequestPayload, U: Usig> {
     /// The hash of the last Checkpoint generated.
@@ -36,7 +36,16 @@ impl<P: RequestPayload, U: Usig> CheckpointGenerator<P, U> {
     }
 
     /// Decides if a Checkpoint should be generated.
-    /// Generates a Checkpoint and returns it if it decides in favor, otherwise None is returned.
+    ///
+    /// # Arguments
+    ///
+    /// * `prepare` - The [Prepare] that has just been accepted.
+    /// * `config` - The configuration of the replica.
+    ///
+    /// # Return Value
+    ///
+    /// Returns a Checkpoint if it decides in favor, otherwise [None] is
+    /// returned.
     pub(crate) fn generate_checkpoint(
         &mut self,
         prepare: &Prepare<P, U::Signature>,
@@ -61,7 +70,16 @@ impl<P: RequestPayload, U: Usig> CheckpointGenerator<P, U> {
         Some(checkpoint)
     }
 
-    /// Hashes the state for the next Checkpoint using the hash of the last Checkpoint generated and the accepted log.
+    /// Hashes the state for the next Checkpoint using the hash of the last
+    /// Checkpoint generated and the request batch of the [Prepare].
+    ///
+    /// # Arguments
+    ///
+    /// * `prepare` - The [Prepare] that has just been accepted.
+    ///
+    /// # Return Value
+    ///
+    /// The new [CheckpointHash].
     fn next_state_hash(&mut self, prepare: &Prepare<P, U::Signature>) -> CheckpointHash {
         let mut hasher = Blake2b512::new();
 
