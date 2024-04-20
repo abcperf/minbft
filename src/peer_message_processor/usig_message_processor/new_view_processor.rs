@@ -202,7 +202,7 @@ where
                         "Relayed NewView (origin: {:?}, next view: {:?}).",
                         new_view.origin, new_view.next_view
                     );
-                    output.broadcast(new_view, &mut Vec::new());
+                    output.broadcast(new_view.clone(), &mut Vec::new());
                 } else {
                     let mut requests_to_batch: Vec<ClientRequest<P>> = Vec::new();
 
@@ -246,16 +246,15 @@ where
                             }
                         };
                     }
-
-                    // Set the counter of the last accepted Prepare temporarily
-                    // as the counter of the last sent UsigMessage by the new View.
-                    // This makes sure all replicas are synced correctly upon changing views.
-                    debug!(
-                        "Set counter of last accepted Prepare to counter of NewView ({:?}).",
-                        new_view.counter()
-                    );
-                    self.counter_last_accepted_prep = Some(new_view.counter());
                 }
+                // Set the counter of the last accepted Prepare temporarily
+                // as the counter of the last sent UsigMessage by the new View.
+                // This makes sure all replicas are synced correctly upon changing views.
+                debug!(
+                    "Set counter of last accepted Prepare to counter of NewView ({:?}).",
+                    new_view.counter()
+                );
+                self.counter_last_accepted_prep = Some(new_view.counter());
             }
         }
     }
