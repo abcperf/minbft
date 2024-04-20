@@ -89,7 +89,8 @@ impl<Att, P: RequestPayload, Sig: Serialize + Counter + Debug> PeerMessage<Att, 
     ///
     /// # Return Value
     ///
-    /// [Ok] if the validation succeeds, otherwise false.
+    /// [ValidatedPeerMessage] if the validation succeeds, otherwise
+    /// [InnerError].
     pub(crate) fn validate(
         self,
         replica: ReplicaId,
