@@ -20,7 +20,8 @@ use super::CollectorMessages;
 
 /// [Checkpoint]s (collection of messages of type [Checkpoint]) are unstable
 /// until the replica's own message and `t` (see [crate::Config]) other messages
-/// of type Checkpoint with equal state hash are successfully received.\
+/// of type Checkpoint with equal state hash and amount of accepted batches are
+/// successfully received.\
 /// Additionally, all messages of type [Checkpoint] must originate from
 /// different replicas.\
 /// The struct allows to save received messages of type [Checkpoint].\
@@ -38,7 +39,8 @@ pub(crate) struct KeyCheckpoints {
 }
 
 impl PartialOrd for KeyCheckpoints {
-    /// Partially compares the counters of the KeyCheckpoints.
+    /// Partially compares the total amount of accepted batches of the
+    /// KeyCheckpoints.
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.total_amount_accepted_batches
             .partial_cmp(&other.total_amount_accepted_batches)
@@ -46,7 +48,7 @@ impl PartialOrd for KeyCheckpoints {
 }
 
 impl Ord for KeyCheckpoints {
-    /// Compares the counters of the KeyCheckpoints.
+    /// Compares the amount of accepted batches of the KeyCheckpoints.
     fn cmp(&self, other: &Self) -> Ordering {
         self.total_amount_accepted_batches
             .cmp(&other.total_amount_accepted_batches)
@@ -127,6 +129,7 @@ mod test {
     use rand::Rng;
     use usig::{Count, ReplicaId};
 
+    use crate::peer_message::usig_message::checkpoint::test::create_rand_number_diff;
     use crate::peer_message_processor::collector::collector_checkpoints::KeyCheckpoints;
     use crate::tests::{
         create_default_configs_for_replicas, get_random_included_index,
@@ -273,13 +276,14 @@ mod test {
     /// Tests if the collection of different Checkpoints (not belonging to the
     /// same group of state hashes and amount of accepted batches) behaves as
     /// expectedly, i.e., the checkpoint certificate should not be stable
-    /// as not enough checkpoints have been collected.
+    /// as not enough checkpoints have been collected.\
+    /// Here, the state hashes differ.
     ///
     /// # Arguments
     ///
     /// * `n` - The number of replicas.
     #[rstest]
-    fn collect_diff_checkpoints(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+    fn collect_diff_checkpoints_state_hash(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
 
         let mut rng = rand::thread_rng();
@@ -322,6 +326,7 @@ mod test {
         };
         assert!(collector.0.get(&key).is_some());
         let collected_checkpoints = collector.0.get(&key).unwrap();
+        assert_eq!(collected_checkpoints.len(), 1);
         assert!(collected_checkpoints.get(&checkpoint.origin).is_some());
         let collected_checkpoint = collected_checkpoints.get(&checkpoint.origin).unwrap();
         assert_eq!(collected_checkpoint.origin, checkpoint.origin);
@@ -342,6 +347,189 @@ mod test {
         };
         assert!(collector.0.get(&key_diff).is_some());
         let collected_checkpoints = collector.0.get(&key_diff).unwrap();
+        assert_eq!(collected_checkpoints.len(), 1);
+        assert!(collected_checkpoints.get(&checkpoint_diff.origin).is_some());
+        let collected_checkpoint = collected_checkpoints.get(&checkpoint_diff.origin).unwrap();
+        assert_eq!(collected_checkpoint.origin, checkpoint_diff.origin);
+        assert_eq!(collected_checkpoint.state_hash, checkpoint_diff.state_hash);
+        assert_eq!(
+            collected_checkpoint.counter_latest_prep,
+            checkpoint_diff.counter_latest_prep
+        );
+        assert_eq!(
+            collected_checkpoint.total_amount_accepted_batches,
+            checkpoint_diff.total_amount_accepted_batches
+        );
+    }
+
+    /// Tests if the collection of different Checkpoints (not belonging to the
+    /// same group of state hashes and amount of accepted batches) behaves as
+    /// expectedly, i.e., the checkpoint certificate should not be stable
+    /// as not enough checkpoints have been collected.\
+    /// Here, the amount of accepted batches differ.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
+    #[rstest]
+    fn collect_diff_checkpoints_amount_accepted_batches(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+
+        let mut rng = rand::thread_rng();
+        let origin = get_random_replica_id(n_parsed, &mut rng);
+        let counter_latest_prep = Count(rng.gen());
+        let total_amount_accepted_batches: u64 = rng.gen();
+        let state_hash = create_random_state_hash();
+
+        let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
+        let usig_origin = usigs.get_mut(&origin).unwrap();
+
+        let mut collector = CollectorCheckpoints::new();
+
+        let checkpoint = create_checkpoint(
+            origin,
+            state_hash,
+            counter_latest_prep,
+            total_amount_accepted_batches,
+            usig_origin,
+        );
+        collector.collect_checkpoint(checkpoint.clone());
+
+        let total_amount_accepted_batches_diff =
+            create_rand_number_diff(total_amount_accepted_batches, &mut rng);
+
+        let checkpoint_diff = create_checkpoint(
+            origin,
+            state_hash,
+            counter_latest_prep,
+            total_amount_accepted_batches_diff,
+            usig_origin,
+        );
+        collector.collect_checkpoint(checkpoint_diff.clone());
+
+        assert_eq!(collector.0.len(), 2);
+
+        // Check if first created checkpoint was collected successfully.
+        let key = KeyCheckpoints {
+            state_hash,
+            total_amount_accepted_batches,
+        };
+        assert!(collector.0.get(&key).is_some());
+        let collected_checkpoints = collector.0.get(&key).unwrap();
+        assert_eq!(collected_checkpoints.len(), 1);
+        assert!(collected_checkpoints.get(&checkpoint.origin).is_some());
+        let collected_checkpoint = collected_checkpoints.get(&checkpoint.origin).unwrap();
+        assert_eq!(collected_checkpoint.origin, checkpoint.origin);
+        assert_eq!(collected_checkpoint.state_hash, checkpoint.state_hash);
+        assert_eq!(
+            collected_checkpoint.counter_latest_prep,
+            checkpoint.counter_latest_prep
+        );
+        assert_eq!(
+            collected_checkpoint.total_amount_accepted_batches,
+            checkpoint.total_amount_accepted_batches
+        );
+
+        // Check if second created checkpoint was collected successfully.
+        let key_diff = KeyCheckpoints {
+            state_hash,
+            total_amount_accepted_batches: total_amount_accepted_batches_diff,
+        };
+        assert!(collector.0.get(&key_diff).is_some());
+        let collected_checkpoints = collector.0.get(&key_diff).unwrap();
+        assert_eq!(collected_checkpoints.len(), 1);
+        assert!(collected_checkpoints.get(&checkpoint_diff.origin).is_some());
+        let collected_checkpoint = collected_checkpoints.get(&checkpoint_diff.origin).unwrap();
+        assert_eq!(collected_checkpoint.origin, checkpoint_diff.origin);
+        assert_eq!(collected_checkpoint.state_hash, checkpoint_diff.state_hash);
+        assert_eq!(
+            collected_checkpoint.counter_latest_prep,
+            checkpoint_diff.counter_latest_prep
+        );
+        assert_eq!(
+            collected_checkpoint.total_amount_accepted_batches,
+            checkpoint_diff.total_amount_accepted_batches
+        );
+    }
+
+    /// Tests if the collection of different Checkpoints (not belonging to the
+    /// same group of state hashes and amount of accepted batches) behaves as
+    /// expectedly, i.e., the checkpoint certificate should not be stable
+    /// as not enough checkpoints have been collected.\
+    /// Here, both the state hash as well as the amount of accepted batches
+    /// differ.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
+    #[rstest]
+    fn collect_diff_checkpoints_all_state(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+
+        let mut rng = rand::thread_rng();
+        let origin = get_random_replica_id(n_parsed, &mut rng);
+        let counter_latest_prep = Count(rng.gen());
+        let total_amount_accepted_batches: u64 = rng.gen();
+        let state_hash = create_random_state_hash();
+
+        let mut usigs = create_attested_usigs_for_replicas(n_parsed, Vec::new());
+        let usig_origin = usigs.get_mut(&origin).unwrap();
+
+        let mut collector = CollectorCheckpoints::new();
+
+        let checkpoint = create_checkpoint(
+            origin,
+            state_hash,
+            counter_latest_prep,
+            total_amount_accepted_batches,
+            usig_origin,
+        );
+        collector.collect_checkpoint(checkpoint.clone());
+
+        let state_hash_diff = create_rand_state_hash_diff(state_hash, &mut rng);
+        let total_amount_accepted_batches_diff =
+            create_rand_number_diff(total_amount_accepted_batches, &mut rng);
+
+        let checkpoint_diff = create_checkpoint(
+            origin,
+            state_hash_diff,
+            counter_latest_prep,
+            total_amount_accepted_batches_diff,
+            usig_origin,
+        );
+        collector.collect_checkpoint(checkpoint_diff.clone());
+
+        assert_eq!(collector.0.len(), 2);
+
+        // Check if first created checkpoint was collected successfully.
+        let key = KeyCheckpoints {
+            state_hash,
+            total_amount_accepted_batches,
+        };
+        assert!(collector.0.get(&key).is_some());
+        let collected_checkpoints = collector.0.get(&key).unwrap();
+        assert_eq!(collected_checkpoints.len(), 1);
+        assert!(collected_checkpoints.get(&checkpoint.origin).is_some());
+        let collected_checkpoint = collected_checkpoints.get(&checkpoint.origin).unwrap();
+        assert_eq!(collected_checkpoint.origin, checkpoint.origin);
+        assert_eq!(collected_checkpoint.state_hash, checkpoint.state_hash);
+        assert_eq!(
+            collected_checkpoint.counter_latest_prep,
+            checkpoint.counter_latest_prep
+        );
+        assert_eq!(
+            collected_checkpoint.total_amount_accepted_batches,
+            checkpoint.total_amount_accepted_batches
+        );
+
+        // Check if second created checkpoint was collected successfully.
+        let key_diff = KeyCheckpoints {
+            state_hash: state_hash_diff,
+            total_amount_accepted_batches: total_amount_accepted_batches_diff,
+        };
+        assert!(collector.0.get(&key_diff).is_some());
+        let collected_checkpoints = collector.0.get(&key_diff).unwrap();
+        assert_eq!(collected_checkpoints.len(), 1);
         assert!(collected_checkpoints.get(&checkpoint_diff.origin).is_some());
         let collected_checkpoint = collected_checkpoints.get(&checkpoint_diff.origin).unwrap();
         assert_eq!(collected_checkpoint.origin, checkpoint_diff.origin);
