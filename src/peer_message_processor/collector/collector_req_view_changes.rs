@@ -19,7 +19,7 @@ use crate::{peer_message::req_view_change::ReqViewChange, View};
 pub(crate) struct CollectorReqViewChanges(HashMap<KeyRVC, HashSet<ReplicaId>>);
 
 /// Defines the key for the collector.\
-/// The key must be the previous and next [crate::View]s.
+/// The key must consist of the previous and next [crate::View]s.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct KeyRVC {
     // The previous View that turned out to be faulty for the sender of the
