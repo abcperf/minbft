@@ -142,13 +142,13 @@ mod test {
         );
     }
 
-    /// Tests if the collection of a single ViewChange succeeds.
+    /// Tests if the retrieval of a collected ViewChange succeeds.
     ///
     /// # Arguments
     ///
     /// * `n` - The number of replicas.
     #[rstest]
-    fn retrieve_checkpoint(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+    fn retrieve_view_change(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
         let n_parsed = NonZeroU64::new(n).unwrap();
         let t = n / 2;
 
@@ -285,7 +285,7 @@ mod test {
 
         assert_eq!(collector.0.len(), 2);
 
-        // Check if first created checkpoint was collected successfully.
+        // Check if first created view change was collected successfully.
         let first_key = first_view_change.next_view;
         assert!(collector.0.get(&first_key).is_some());
         let collected_view_changes = collector.0.get(&first_key).unwrap();
