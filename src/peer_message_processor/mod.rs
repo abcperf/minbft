@@ -23,6 +23,13 @@ where
     U::Signature: Debug,
 {
     /// Process messages of type [crate::PeerMessage].
+    ///
+    /// # Arguments
+    ///
+    /// * `from` - The ID of the replica from which the message originates.
+    /// * `message` - The validated [crate::PeerMessage] to process.
+    /// * `output` - The output struct to be adjusted in case of, e.g., errors
+    ///              or responses.
     pub(crate) fn process_peer_message(
         &mut self,
         from: ReplicaId,
@@ -58,7 +65,15 @@ where
     U::Signature: Clone + Serialize,
     U::Signature: Debug,
 {
-    /// Process a reflected message (i.e. own broadcasted messages) of type PeerMessage.
+    /// Process a reflected message (i.e. own broadcasted messages) of type
+    /// PeerMessage.
+    ///
+    /// # Arguments
+    ///
+    /// * `peer_message` - The validated [crate::PeerMessage] to process.
+    /// * `output` - The output struct to be adjusted in case of, e.g., errors
+    ///              or responses.
+    /// * `_restricted` - The restricted output.
     fn process_reflected_peer_message(
         &mut self,
         peer_message: ValidatedPeerMessage<U::Attestation, P, U::Signature>,
@@ -68,10 +83,20 @@ where
         self.process_peer_message(self.config.me(), peer_message, output)
     }
 
+    /// Returns the current primary.
+    ///
+    /// # Arguments
+    ///
+    /// * `_restricted` - The restricted output.
     fn current_primary(&self, _restricted: OutputRestricted) -> Option<ReplicaId> {
         self.primary()
     }
 
+    /// Returns the View information.
+    ///
+    /// # Arguments
+    ///
+    /// * `_restricted` - The restricted output.
     fn view_info(&self, _restricted: OutputRestricted) -> ViewInfo {
         match &self.view_state {
             crate::ViewState::InView(s) => ViewInfo::InView(s.view.0),
@@ -82,6 +107,11 @@ where
         }
     }
 
+    /// Returns the information on the round.
+    ///
+    /// # Arguments
+    ///
+    /// * `_restricted` - The restricted output.
     fn round(&self, _restricted: OutputRestricted) -> u64 {
         self.request_processor.round()
     }
