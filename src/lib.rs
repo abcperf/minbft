@@ -615,6 +615,10 @@ where
     ///
     /// * `timeout_type` - The type of the timeout to be handled.
     ///
+    /// # Return Value
+    ///
+    /// The adjusted [Output] containing relevant information regarding the
+    /// handling of the peer message, e.g., response messages or errors.
     ///
     /// # Example
     ///
