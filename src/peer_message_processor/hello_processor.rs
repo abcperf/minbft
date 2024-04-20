@@ -13,6 +13,13 @@ where
     U::Signature: Debug,
 {
     /// Process a message of type Hello.
+    ///
+    /// # Arguments
+    ///
+    /// * `from` - The ID of the replica from which the Hello originates.
+    /// * `attestation` - The attestation of the replica.
+    /// * `output` - The output struct to be adjusted in case of, e.g., errors
+    ///              or responses.
     pub(crate) fn process_hello_message(
         &mut self,
         from: ReplicaId,
