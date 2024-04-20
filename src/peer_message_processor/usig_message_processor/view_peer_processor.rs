@@ -21,7 +21,29 @@ where
     U::Signature: Clone + Serialize,
     U::Signature: Debug,
 {
-    /// Process messages of type [Prepare].
+    /// Process a message of type [Prepare].
+    ///
+    /// The steps for the processing are as follows:
+    ///
+    /// 1. If the [ViewState] of the replica is not stable (in a valid View),
+    ///    ignore the [Prepare] and return right away.
+    /// 2. Assert that the counter of the [Prepare] is not greater than the last
+    ///    accepted [Prepare].
+    /// 3. If the replica is the primary, no [Commit] is created nor broadcast.
+    ///    [Prepare]s count as [Commit]s.
+    /// 4. If the replica is not the primary, create and broadcast the
+    ///    respective [Commit].
+    /// 5. Collect the [Prepare], and accept it if `t` [Commit]s have been
+    ///    collected for it - update the counter of the last accepted [Prepare]
+    ///    in the inner state.
+    /// 6. Create and broadcast a [Checkpoint] if one should be generated (see
+    ///    CheckpointGenerator).
+    ///
+    /// # Arguments
+    ///
+    /// * `prepare` - The [Prepare] to be processed.
+    /// * `output` - The output struct to be adjusted in case of, e.g., errors
+    ///              or responses.
     pub(crate) fn process_prepare(
         &mut self,
         prepare: Prepare<P, U::Signature>,
@@ -108,6 +130,24 @@ where
     }
 
     /// Process a message of type [Commit].
+    ///
+    /// The steps for the processing are as follows:
+    ///
+    /// 1. If the [ViewState] of the replica is not stable (in a valid View),
+    ///    ignore the [Prepare] and return right away.
+    /// 2. If the counter of the [Prepare] in the [Commit] is not greater than
+    ///    the last accepted [Prepare], return.
+    /// 3. Collect the [Commit], and accept the respective [Prepare] if `t`
+    ///    [Commit]s have been collected for it - update the counter of the last
+    ///    accepted [Prepare] in the inner state.
+    /// 4. Create and broadcast a [Checkpoint] if one should be generated (see
+    ///    CheckpointGenerator).
+    ///
+    /// # Arguments
+    ///
+    /// * `commit` - The [Commit] to be processed.
+    /// * `output` - The output struct to be adjusted in case of, e.g., errors
+    ///              or responses.
     pub(crate) fn process_commit(
         &mut self,
         commit: Commit<P, U::Signature>,
@@ -118,7 +158,6 @@ where
                 if Some(commit.prepare.counter()) <= self.counter_last_accepted_prep {
                     return;
                 }
-                assert!(Some(commit.prepare.counter()) > self.counter_last_accepted_prep);
                 let acceptable_prepares = in_view
                     .collector_commits
                     .collect(ViewPeerMessage::Commit(commit), &self.config);
