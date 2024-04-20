@@ -724,3 +724,22 @@ fn force_timeout_expect_error(
 
     handle_broadcasts(minbfts, all_broadcasts, &mut collected_output);
 }
+
+/// Create a random different number from another.
+///
+/// # Arguments
+///
+/// * `original_number` - The original number from which the generated one
+/// should differ.
+/// * `rng` - The random number generator to be used.
+///
+/// # Return Value
+///
+/// * `The created different number.`
+pub(crate) fn create_rand_number_diff(original: u64, rng: &mut ThreadRng) -> u64 {
+    let mut other = rng.gen();
+    while other == original {
+        other = rng.gen();
+    }
+    other
+}

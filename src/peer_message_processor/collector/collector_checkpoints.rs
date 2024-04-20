@@ -129,7 +129,6 @@ mod test {
     use rand::Rng;
     use usig::{Count, ReplicaId};
 
-    use crate::peer_message::usig_message::checkpoint::test::create_rand_number_diff;
     use crate::peer_message_processor::collector::collector_checkpoints::KeyCheckpoints;
     use crate::tests::{
         create_default_configs_for_replicas, get_random_included_index,
@@ -140,7 +139,8 @@ mod test {
             create_checkpoint, create_rand_state_hash_diff,
         },
         tests::{
-            create_attested_usigs_for_replicas, create_random_state_hash, get_random_replica_id,
+            create_attested_usigs_for_replicas, create_rand_number_diff, create_random_state_hash,
+            get_random_replica_id,
         },
     };
 
