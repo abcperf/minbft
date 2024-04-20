@@ -20,6 +20,37 @@ where
     U::Signature: Debug,
 {
     /// Process a message of type [ReqViewChange].
+    ///
+    /// The steps are as follows:
+    ///
+    /// 1. Collect the [ReqViewChange] if it is relevant for the replica
+    ///    regarding its inner state.
+    ///     1.1. If the replica's state is [ViewState::InView], the
+    ///          [ReqViewChange] is ignored if the previous [crate::View] set in
+    ///          the message is smaller than the [crate::View] set in the inner
+    ///          state of the replica.
+    ///     1.2. If the replica's state is [ViewState::ChangeInProgress], the
+    ///          [ReqViewChange] is ignored if the previous [crate::View] set in
+    ///          the message is smaller than the previous [crate::View] set in
+    ///          the inner state of the replica OR if they are equal but the
+    ///          next [crate::View] is greater in the inner state.
+    /// 2. If the previous [crate::View] in the [ReqViewChange] is not the same
+    ///    as the one set in the inner state, return.
+    /// 3. If `t + 1` [ReqViewChange]s with the same previous and next
+    ///    [crate::View] have not been collected yet, return.
+    /// 4. If the replica has already previously broadcast a [ReqViewChange]
+    ///    return.
+    /// 5. Stop the current timeout for the view-change, and start a new one.
+    /// 6. Update the inner state of the replica.
+    /// 7. Stop any client request.
+    /// 8. Create a [ViewChange] and broadcast it.
+    ///
+    /// # Arguments
+    ///
+    /// * `from` - The ID of the replica from which the [ReqViewChange].
+    /// * `req` - The [ReqViewChange] to be processed.
+    /// * `output` - The output struct to be adjusted in case of, e.g., errors
+    ///              or responses.
     pub(crate) fn process_req_view_change(
         &mut self,
         from: ReplicaId,
@@ -49,12 +80,13 @@ where
                 (amount_collected, to_become_prev_view)
             }
         };
-        if req.prev_view != to_become_prev_view || amount_collected <= self.config.t {
+        if req.prev_view != to_become_prev_view {
             debug!("Processing ReqViewChange (origin: {from:?}, previous view: {:?}, next view: {:?}) resulted in ignoring creation of ViewChange: Previous view set in message is not the same as the current (to become) previous view.", req.prev_view, req.next_view);
             return;
         }
         if amount_collected <= self.config.t {
             debug!("Processing ReqViewChange (origin: {from:?}, previous view: {:?}, next view: {:?}) resulted in ignoring creation of ViewChange: A sufficient amount of ReqViewChanges has not been collected yet (collected: {:?}, required: {:?}).", req.prev_view, req.next_view, amount_collected, self.config.t + 1);
+            return;
         }
 
         match &self.view_state {
