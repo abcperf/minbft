@@ -26,9 +26,9 @@ use crate::{
 
 use self::{checkpoint_generator::CheckpointGenerator, request_batcher::RequestBatcher};
 
-/// Defines the state of a Client.
-/// Contains the ID of the last accepted client request
-/// and the currently processing client request with its ID.
+/// Defines the state of a Client.\
+/// Contains the ID of the last accepted client request and the currently
+/// processing client request with its ID.
 #[derive(Debug, Serialize, Deserialize, Derivative)]
 #[derivative(Default(bound = ""))]
 struct ClientState<P> {
@@ -40,8 +40,18 @@ struct ClientState<P> {
 
 impl<P> ClientState<P> {
     /// Update [ClientState] when receiving a new client request.
-    /// Assures the RequestId of the client request is not less or equal to
-    /// the RequestId of the last accepted client request.
+    ///
+    /// # Arguments
+    ///
+    /// * `request_id` - The ID of the request received.
+    /// * `client_req` - The client request received.
+    ///
+    /// # Return Value
+    ///
+    /// Returns true if the [RequestId] is greater than the currently processing
+    /// request or if there is no currently processing request, otherwise false.
+    ///
+    ///
     fn update_upon_request_receival(
         &mut self,
         request_id: RequestId,
@@ -81,6 +91,15 @@ impl<P> ClientState<P> {
     }
 
     /// Update [ClientState] when completing a client request.
+    ///
+    /// Ensures the ID of the request completed is higher than the ID of the
+    /// last accepted request.
+    /// Sets the currently processing request to [None] if its ID is lower
+    /// or equal to the completed request.
+    ///
+    /// # Arguments
+    ///
+    /// * `request_id` - The ID of the request that was completed.
     fn update_upon_request_completion(&mut self, request_id: RequestId) {
         assert!(self.last_accepted_req < Some(request_id), "Failed to update client state regarding the completion of client request (ID: {:?}): ID of last accepted request from the same client is greater than or equal to the receiving request's ID.", request_id);
         self.last_accepted_req = Some(request_id);
@@ -98,11 +117,13 @@ pub(crate) struct RequestProcessor<P: RequestPayload, U: Usig> {
     /// Collects the ClientState of each ClientId.
     clients_state: HashMap<ClientId, ClientState<P>>,
     /// Collects the currently processing client requests.
-    /// Additionally to the ID of the request and the client request itself, the time of arrival of the request is kept track of.
+    /// Additionally to the ID of the request and the client request itself,
+    /// the time of arrival of the request is kept track of.
     currently_processing_reqs: VecDeque<(RequestId, ClientRequest<P>, Instant)>,
     /// Used for batching requests.
     pub(crate) request_batcher: RequestBatcher<P>,
-    /// Used for possibly generating a Checkpoint when sufficient requests have been accepted.
+    /// Used for possibly generating a Checkpoint when sufficient requests have
+    /// been accepted.
     pub(crate) checkpoint_generator: CheckpointGenerator<P, U>,
 
     round: u64,
@@ -128,12 +149,31 @@ where
         }
     }
 
-    /// Processes a client request.
-    /// May return a client timeout, a [Prepare], and/or a batch timeout.
-    /// A client timeout is returned when there was no client timeout running upon receiving the given client request.
-    /// A [Prepare] is returned when the maximum batch size of client requests has been reached.
-    /// A batch timeout is returned when there was no batch timeout running upon receiving the given client request
-    /// and the maximum batch size of client requests has not (yet) been reached.
+    /// Processes a client request.\
+    ///
+    /// May return a client timeout, a [Prepare], and/or a batch timeout.\
+    ///
+    /// # Arguments
+    ///
+    /// * `client_request` - The client request to be processed.
+    /// * `view_state` - The inner state of the replica.
+    /// * `client_timeout_duration` - The duration of the client timeout.
+    /// * `config` - The configuration of the replica.
+    ///
+    /// # Return Value
+    ///
+    /// A client timeout is returned when there was no client timeout running
+    /// upon receiving the given client request.\
+    ///
+    /// A [Prepare] is returned when the maximum batch size of client requests
+    /// has been reached.\
+    ///
+    /// A batch timeout is returned when there was no batch timeout running upon
+    /// receiving the given client request and the maximum batch size of client
+    /// requests has not (yet) been reached.
+    ///
+    /// A tuple is returned in the aforementioned order with the respective
+    /// values.
     pub(crate) fn process_client_req(
         &mut self,
         client_request: ClientRequest<P>,
@@ -198,7 +238,8 @@ where
                     }
                 };
             }
-            // Client messages are ignored when the replica is in the state of changing Views.
+            // Client messages are ignored when the replica is in the state of
+            // changing Views.
             ViewState::ChangeInProgress(in_progress) => {
                 debug!("Ignored possible (if replica is primary) creation of Prepare as replica is in the process of changing views (from: {:?}, to: {:?}).", in_progress.prev_view, in_progress.next_view);
             }
@@ -223,6 +264,19 @@ where
     }
 
     /// Accepts the provided [Prepare].
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - The configuration of the replica.
+    /// * `prepare` - The accepted [Prepare].
+    /// * `timeout_duration` - The current set timeout duration.
+    /// * `output` - The output struct to be adjusted in case of, e.g., errors
+    ///              or responses.
+    ///
+    /// # Return Value
+    ///
+    /// The CheckpointContent if a Checkpoint is generated (see
+    /// [CheckpointGenerator]).
     pub(crate) fn accept_prepare(
         &mut self,
         config: &Config,
@@ -241,13 +295,22 @@ where
             .generate_checkpoint(&prepare, config)
     }
 
+    /// Returns the round, i.e. the amount of accepted [Prepare]s.
     pub(crate) fn round(&self) -> u64 {
         self.round
     }
 
     /// Accepts the provided request and responds to the respective client.
     /// Sets a new timeout if there are still currently processing requests.
-    /// The elapsed time after the initial arrival of the client request is considered when computing the timeout duration.
+    /// The elapsed time after the initial arrival of the client request is
+    /// considered when computing the timeout duration.
+    ///
+    /// # Arguments
+    ///
+    /// * `request` - The accepted client request.
+    /// * `curr_full_timeout_duration` - The current set timeout duration.
+    /// * `output` - The output struct to be adjusted in case of, e.g., errors
+    ///              or responses.
     fn accept_request(
         &mut self,
         request: ClientRequest<P>,
