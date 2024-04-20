@@ -1,15 +1,19 @@
-//! Provides Byzantine fault-tolerant consensus while reducing the amount of consenting
-//! nodes (replicas) required as much as possible.
+//! Provides Byzantine fault-tolerant consensus while reducing the amount of
+//! consenting nodes (replicas) required as much as possible.
 //!
-//! Based on the paper "Efficient Byzantine Fault-Tolerance" by Veronese et al., the crate provides an implementation
-//! of a partially asynchronous Byzantine fault-tolerant atomic broadcast (BFT) algorithm.
-//! The algorithm requires n = 2t + 1 replicas in total, where t is the number of faulty replicas.
+//! Based on the paper "[Efficient Byzantine Fault-Tolerance" by
+//! Veronese et al](doi: 10.1109/TC.2011.221), the crate provides an
+//! implementation of a partially asynchronous Byzantine fault-tolerant atomic
+//! broadcast (BFT) algorithm.
+//! The algorithm requires n = 2t + 1 replicas in total, where t is the number
+//! of faulty replicas.
 //!
-//! The intended way to use the library would be to create an instance of the struct [MinBft] for each replica,
-//! i.e. n instances.
+//! The intended way to use the library would be to create an instance of the
+//! struct [MinBft] for each replica, i.e. n instances.
 //!
 //! Instances of the struct [MinBft] may receive and handle messages from clients,
-//! messages from peers (other replicas/instances), or timeouts using the respective function.
+//! messages from peers (other replicas/instances), or timeouts using the
+//! respective function.
 //! Timeouts must be handled explicitly by calling the respective function.
 //! See the dedicated function below for further explanation.
 
@@ -79,7 +83,8 @@ const BACKOFF_MULTIPLIER: u8 = 2;
 /// that together form an atomic broadcast.
 ///
 /// The payload of a client-request must have an ID.
-/// It also has to define a function that verifies the payload using the ID of the client.
+/// It also has to define a function that verifies the payload using the ID of
+/// the client.
 pub trait RequestPayload: Clone + Serialize + for<'a> Deserialize<'a> + Debug {
     fn id(&self) -> RequestId;
     fn verify(&self, id: ClientId) -> Result<()>;
@@ -172,7 +177,8 @@ struct ReplicaState<P, Sig> {
 /// (peer messages) or timeouts.
 /// It may send peer messages, too.
 ///
-/// # Example: The return values of the public functions ([Output]) are to be handled equally.
+/// # Example: The return values of the public functions ([Output]) are to be
+/// handled equally.
 ///
 /// ```no_run
 /// use anyhow::Result;
@@ -295,6 +301,15 @@ where
 {
     /// Creates a new replica of a system of multiple replicas
     /// that together form an atomic broadcast.
+    ///
+    /// # Arguments
+    ///
+    /// * `usig` - The USIG signature of the [MinBft].
+    /// * `config` - The configuration of the [MinBft].
+    ///
+    /// # Return Value
+    ///
+    /// A tuple consisting of the [MinBft] instance and its [Output].
     pub fn new(usig: U, config: Config) -> Result<(Self, Output<P, U>)> {
         let _minbft_span = error_span!("minbft", id = config.id.as_u64()).entered();
 
@@ -322,7 +337,9 @@ where
         Ok((minbft, output))
     }
 
-    /// Returns the current view or None if the replica is in the state of changing views.
+    /// Returns the ID of the current primary, i.e., the one replica who creates
+    /// Prepares for client requests, or [None] if the replica is in the
+    /// inner state of changing views.
     pub fn primary(&self) -> Option<ReplicaId> {
         match &self.view_state {
             ViewState::InView(v) => Some(self.config.primary(v.view)),
@@ -332,17 +349,27 @@ where
 
     /// Handles a message from a client.
     ///
-    /// The parameter client_id is the origin of the message.
-    /// The parameter request is the request itself of the client.
+    /// If the replica is in the state of changing views, the client-message is
+    /// ignored.
+    /// Otherwise, the client-message is not ignored, but undergoes several
+    /// checks:
     ///
-    /// If the replica is in the state of changing views, the client-message is ignored.
-    /// Otherwise, the client-message is not ignored, but undergoes several checks:
-    /// First, the request is verified regarding its validity and its age.
-    /// Should the request be too old, it is ignored.
-    /// Otherwise, and in case the replica is the current primary,
-    /// a message of type Prepare is broadcast to all replicas.
-    /// A timeout is set for the client-request.
-    /// In case batching is on, a timeout for the batch is set, too.
+    /// 1. The request is verified regarding its validity and its age.
+    ///    Should the request be too old, it is ignored.
+    ///    Otherwise, and in case the replica is the current primary,
+    ///    a message of type Prepare is broadcast to all replicas.
+    /// 2. A timeout is set for the client-request.
+    /// 3. In case batching is on, a timeout for the batch is set, too.
+    ///
+    /// # Arguments
+    ///
+    /// * `client_id` - The ID of the client from which the request originates.
+    /// * `request` - The client request to be handled.
+    ///
+    /// # Return Value
+    ///
+    /// The adjusted [Output] containing relevant information regarding the
+    /// handling of the client request, e.g., the response or errors.
     ///
     /// # Example
     ///
@@ -458,16 +485,25 @@ where
     /// Handles a message of type PeerMessage.
     ///
     /// A message of type PeerMessage is a message from another replica.
-    /// The parameter from is the replica from which the message originates from.
-    /// The parameter message is the message itself.
+    ///
+    /// # Arguments
+    ///
+    /// * `from` - The ID of the replica from which the message originates.
+    /// * `message` - The message of a peer (another replica) to be handled.
     ///
     /// The replica handles the message differently, depending on its concrete type.
-    /// If the message is valid, it may trigger cascading events, i.e. the replica itself
-    /// may broadcast a message in response to receiving this one,
-    /// all depending on its inner state and the message's type.
-    /// Messages that are usig-signed are guaranteed to be handled in correct order, i.e.
-    /// messages with a lower count received from a specific replica are handled
-    /// before messages with a higher count received from the same replica.
+    /// If the message is valid, it may trigger cascading events, i.e. the
+    /// replica itself may broadcast a message in response to receiving this one,
+    /// all depending on its inner state and the message's type. \
+    /// Messages that are USIG-signed are guaranteed to be handled in correct
+    /// order, i.e. messages with a lower count received from a specific replica
+    /// are handled before messages with a higher count received from the same
+    /// replica.
+    ///
+    /// # Return Value
+    ///
+    /// The adjusted [Output] containing relevant information regarding the
+    /// handling of the peer message, e.g., response messages or errors.
     ///
     /// # Example
     ///
@@ -549,7 +585,6 @@ where
 
     /// Handles a timeout according to their type.
     ///
-    /// The parameter timeout_type is the type of the timeout to be handled.
     /// This function assumes no old timeouts are passed as parameters.
     ///
     /// Replicas may send timeout requests via [Output].
@@ -562,16 +597,24 @@ where
     /// Set timeouts must be handled explicitly.
     ///
     /// They are handled differently depending on their type.
+    ///
     /// A timeout for a batch is only handled if the primary is non-faulty
-    /// from the standpoint of the replica.
+    /// from the standpoint of the replica.\
     /// Is this the case, then a message of type Prepare is created
     /// and broadcast for the next batch of client-requests.
+    ///
     /// A timeout for a client-request is only handled if the primary is non-faulty
-    /// from the standpoint of the replica.
+    /// from the standpoint of the replica.\
     /// Is this the case, then a view-change is requested.
+    ///
     /// A timeout for a view-change is only handled if the replica is currently
-    /// in the state of changing views.
+    /// in the state of changing views.\
     /// Is this the case, then a view-change is requested.
+    ///
+    /// # Arguments
+    ///
+    /// * `timeout_type` - The type of the timeout to be handled.
+    ///
     ///
     /// # Example
     ///
@@ -616,10 +659,12 @@ where
     ///             minbft.handle_timeout(timeout.timeout_type);
     ///         }
     ///         Stop(timeout) => {
-    ///             // if there is already a timeout set of the same type and stop class, stop it
+    ///             // if there is already a timeout set of the same type and
+    ///             // stop class, stop it
     ///         }
     ///         StopAny(timeout) => {
-    ///             // if there is already a timeout set of the same type and stop class, stop it
+    ///             // if there is already a timeout set of the same type and
+    ///             // stop class, stop it
     ///         }
     ///     }
     /// }
