@@ -1,3 +1,6 @@
+//! Models the output that the replicas return when handling client requests,
+//! peer messages, or timeouts.
+
 use std::collections::HashSet;
 use std::time::Duration;
 
@@ -27,15 +30,20 @@ pub enum ViewInfo {
     ViewChange { from: u64, to: u64 },
 }
 
-/// Collects all the information a participant (of a system of multiple participants
-/// that together form an atomic broadcast) may generate when handling
+/// Collects all the information a replica (of a system of multiple replicas
+/// that together form the atomic broadcast) may generate when handling
 /// client-requests, peer-messages or timeouts.
 ///
-/// A participant may generate broadcasts to other participants,
-/// responses to client-requests, timeouts for messages of different kinds, or
-/// various errors when handling client-requests, peer-messages or timeouts.
-/// In addition, it keeps track of whether the participant is ready to receive client requests
-/// and who the current primary participant is.
+/// A replica may generate following output:
+///
+/// 1. Broadcasts to other participants
+/// 2. Responses to client-requests
+/// 3. Timeouts for messages of different kinds
+/// 4. Various errors when handling client-requests, peer-messages or timeouts.
+///
+/// In addition, it keeps track of whether the participant is ready to receive
+/// client requests and who the current primary participant is.
+/// It also saves information on the current View and information on the round.
 pub struct Output<P, U: Usig> {
     /// The messages to be broadcasted.
     pub broadcasts: BroadcastList<U::Attestation, P, U::Signature>,
@@ -49,14 +57,15 @@ pub struct Output<P, U: Usig> {
     pub ready_for_client_requests: bool,
     /// The current primary if the participant is in the state InView.
     pub primary: Option<ReplicaId>,
-
+    /// The information on the current View.
     pub view_info: ViewInfo,
+    /// The information on the current round.
     pub round: u64,
 }
 
-/// Collects all the non-reflected output, i.e. without own messages, a participant (of a system of multiple participants
-/// that together form an atomic broadcast) may generate when handling
-/// client-requests, peer-messages or timeouts.
+/// Collects all the non-reflected output, i.e. without own messages, a replica
+/// (of a system of multiple replicas that together form the atomic broadcast)
+/// may generate when handling client-requests, peer-messages or timeouts.
 pub(super) struct NotReflectedOutput<P, U: Usig> {
     /// The messages to be broadcasted.
     broadcasts: Vec<ValidatedPeerMessage<U::Attestation, P, U::Signature>>,
@@ -106,6 +115,11 @@ where
     }
 
     /// Broadcast the given message of type PeerMessage.
+    ///
+    /// # Arguments
+    ///
+    /// * `message` - The message to be broadcast.
+    /// * `message_log` - The log of sent USIG-signed messages.
     pub(super) fn broadcast(
         &mut self,
         message: impl Into<ValidatedPeerMessage<U::Attestation, P, U::Signature>>,
@@ -121,6 +135,12 @@ where
     }
 
     /// Collects the given response.
+    ///
+    /// # Arguments
+    ///
+    /// * `client_id` - The ID of the client for which a response is sent.
+    /// * `output` - The output struct to be adjusted in case of, e.g., errors
+    ///              or responses.
     pub(super) fn response(&mut self, client_id: ClientId, output: P) {
         debug!(
             "Output response to client request (ID: {:?}, client ID: {:?}).",
@@ -157,6 +177,12 @@ where
 
     /// Processes the given UsigError by parsing it to
     /// an OutputError and collecting it.
+    ///
+    /// # Arguments
+    ///
+    /// * `usig_error` - The USIG error.
+    /// * `replica` - The ID of the replica for which the error occurred.
+    /// * `msg_type` - The type of the message for which the error occured.
     pub(super) fn process_usig_error(
         &mut self,
         usig_error: UsigError,
@@ -172,11 +198,17 @@ where
     }
 
     /// Collects the given OutputError.
+    ///
+    /// # Arguments
+    ///
+    /// * `output_error` - The error that occured and that should be collected
+    ///                    in the output.
     pub(super) fn error(&mut self, output_error: Error) {
         self.errors.push(output_error);
     }
 
-    /// Returns true if the participant is ready to receive client requests, otherwise false.
+    /// Returns true if the participant is ready to receive client requests,
+    /// otherwise false.
     pub(super) fn ready_for_client_requests(&mut self) {
         info!(
             "Replica is ready for client requests as sufficient Hello messages have been received."
@@ -233,9 +265,13 @@ where
     }
 }
 
-/// A [TimeoutRequest] may be either a request to start a [Timeout] or to stop it.
-/// [crate::MinBft] outputs [TimeoutRequest]s when handling messages.
-/// The [TimeoutRequest]s must be handled externally.
+/// A [TimeoutRequest] may be either a request to start a [Timeout] or to stop
+/// it.
+///
+/// [crate::MinBft] outputs [TimeoutRequest]s when handling client requests or
+/// peer messages as it is a partially asynchronous algorithm.
+///
+/// The [TimeoutRequest]s must be handled externally.\
 /// For further explanation, see [crate::MinBft].
 #[derive(Debug, Clone)]
 pub enum TimeoutRequest {
