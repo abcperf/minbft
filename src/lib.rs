@@ -1,7 +1,7 @@
 //! Provides Byzantine fault-tolerant consensus while reducing the amount of
 //! consenting nodes (replicas) required as much as possible.
 //!
-//! Based on the paper "[Efficient Byzantine Fault-Tolerance" by
+//! Based on the paper ["Efficient Byzantine Fault-Tolerance" by
 //! Veronese et al](doi: 10.1109/TC.2011.221), the crate provides an
 //! implementation of a partially asynchronous Byzantine fault-tolerant atomic
 //! broadcast (BFT) algorithm.
