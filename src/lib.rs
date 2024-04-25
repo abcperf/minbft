@@ -16,6 +16,8 @@
 //! respective function.
 //! Timeouts must be handled explicitly by calling the respective function.
 //! See the dedicated function below for further explanation.
+//!
+//! This implementation was created as part of the [ABCperf project](doi: 10.1145/3626564.3629101). An [integration in ABCperf](https://github.com/abcperf/demo) also exists.
 
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
