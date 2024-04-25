@@ -8,7 +8,7 @@
 //! The algorithm requires n = 2t + 1 replicas in total, where t is the number
 //! of faulty replicas.
 //!
-//! The intended way to use the library would be to create an instance of the
+//! The intended way to use the library is to create an instance of the
 //! struct [MinBft] for each replica, i.e. n instances.
 //!
 //! Instances of the struct [MinBft] may receive and handle messages from clients,
