@@ -18,7 +18,8 @@ where
     /// Process a received message of type [Checkpoint].
     /// The steps are as following:
     ///
-    /// 1. Collect the received [Checkpoint] with the collector of Checkpoints.
+    /// 1. Collect the received [Checkpoint] with the collector of Checkpoints,
+    /// namely [CollectorCheckpoints](crate::peer_message_processor::collector::collector_checkpoints::CollectorCheckpoints).
     /// 2. Retrieve a checkpoint certificate of the collected Checkpoints if
     /// they can be retrieved (see the documentation of collector).
     /// 3. Discard all entries in the message log of the replica that have
