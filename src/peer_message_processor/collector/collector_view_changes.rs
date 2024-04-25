@@ -1,6 +1,7 @@
 //! Defines the collector of messages of type ViewChange.\
 //! After a sufficient amount (t + 1) of ViewChanges are received and collected,
-//! the next [View] broadcasts a NewView message.\
+//! the next leader broadcasts the
+//! [NewView](crate::peer_message::usig_message::new_view::NewView) message.\
 
 use tracing::debug;
 
