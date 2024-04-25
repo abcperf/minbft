@@ -21,10 +21,10 @@ serde_bytes = "0.11.5"
 either = "1.8.1"
 serde_with = "3.6.0"
 thiserror = "1.0.40"
-rand = "0.8.5"
 
 [dev-dependencies]
 rstest = "0.16.0"
+rand = "0.8.5"
 
 test-log = { version = "0.2.11", default-features = false, features = [
     "trace",
