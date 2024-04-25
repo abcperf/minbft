@@ -7,7 +7,7 @@ use core::fmt;
 use anyhow::Result;
 use blake2::digest::Update;
 use serde::{Deserialize, Serialize};
-use shared_ids::ReplicaId;
+use shared_ids::{AnyId, ReplicaId};
 use tracing::{error, trace};
 use usig::Usig;
 
@@ -55,7 +55,12 @@ pub(crate) type Commit<P, Sig> = UsigSigned<CommitContent<P, Sig>, Sig>;
 
 impl<P: RequestPayload, Sig: Serialize> fmt::Display for Commit<P, Sig> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(origin: {0}, prepare: {1})", self.origin, self.prepare)
+        write!(
+            f,
+            "(origin: {0}, prepare: {1})",
+            self.origin.as_u64(),
+            self.prepare
+        )
     }
 }
 

@@ -11,6 +11,7 @@ use anyhow::Result;
 use blake2::digest::Update;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use shared_ids::AnyId;
 use tracing::{error, trace};
 use usig::{Count, Usig};
 
@@ -72,7 +73,9 @@ impl<Sig> fmt::Display for Checkpoint<Sig> {
             f,
             "(origin: {0}, counter of latest prepare: {1}, total amount accepted 
             batches: {2})",
-            self.origin, self.counter_latest_prep.0, self.total_amount_accepted_batches
+            self.origin.as_u64(),
+            self.counter_latest_prep.0,
+            self.total_amount_accepted_batches
         )
     }
 }

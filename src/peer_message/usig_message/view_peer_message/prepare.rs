@@ -7,7 +7,7 @@ use std::{cmp::Ordering, fmt};
 use anyhow::Result;
 use blake2::digest::Update;
 use serde::{Deserialize, Serialize};
-use shared_ids::ReplicaId;
+use shared_ids::{AnyId, ReplicaId};
 use tracing::{error, trace};
 use usig::{Counter, Usig};
 
@@ -59,7 +59,12 @@ pub(crate) type Prepare<P, Sig> = UsigSigned<PrepareContent<P>, Sig>;
 
 impl<P: RequestPayload, Sig> fmt::Display for Prepare<P, Sig> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(origin: {0}, view: {1})", self.origin, self.view)
+        write!(
+            f,
+            "(origin: {0}, view: {1})",
+            self.origin.as_u64(),
+            self.view
+        )
     }
 }
 
