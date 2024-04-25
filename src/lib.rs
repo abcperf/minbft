@@ -180,13 +180,19 @@ struct ReplicaState<P, Sig> {
 /// (peer messages) or timeouts.
 /// It may send peer messages, too.
 ///
-/// # Example: The return values of the public functions ([Output]) are to be
+/// # Examples
+///
+/// 1. The replicas have to first initiate the communication between
+/// each other by sending `Hello` messages to each other and performing
+/// attestations.
+/// 2. The return values of the public functions ([Output]) are to be
 /// handled equally.
 ///
 /// ```no_run
 /// use anyhow::Result;
-/// use std::{num::NonZeroU64, time::Duration};
+/// use std::{num::NonZeroU64, time::Duration, collections::HashMap};
 /// use serde::{Deserialize, Serialize};
+/// use core::fmt::Debug;
 ///
 /// use shared_ids::{ReplicaId, ClientId, RequestId, AnyId};
 /// use usig::{Usig, noop::UsigNoOp};
@@ -205,6 +211,7 @@ struct ReplicaState<P, Sig> {
 ///     }
 /// }
 ///
+/// // Should handle the output.
 /// fn handle_output<U: Usig>(output: Output<SamplePayload, U>) {
 ///     let Output { broadcasts, responses, timeout_requests, errors, ready_for_client_requests, primary: _, view_info: _, round: _ } = output;
 ///     for broadcast in broadcasts.iter() {
@@ -218,14 +225,85 @@ struct ReplicaState<P, Sig> {
 ///     }
 /// }
 ///
-/// let (mut minbft, output) = MinBft::<SamplePayload, _>::new(
-///        UsigNoOp::default(),
-///        Config {
-///            ..todo!() // [MinBft]
-///        },
-///    )
-///    .unwrap();
-/// handle_output(output);
+/// // Shows how to create a MinBft.
+/// pub(crate) fn minimal_setup() -> (MinBft<SamplePayload, UsigNoOp>, Output<SamplePayload, UsigNoOp>) {
+///     let (mut minbft, output) = MinBft::<SamplePayload, _>::new(
+///         UsigNoOp::default(),
+///         Config {
+///             ..todo!() // see the crate [Config].
+///         },
+///     )
+///     .unwrap();
+///
+///     handle_output(output);
+///     (minbft, output)
+/// }
+///
+/// // Shows how to setups n [MinBft]s, i.e., the `n` replicas that comprise
+/// // the atomic broadcast.
+/// // The replicas have to exchange `Hello` messages and attest themselves
+/// // in order to be ready for client requests.
+/// pub(crate) fn setup_set(n: NonZeroU64) -> HashMap<ReplicaId, MinBft<SamplePayload, UsigNoOp>> {
+///     let mut minbfts = HashMap::new();
+///
+///     let mut all_broadcasts = Vec::new();
+///
+///     let mut hello_done_count = 0;
+///
+///     for i in 0..n.get() {
+///         let replica = ReplicaId::from_u64(i);
+///         let (
+///                 minbft,
+///                 Output {
+///                     broadcasts,
+///                     responses,
+///                     timeout_requests,
+///                     errors,
+///                     ready_for_client_requests,
+///                     primary: _,
+///                     view_info: _,
+///                     round: _,
+///                 },
+///         ) = minimal_setup();
+///         if ready_for_client_requests {
+///             hello_done_count += 1;
+///         }
+///         // Hello should only be done when n = 1.
+///         // Otherwise, replicas should still have to attest themselves.
+///         assert!(!ready_for_client_requests || n.get() == 1);
+///         all_broadcasts.push((replica, broadcasts));
+///         minbfts.insert(replica, minbft);
+///     }
+///
+///     for (id, broadcasts) in all_broadcasts.into_iter() {
+///         for broadcast in Vec::from(broadcasts).into_iter() {
+///             for (_, minbft) in minbfts.iter_mut().filter(|(i, _)| **i != id) {
+///                 let Output {
+///                     broadcasts,
+///                     responses,
+///                     timeout_requests,
+///                     errors,
+///                     ready_for_client_requests,
+///                     primary: _,
+///                     view_info: _,
+///                     round: _,
+///                 } = minbft.handle_peer_message(id, broadcast.clone());
+///                 if ready_for_client_requests {
+///                     hello_done_count += 1;
+///                 }
+///             }
+///         }
+///     }
+///
+///     assert_eq!(hello_done_count, n.get());
+///
+///     minbfts
+/// }
+///
+/// let n = NonZeroU64::new(10).unwrap();
+/// let mut minbfts: HashMap<ReplicaId, MinBft<SamplePayload, _>> = setup_set(n);
+/// let replica_id = ReplicaId::from_u64(0);
+/// let minbft = minbfts.get_mut(&replica_id).unwrap();
 ///
 /// let some_client_message: SamplePayload = todo!();
 /// let output = minbft.handle_client_message(ClientId::from_u64(0), some_client_message);
