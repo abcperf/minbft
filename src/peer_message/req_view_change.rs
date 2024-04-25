@@ -3,8 +3,9 @@
 //! out to be faulty.\
 //! The primary is seen as faulty if it does not respond to a client request
 //! within the set timeout duration.\
-//! For further explanation, see the paper "Efficient Byzantine Fault Tolerance"
-//! by Veronese et al.
+//! For further explanation, see the paragraph "Servers: view change operation"
+//! of section four "MinBFT" in paper
+//! ["Efficient Byzantine Fault-Tolerance" by Veronese et al](doi: 10.1109/TC.2011.221).
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
