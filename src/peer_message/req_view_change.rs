@@ -5,7 +5,6 @@
 //! within the set timeout duration.\
 //! For further explanation, see the paragraph "Servers: view change operation"
 //! of section four of ["Efficient Byzantine Fault-Tolerance" by Veronese et al](doi: 10.1109/TC.2011.221).
-//! ["Efficient Byzantine Fault-Tolerance" by Veronese et al](doi: 10.1109/TC.2011.221).
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
