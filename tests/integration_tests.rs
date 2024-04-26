@@ -8,7 +8,6 @@ use common::force_timeout;
 use common::setup_set;
 
 use common::try_client_request;
-use shared_ids::AnyId;
 use shared_ids::ClientId;
 use shared_ids::ReplicaId;
 use std::collections::HashMap;

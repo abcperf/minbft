@@ -9,7 +9,7 @@ use std::collections::HashSet;
 use anyhow::Result;
 use blake2::digest::Update;
 use serde::{Deserialize, Serialize};
-use shared_ids::{AnyId, ReplicaId};
+use shared_ids::ReplicaId;
 use std::fmt::Debug;
 use tracing::{debug, error};
 use usig::{Counter, Usig};
@@ -240,7 +240,7 @@ pub(crate) mod test {
 
     use rand::{rngs::ThreadRng, thread_rng, Rng};
     use rstest::rstest;
-    use usig::{noop::UsigNoOp, AnyId, ReplicaId};
+    use usig::{noop::UsigNoOp, ReplicaId};
 
     use crate::{
         peer_message::usig_message::view_change::test::{

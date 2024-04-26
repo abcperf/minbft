@@ -11,7 +11,6 @@ use anyhow::Result;
 use blake2::digest::Update;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use shared_ids::AnyId;
 use tracing::{error, trace};
 use usig::{Count, Usig};
 
@@ -330,7 +329,7 @@ pub(crate) mod test {
 
     use rand::{rngs::ThreadRng, Rng};
     use rstest::rstest;
-    use shared_ids::{AnyId, ReplicaId};
+    use shared_ids::ReplicaId;
     use usig::{
         noop::{Signature, UsigNoOp},
         Count, Usig,

@@ -113,7 +113,6 @@ mod test {
     use usig::{noop::UsigNoOp, Usig};
 
     use rand::thread_rng;
-    use usig::AnyId;
 
     use crate::{
         client_request::test::create_batch,

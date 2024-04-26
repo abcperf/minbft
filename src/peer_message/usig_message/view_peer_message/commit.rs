@@ -7,7 +7,7 @@ use core::fmt;
 use anyhow::Result;
 use blake2::digest::Update;
 use serde::{Deserialize, Serialize};
-use shared_ids::{AnyId, ReplicaId};
+use shared_ids::ReplicaId;
 use tracing::{error, trace};
 use usig::Usig;
 
@@ -127,7 +127,7 @@ pub(crate) mod test {
     use rstest::rstest;
     use usig::{
         noop::{Signature, UsigNoOp},
-        AnyId, ReplicaId, Usig,
+        ReplicaId, Usig,
     };
 
     use crate::{

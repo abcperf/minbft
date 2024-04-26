@@ -11,7 +11,7 @@ use minbft::{
 };
 use rand::rngs::ThreadRng;
 use serde::{Deserialize, Serialize};
-use shared_ids::{AnyId, ClientId, ReplicaId, RequestId};
+use shared_ids::{ClientId, ReplicaId, RequestId};
 use usig::{noop::UsigNoOp, Usig};
 
 use rand::prelude::SliceRandom;

@@ -3,7 +3,7 @@
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use shared_ids::{AnyId, IdIter};
+use shared_ids::IdIter;
 use std::{
     num::{NonZeroU64, NonZeroUsize},
     ops::MulAssign,

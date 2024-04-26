@@ -38,7 +38,6 @@ use peer_message_processor::collector::collector_commits::CollectorCommits;
 use peer_message_processor::collector::collector_req_view_changes::CollectorReqViewChanges;
 use peer_message_processor::collector::collector_view_changes::CollectorViewChanges;
 use request_processor::RequestProcessor;
-use shared_ids::AnyId;
 use shared_ids::{ClientId, ReplicaId, RequestId};
 use timeout::TimeoutType;
 use tracing::{debug, error, error_span, info, warn};
@@ -194,7 +193,7 @@ struct ReplicaState<P, Sig> {
 /// use serde::{Deserialize, Serialize};
 /// use core::fmt::Debug;
 ///
-/// use shared_ids::{ReplicaId, ClientId, RequestId, AnyId};
+/// use shared_ids::{ReplicaId, ClientId, RequestId};
 /// use usig::{Usig, noop::UsigNoOp};
 ///
 /// use minbft::{MinBft, Config, Output, RequestPayload, PeerMessage, timeout::{TimeoutType}};
@@ -399,7 +398,7 @@ where
     ///
     /// use minbft::{MinBft, Config, RequestPayload};
     /// use usig::noop::UsigNoOp;
-    /// use shared_ids::{RequestId, ClientId, AnyId};
+    /// use shared_ids::{RequestId, ClientId};
     ///
     /// #[derive(Deserialize, Serialize, Clone, Debug, Eq, PartialEq)]
     /// struct SamplePayload {}
@@ -647,7 +646,7 @@ where
     /// use anyhow::Result;
     ///
     /// use minbft::{MinBft, Config, RequestPayload, output::TimeoutRequest::{Start, Stop, StopAny}};
-    /// use shared_ids::{ClientId, RequestId, AnyId};
+    /// use shared_ids::{ClientId, RequestId};
     /// use usig::noop::UsigNoOp;
     ///
     /// #[derive(Deserialize, Serialize, Clone, Debug, Eq, PartialEq)]

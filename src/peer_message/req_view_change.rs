@@ -76,7 +76,7 @@ mod tests {
     use rand::{thread_rng, Rng};
 
     use rstest::rstest;
-    use shared_ids::{AnyId, ReplicaId};
+    use shared_ids::ReplicaId;
 
     use super::ReqViewChange;
 

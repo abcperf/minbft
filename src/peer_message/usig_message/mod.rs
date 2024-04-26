@@ -174,7 +174,7 @@ mod test {
     use usig::noop::UsigNoOp;
 
     use rand::thread_rng;
-    use usig::{AnyId, Usig};
+    use usig::Usig;
 
     use crate::{
         client_request::test::create_batch,

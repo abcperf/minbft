@@ -7,7 +7,7 @@
 
 use std::time::Duration;
 
-use shared_ids::{AnyId, ClientId};
+use shared_ids::ClientId;
 
 /// Defines the types a Timeout can have.
 /// Timeouts of different type are handled differently, see [crate::MinBft].

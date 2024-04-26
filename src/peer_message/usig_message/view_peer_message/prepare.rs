@@ -7,7 +7,7 @@ use std::{cmp::Ordering, fmt};
 use anyhow::Result;
 use blake2::digest::Update;
 use serde::{Deserialize, Serialize};
-use shared_ids::{AnyId, ReplicaId};
+use shared_ids::ReplicaId;
 use tracing::{error, trace};
 use usig::{Counter, Usig};
 
@@ -155,7 +155,6 @@ pub(crate) mod test {
 
     use rand::{rngs::ThreadRng, thread_rng};
     use rstest::rstest;
-    use shared_ids::AnyId;
     use usig::{
         noop::{Signature, UsigNoOp},
         Usig,

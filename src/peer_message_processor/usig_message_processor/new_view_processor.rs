@@ -1,5 +1,4 @@
 use serde::Serialize;
-use shared_ids::AnyId;
 use std::cmp::Reverse;
 use std::collections::VecDeque;
 use std::fmt::Debug;

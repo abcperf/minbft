@@ -9,7 +9,6 @@ use std::{fmt::Debug, marker::PhantomData};
 use anyhow::Result;
 use blake2::{digest::Update, Blake2b512, Digest};
 use serde::{Deserialize, Serialize};
-use shared_ids::AnyId;
 use tracing::{error, trace};
 use usig::{Count, Counter, Usig};
 
@@ -337,7 +336,7 @@ pub(crate) mod test {
     use rand::rngs::ThreadRng;
     use rand::{thread_rng, Rng};
     use rstest::rstest;
-    use usig::{noop::Signature, AnyId};
+    use usig::noop::Signature;
 
     use std::num::NonZeroU64;
     use std::{collections::HashMap, marker::PhantomData};

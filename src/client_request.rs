@@ -86,7 +86,6 @@ impl<P> IntoIterator for RequestBatch<P> {
 pub(crate) mod test {
     use rand::{rngs::ThreadRng, Rng};
     use shared_ids::ClientId;
-    use usig::AnyId;
 
     use crate::tests::DummyPayload;
 

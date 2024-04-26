@@ -126,7 +126,6 @@ mod test {
     use std::num::NonZeroU64;
 
     use rand::thread_rng;
-    use usig::AnyId;
 
     use crate::{
         client_request::test::create_batch,

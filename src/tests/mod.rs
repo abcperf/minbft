@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use rand::{distributions::Uniform, prelude::SliceRandom, rngs::ThreadRng, Rng};
 use serde::{Deserialize, Serialize};
-use shared_ids::{AnyId, ClientId, RequestId};
+use shared_ids::{ClientId, RequestId};
 use std::{
     collections::HashMap,
     num::NonZeroU64,
