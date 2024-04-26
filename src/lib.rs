@@ -11,9 +11,14 @@
 //! The intended way to use the library is to create an instance of the
 //! struct [MinBft] for each replica, i.e. n instances.
 //!
-//! Instances of the struct [MinBft] may receive and handle messages from clients,
+//! Upon setting up the connections between the replicas, instances of the
+//! struct [MinBft] may receive and handle messages from clients,
 //! messages from peers (other replicas/instances), or timeouts using the
 //! respective function.
+//!
+//! The replicas must sign their peer messages with a Unique Sequential
+//! Identifier Generator (USIG), as described in section 2 of the paper above.
+//!
 //! Timeouts must be handled explicitly by calling the respective function.
 //! See the dedicated function below for further explanation.
 //!
