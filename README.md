@@ -1,6 +1,7 @@
 # MinBFT
 
-MinBFT is a Rust implementation based on the equally named Byzantine fault-tolerant consensus algorithm presented in the paper [Efficient Byzantine Fault-Tolerance](https://doi.org/10.1109/TC.2011.221).
+MinBFT is a Rust implementation based on the equally named Byzantine fault-tolerant 
+consensus algorithm presented in the paper [Efficient Byzantine Fault-Tolerance](https://doi.org/10.1109/TC.2011.221).
 
 MinBFT requires a Unique Sequential Identifier Generator (USIG) implementation.\
 A USIG implementation compatible with this MinBFT implementation can be found 
@@ -94,7 +95,8 @@ fn main() {
 
 ## Contact
 
-Feel free to reach out via [GitHub](https://github.com/abcperf/minbft), [matrix](https://matrix.to/#/@vo5598:kit.edu), or [mail](mailto:marc.leinweber@kit.edu).
+Feel free to reach out via [GitHub](https://github.com/abcperf/minbft), 
+[matrix](https://matrix.to/#/@vo5598:kit.edu), or [mail](mailto:marc.leinweber@kit.edu).
 
 ## License
 
