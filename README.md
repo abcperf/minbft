@@ -96,4 +96,4 @@ You can also contact Marc Leinweber:
 
 ## License
 
-Licensed under [MIT license](https://github.com/abcperf/minbft/blob/main/LICENSE). 
+Licensed under [MIT license](https://github.com/abcperf/minbft/blob/main/LICENSE).
