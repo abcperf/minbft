@@ -94,7 +94,7 @@ fn main() {
 
 ## Contact
 
-Feel free to reach out to us via [GitHub Issues](https://github.com/abcperf/minbft/issues).\
+Feel free to reach out via [GitHub](https://github.com/abcperf/minbft), [matrix](https://matrix.to/#/@vo5598:kit.edu), or [mail](mailto:marc.leinweber@kit.edu).
 You can also contact Marc Leinweber:
 - E-Mail: marc.leinweber@kit.edu
 - Matrix: @marc:dsn.tm.kit.edu
