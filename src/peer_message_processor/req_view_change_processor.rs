@@ -24,16 +24,16 @@ where
     /// The steps are as follows:
     ///
     /// 1. Collect the [ReqViewChange] if it is relevant for the replica
-    ///    regarding its inner state.\
+    ///    regarding its inner state.
     ///     1.1. If the replica's state is [ViewState::InView], the
     ///          [ReqViewChange] is ignored if the previous [crate::View] set in
     ///          the message is smaller than the [crate::View] set in the inner
-    ///          state of the replica.\
+    ///          state of the replica.
     ///     1.2. If the replica's state is [ViewState::ChangeInProgress], the
     ///          [ReqViewChange] is ignored if the previous [crate::View] set in
     ///          the message is smaller than the previous [crate::View] set in
     ///          the inner state of the replica OR if they are equal but the
-    ///          next [crate::View] is greater in the inner state.\
+    ///          next [crate::View] is greater in the inner state.
     /// 2. If the previous [crate::View] in the [ReqViewChange] is not the same
     ///    as the one set in the inner state, return.
     /// 3. If `t + 1` [ReqViewChange]s with the same previous and next

@@ -12,7 +12,7 @@ use crate::{
     Config, RequestPayload,
 };
 
-/// The purpose of the struct is to generate Checkpoints.\
+/// The purpose of the struct is to generate Checkpoints.
 /// In addition, it keeps track of the hash of the last Checkpoint generated and
 /// of the total amount of accepted batches.
 #[derive(Debug, Clone)]

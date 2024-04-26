@@ -1,6 +1,6 @@
-//! Defines a message of type [Checkpoint].\
+//! Defines a message of type [Checkpoint].
 //! A [Checkpoint] is broadcast by a replica when enough client requests have
-//! been accepted.\
+//! been accepted.
 //! In our implementation, [Checkpoint]s are USIG signed - this seems to differ
 //! from the paper "Efficient Byzantine Fault Tolerance" by Veronese et al.
 
@@ -20,9 +20,9 @@ use super::signed::{UsigSignable, UsigSigned};
 
 pub(crate) type CheckpointHash = [u8; 64];
 
-/// The content of a message of type Checkpoint.\
-/// Contains the ID of the replica to which the Checkpoint belongs to.\
-/// Contains the counter of the most recently accepted Prepare.\
+/// The content of a message of type Checkpoint.
+/// Contains the ID of the replica to which the Checkpoint belongs to.
+/// Contains the counter of the most recently accepted Prepare.
 /// Consists of the hash of the state of the MinBft\.
 /// Furthermore, it contains the amount of accepted batches until now.
 #[serde_as]
@@ -33,7 +33,7 @@ pub(crate) struct CheckpointContent {
     pub(crate) origin: ReplicaId,
     /// The counter of the most recently accepted Prepare.
     pub(crate) counter_latest_prep: Count,
-    /// The hash of the MinBft's state.\
+    /// The hash of the MinBft's state.
     /// All replicas must have equal state.
     #[serde_as(as = "serde_with::Bytes")]
     pub(crate) state_hash: CheckpointHash,
@@ -59,11 +59,11 @@ impl UsigSignable for CheckpointContent {
     }
 }
 
-/// The message of type [Checkpoint].\
-/// [Checkpoint]s consist of their content and must be signed by a USIG.\
+/// The message of type [Checkpoint].
+/// [Checkpoint]s consist of their content and must be signed by a USIG.
 /// Such a message is broadcast by a replica in response to having accepted a
 /// sufficient amount of client requests (for further explanation, refer to
-/// [crate::Config], [crate::request_processor::RequestProcessor]).\
+/// [crate::Config], [crate::request_processor::RequestProcessor]).
 pub(crate) type Checkpoint<Sig> = UsigSigned<CheckpointContent, Sig>;
 
 impl<Sig> fmt::Display for Checkpoint<Sig> {
@@ -80,8 +80,8 @@ impl<Sig> fmt::Display for Checkpoint<Sig> {
 }
 
 impl<Sig: Serialize> Checkpoint<Sig> {
-    /// Validates a message of type [Checkpoint].\
-    /// To validate it, its USIG signature must be valid.\
+    /// Validates a message of type [Checkpoint].
+    /// To validate it, its USIG signature must be valid.
     ///
     /// # Arguments
     ///
@@ -149,7 +149,7 @@ impl<Sig: Serialize> Checkpoint<Sig> {
 }
 
 /// The (stable) certificate containing a set of valid messages of type
-/// [Checkpoint].\
+/// [Checkpoint].
 /// Following conditions must be met for the certificate to become stable:
 /// 1. The certificate must contain at least `t + 1` [Checkpoint]s
 ///    (for further explanation regarding `t`, see [crate::Config]).
@@ -160,11 +160,11 @@ impl<Sig: Serialize> Checkpoint<Sig> {
 /// refered to as non-stable until the conditions are met.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct CheckpointCertificate<Sig> {
-    /// The message of type [Checkpoint] created by the replica itself.\
-    /// In its details, the struct differs from the paper.\
+    /// The message of type [Checkpoint] created by the replica itself.
+    /// In its details, the struct differs from the paper.
     /// Reason: We have to clear all messages from the replica's log of sent
     ///         messages that have a counter lower than the counter of its
-    ///         [Checkpoint].\
+    ///         [Checkpoint].
     ///         By saving at this stage the replica's own [Checkpoint],
     ///         we can safely remove all aforementioned messages.
     pub(crate) my_checkpoint: Checkpoint<Sig>,

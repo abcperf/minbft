@@ -2,7 +2,7 @@
 //! consenting nodes (replicas) required as much as possible.
 //!
 //! Based on the paper ["Efficient Byzantine Fault-Tolerance" by
-//! Veronese et al](doi: 10.1109/TC.2011.221), the crate provides an
+//! Veronese et al](https://doi.org/10.1109/TC.2011.221), the crate provides an
 //! implementation of a partially asynchronous Byzantine fault-tolerant atomic
 //! broadcast (BFT) algorithm.
 //! The algorithm requires n = 2t + 1 replicas in total, where t is the number
@@ -11,13 +11,22 @@
 //! The intended way to use the library is to create an instance of the
 //! struct [MinBft] for each replica, i.e. n instances.
 //!
-//! Instances of the struct [MinBft] may receive and handle messages from clients,
+//! Upon setting up the connections between the replicas, instances of the
+//! struct [MinBft] may receive and handle messages from clients,
 //! messages from peers (other replicas/instances), or timeouts using the
 //! respective function.
+//!
+//! The replicas must sign their peer messages with a Unique Sequential
+//! Identifier Generator (USIG), as described in Section 2 of the paper above.
+//! A USIG implementation compatible with this MinBFT implementation can be
+//! found [here](https://github.com/abcperf/usig).
+//! Note that this implementation does not use Trusted Execution Environments
+//! and, thus, should not be used in untrusted environments.
+//!
 //! Timeouts must be handled explicitly by calling the respective function.
 //! See the dedicated function below for further explanation.
 //!
-//! This implementation was created as part of the [ABCperf project](doi: 10.1145/3626564.3629101).
+//! This implementation was created as part of the [ABCperf project](https://doi.org/10.1145/3626564.3629101).
 //! An [integration in ABCperf](https://github.com/abcperf/demo) also exists.
 
 use std::cmp::Reverse;
@@ -189,15 +198,15 @@ struct ReplicaState<P, Sig> {
 ///
 /// ```no_run
 /// use anyhow::Result;
-/// use std::{num::NonZeroU64, time::Duration, collections::HashMap};
+/// use std::time::Duration;
 /// use serde::{Deserialize, Serialize};
-/// use core::fmt::Debug;
 ///
 /// use shared_ids::{ReplicaId, ClientId, RequestId};
 /// use usig::{Usig, noop::UsigNoOp};
 ///
 /// use minbft::{MinBft, Config, Output, RequestPayload, PeerMessage, timeout::{TimeoutType}};
 ///
+/// // The payload of a client request must be implemented by the user.
 /// #[derive(Deserialize, Serialize, Clone, Debug, Eq, PartialEq)]
 /// struct SamplePayload {}
 /// impl RequestPayload for SamplePayload {
@@ -210,7 +219,7 @@ struct ReplicaState<P, Sig> {
 ///     }
 /// }
 ///
-/// // Should handle the output.
+/// // The output should be handled by the user.
 /// fn handle_output<U: Usig>(output: Output<SamplePayload, U>) {
 ///     let Output { broadcasts, responses, timeout_requests, .. } = output;
 ///     for broadcast in broadcasts.iter() {
@@ -226,8 +235,6 @@ struct ReplicaState<P, Sig> {
 ///         todo!();
 ///     }
 /// }
-///
-/// let n = NonZeroU64::new(10).unwrap();
 ///
 /// let (mut minbft, output) = MinBft::<SamplePayload, _>::new(
 ///         UsigNoOp::default(),
@@ -618,16 +625,16 @@ where
     /// They are handled differently depending on their type.
     ///
     /// A timeout for a batch is only handled if the primary is non-faulty
-    /// from the standpoint of the replica.\
+    /// from the standpoint of the replica.
     /// Is this the case, then a message of type Prepare is created
     /// and broadcast for the next batch of client-requests.
     ///
     /// A timeout for a client-request is only handled if the primary is non-faulty
-    /// from the standpoint of the replica.\
+    /// from the standpoint of the replica.
     /// Is this the case, then a view-change is requested.
     ///
     /// A timeout for a view-change is only handled if the replica is currently
-    /// in the state of changing views.\
+    /// in the state of changing views.
     /// Is this the case, then a view-change is requested.
     ///
     /// # Arguments

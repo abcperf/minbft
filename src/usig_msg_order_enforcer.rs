@@ -119,15 +119,15 @@ impl<P, Sig: Counter> Default for UsigMsgOrderEnforcer<P, Sig> {
 
 impl<P: Clone, Sig: Counter + Clone> UsigMsgOrderEnforcer<P, Sig> {
     /// Check if the given UsigMessage is the next one expected based on its
-    /// counter.\
+    /// counter.
     /// case 1: If the given UsigMessage is the next one expected, an Iterator
     /// is returned over the given UsigMessage and all other received messages
     /// of type UsigMessage that have yet to be processed and have counters that
-    /// follow directly.\
+    /// follow directly.
     /// case 2: If the given UsigMessage is not the one expected and was already
-    /// seen, it is ignored.\
+    /// seen, it is ignored.
     /// case 3: If the given UsigMessage is not the one expected and was not yet
-    /// seen, it is stored as unprocessed.\
+    /// seen, it is stored as unprocessed.
     ///
     /// In cases 2 and 3 an empty Iterator is returned.
     pub(super) fn push_to_handle<'a>(

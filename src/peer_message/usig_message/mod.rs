@@ -1,7 +1,7 @@
-//! Defines a message of type [UsigMessage].\
+//! Defines a message of type [UsigMessage].
 //! Such messages are either of inner type [ViewPeerMessage], [ViewChangeV],
-//! [NewView] or [Checkpoint].\
-//! Moreover, messages of type [UsigMessage] are signed by a USIG.\
+//! [NewView] or [Checkpoint].
+//! Moreover, messages of type [UsigMessage] are signed by a USIG.
 
 pub(crate) mod checkpoint;
 pub(crate) mod new_view;
@@ -26,14 +26,14 @@ use self::{
 
 /// A [UsigMessageV] is a message that contains a USIG signature,
 /// and is either a [UsigMessageV::View], [UsigMessageV::ViewChange],
-/// [UsigMessageV::NewView] or a [UsigMessageV::Checkpoint].\
+/// [UsigMessageV::NewView] or a [UsigMessageV::Checkpoint].
 ///
 /// A [UsigMessageV::View] should be created when the USIG signed message is
-/// internally a [ViewPeerMessage].\
+/// internally a [ViewPeerMessage].
 /// A [UsigMessageV::ViewChange] should be created when the USIG signed message
-/// is internally a [ViewChangeV] message.\
+/// is internally a [ViewChangeV] message.
 /// A [UsigMessageV::NewView] should be created when the USIG signed message is
-/// internally a [NewView] message.\
+/// internally a [NewView] message.
 /// A [UsigMessageV::Checkpoint] should be created when the USIG signed message
 /// is internally a [Checkpoint] message.
 #[derive(Serialize, Deserialize, Clone, Debug)]

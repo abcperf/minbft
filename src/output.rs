@@ -271,7 +271,7 @@ where
 /// [crate::MinBft] outputs [TimeoutRequest]s when handling client requests or
 /// peer messages as it is a partially asynchronous algorithm.
 ///
-/// The [TimeoutRequest]s must be handled externally.\
+/// The [TimeoutRequest]s must be handled externally.
 /// For further explanation, see [crate::MinBft].
 #[derive(Debug, Clone)]
 pub enum TimeoutRequest {

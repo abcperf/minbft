@@ -26,7 +26,7 @@ use crate::{
 
 use self::{checkpoint_generator::CheckpointGenerator, request_batcher::RequestBatcher};
 
-/// Defines the state of a Client.\
+/// Defines the state of a Client.
 /// Contains the ID of the last accepted client request and the currently
 /// processing client request with its ID.
 #[derive(Debug, Serialize, Deserialize, Derivative)]
@@ -149,9 +149,9 @@ where
         }
     }
 
-    /// Processes a client request.\
+    /// Processes a client request.
     ///
-    /// May return a client timeout, a [Prepare], and/or a batch timeout.\
+    /// May return a client timeout, a [Prepare], and/or a batch timeout.
     ///
     /// # Arguments
     ///
@@ -163,10 +163,10 @@ where
     /// # Return Value
     ///
     /// A client timeout is returned when there was no client timeout running
-    /// upon receiving the given client request.\
+    /// upon receiving the given client request.
     ///
     /// A [Prepare] is returned when the maximum batch size of client requests
-    /// has been reached.\
+    /// has been reached.
     ///
     /// A batch timeout is returned when there was no batch timeout running upon
     /// receiving the given client request and the maximum batch size of client

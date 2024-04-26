@@ -1,10 +1,10 @@
-//! Defines a message of type [ReqViewChange].\
+//! Defines a message of type [ReqViewChange].
 //! A replica should broadcast a [ReqViewChange] when the current primary turns
-//! out to be faulty.\
+//! out to be faulty.
 //! The primary is seen as faulty if it does not respond to a client request
-//! within the set timeout duration.\
+//! within the set timeout duration.
 //! For further explanation, see the paragraph "Servers: view change operation"
-//! of section four of ["Efficient Byzantine Fault-Tolerance" by Veronese et al](doi: 10.1109/TC.2011.221).
+//! of section four of ["Efficient Byzantine Fault-Tolerance" by Veronese et al](https://doi.org/10.1109/TC.2011.221).
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -13,7 +13,7 @@ use tracing::debug;
 
 use crate::{error::InnerError, Config, View};
 
-/// Defines a message of type [ReqViewChange].\
+/// Defines a message of type [ReqViewChange].
 /// Contains the previous [View] and the next [View] ([View] to be changed to).
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct ReqViewChange {
@@ -24,7 +24,7 @@ pub(crate) struct ReqViewChange {
 }
 
 impl ReqViewChange {
-    /// Validates the [ReqViewChange].\
+    /// Validates the [ReqViewChange].
     /// The previous [View] must be smaller than the next [View].
     ///
     /// # Arguments

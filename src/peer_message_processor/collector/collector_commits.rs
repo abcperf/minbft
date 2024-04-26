@@ -1,6 +1,6 @@
-//! Defines the collector of messages of type Commit.\
+//! Defines the collector of messages of type Commit.
 //! After a sufficient amount (`t + 1`) of Commits are received and collected,
-//! the respective batch of client-requests is accepted.\
+//! the respective batch of client-requests is accepted.
 
 use crate::{Config, Prepare};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -14,7 +14,7 @@ use crate::peer_message::usig_message::view_peer_message::ViewPeerMessage;
 #[derive(Debug, Clone)]
 pub(crate) struct CollectorCommits<P, Sig> {
     /// For each Prepare received, the Commits with respect to the Prepare
-    /// are collected.\
+    /// are collected.
     /// The receival of the [crate::Prepare] may be either indirect (through a
     /// Commit) or direct (actual [crate::Prepare] broadcast by primary).
     recv_commits: HashMap<Count, HashSet<ReplicaId>>,
@@ -22,7 +22,7 @@ pub(crate) struct CollectorCommits<P, Sig> {
     prepare: BTreeMap<Count, Prepare<P, Sig>>,
 }
 
-/// Defines the key for the collector.\
+/// Defines the key for the collector.
 /// The key must be the counter of the [crate::Prepare] to which the Commits
 /// belong to.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

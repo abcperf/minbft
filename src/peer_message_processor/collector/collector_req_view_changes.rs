@@ -1,6 +1,6 @@
-//! Defines the collector of messages of type ReqViewChange.\
+//! Defines the collector of messages of type ReqViewChange.
 //! After a sufficient amount (t + 1) of ReqViewChanges are received and
-//! collected, a ViewChange is broadcast.\
+//! collected, a ViewChange is broadcast.
 //! The ReqViewChanges must share the same previous and next [crate::View]s.
 
 use serde::{Deserialize, Serialize};
@@ -18,7 +18,7 @@ use crate::{peer_message::req_view_change::ReqViewChange, View};
 #[derive(Debug, Clone)]
 pub(crate) struct CollectorReqViewChanges(HashMap<KeyRVC, HashSet<ReplicaId>>);
 
-/// Defines the key for the collector.\
+/// Defines the key for the collector.
 /// The key must consist of the previous and next [crate::View]s.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct KeyRVC {
@@ -48,7 +48,7 @@ impl Hash for KeyRVC {
 impl Eq for KeyRVC {}
 
 impl PartialOrd for KeyRVC {
-    /// Partially compares the previous Views with each other.\
+    /// Partially compares the previous Views with each other.
     /// If the previous Views are equal, then the next Views are partially
     /// compared with each other.
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {

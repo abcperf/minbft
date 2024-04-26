@@ -41,14 +41,14 @@ where
     ///
     /// The steps are as follows:
     ///
-    /// 1. The [NewViewCertificate] of the received [NewView] has to be valid.\
+    /// 1. The [NewViewCertificate] of the received [NewView] has to be valid.
     ///     1.1. If it is invalid, request a new view-change by broadcasting a
     ///         [crate::ReqViewChange], and return\
     ///     1.2. If it is valid, proceed.
     /// 2. Send a request to stop the current timeout of the view-change.
     /// 3. Compute the state of the [NewView].
     /// 4. Accept all new and unique [Prepare]s contained in the
-    /// [NewViewCertificate].\
+    /// [NewViewCertificate].
     ///     4.1. If there is a hole, a state transfer has to be performed
     ///          (currently unimplemented).
     ///     4.2. Else, proceed.
@@ -56,10 +56,10 @@ where
     /// 6. Stop the timeouts of any pending client requests.
     /// 7. Start a timeout for the next pending client request.
     /// 8. Depending on the replica, proceed as follows:
-    ///     8.1. Replica is not the new primary.\
+    ///     8.1. Replica is not the new primary.
     ///         8.1.1. Transition to new [crate::View] in [crate::ViewState].
     ///         8.1.2. Relay message [NewView] to all other replicas.
-    ///     8.2. Replica is the primary.\
+    ///     8.2. Replica is the primary.
     ///         8.2.1. Broadcast [Prepare]s for client requests for which there
     ///               was no Commit in the previous [crate::View].
     /// 9. Set the counter of the last accepted [Prepare] as the counter of the
