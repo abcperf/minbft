@@ -202,6 +202,7 @@ struct ReplicaState<P, Sig> {
 ///
 /// use minbft::{MinBft, Config, Output, RequestPayload, PeerMessage, timeout::{TimeoutType}};
 ///
+/// // The payload of a client request must be implemented by the user.
 /// #[derive(Deserialize, Serialize, Clone, Debug, Eq, PartialEq)]
 /// struct SamplePayload {}
 /// impl RequestPayload for SamplePayload {
@@ -214,7 +215,7 @@ struct ReplicaState<P, Sig> {
 ///     }
 /// }
 ///
-/// // Should handle the output.
+/// // The output should be handled by the user.
 /// fn handle_output<U: Usig>(output: Output<SamplePayload, U>) {
 ///     let Output { broadcasts, responses, timeout_requests, .. } = output;
 ///     for broadcast in broadcasts.iter() {
