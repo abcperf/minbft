@@ -233,7 +233,7 @@ struct ReplicaState<P, Sig> {
 /// let (mut minbft, output) = MinBft::<SamplePayload, _>::new(
 ///         UsigNoOp::default(),
 ///         Config {
-///             ..todo!() // see the crate [Config].
+///             ..todo!() // see the struct [Config].
 ///         },
 ///     )
 ///     .unwrap();
