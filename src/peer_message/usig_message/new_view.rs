@@ -16,7 +16,7 @@ use std::collections::HashSet;
 use anyhow::Result;
 use blake2::digest::Update;
 use serde::{Deserialize, Serialize};
-use shared_ids::{AnyId, ReplicaId};
+use shared_ids::ReplicaId;
 use std::fmt::Debug;
 use tracing::{debug, error};
 use usig::{Counter, Usig};

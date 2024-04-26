@@ -55,7 +55,6 @@ mod tests {
     use std::num::NonZeroU64;
     use std::time::Duration;
 
-    use shared_ids::AnyId;
     use shared_ids::ReplicaId;
 
     use crate::Config;
