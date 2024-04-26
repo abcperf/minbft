@@ -235,7 +235,7 @@ struct ReplicaState<P, Sig> {
 ///     )
 ///     .unwrap();
 ///
-/// // handle output to establish connection with peers, i.e., send messages
+/// // handle output to setup connection with peers, i.e., send messages
 /// // contained in `broadcast` of struct Output.
 /// handle_output(output);
 ///
