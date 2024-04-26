@@ -173,7 +173,7 @@ impl<Sig: Serialize> CheckpointCertificate<Sig> {
 mod test {
     use std::{num::NonZeroU64, time::Duration};
 
-    use shared_ids::{AnyId, ReplicaId};
+    use shared_ids::ReplicaId;
     use usig::{noop::UsigNoOp, Count, Usig};
 
     use crate::Config;

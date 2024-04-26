@@ -15,7 +15,6 @@ use std::{fmt::Debug, marker::PhantomData};
 use anyhow::Result;
 use blake2::{digest::Update, Blake2b512, Digest};
 use serde::{Deserialize, Serialize};
-use shared_ids::AnyId;
 use tracing::{debug, error};
 use usig::{Count, Counter, Usig};
 

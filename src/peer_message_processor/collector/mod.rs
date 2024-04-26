@@ -14,7 +14,7 @@ pub(crate) mod collector_view_changes;
 use std::{collections::HashMap, hash::Hash, mem, num::NonZeroU64};
 
 use serde::{Deserialize, Serialize};
-use shared_ids::{AnyId, ReplicaId};
+use shared_ids::ReplicaId;
 use tracing::debug;
 
 use crate::Config;
