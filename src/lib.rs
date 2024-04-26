@@ -183,8 +183,8 @@ struct ReplicaState<P, Sig> {
 /// # Examples
 ///
 /// 1. The replicas have to first initiate the communication between
-/// each other by sending `Hello` messages to each other and performing
-/// attestations.
+/// each other by broadcasting the initial messages in the returned
+/// [Output] struct when creating messages.
 /// 2. The return values of the public functions ([Output]) are to be
 /// handled equally.
 ///
@@ -213,8 +213,11 @@ struct ReplicaState<P, Sig> {
 ///
 /// // Should handle the output.
 /// fn handle_output<U: Usig>(output: Output<SamplePayload, U>) {
-///     let Output { broadcasts, responses, timeout_requests, errors, ready_for_client_requests, primary: _, view_info: _, round: _ } = output;
+///     let Output { broadcasts, responses, timeout_requests, .. } = output;
 ///     for broadcast in broadcasts.iter() {
+///         // broadcast message to all peers, i.e., send messages contained
+///         // in `broadcasts` of struct Output over the network to other
+///         // replicas.
 ///         todo!();
 ///     }
 ///     for response in responses.iter() {
@@ -227,7 +230,7 @@ struct ReplicaState<P, Sig> {
 ///
 /// let n = NonZeroU64::new(10).unwrap();
 ///
-/// let mut (minbft, output) = MinBft::<SamplePayload, _>::new(
+/// let (mut minbft, output) = MinBft::<SamplePayload, _>::new(
 ///         UsigNoOp::default(),
 ///         Config {
 ///             ..todo!() // see the crate [Config].
@@ -235,13 +238,11 @@ struct ReplicaState<P, Sig> {
 ///     )
 ///     .unwrap();
 ///
-/// // handle output to setup connection with peers, i.e., send messages
-/// // contained in `broadcast` of struct Output.
+/// // handle output to setup connection with peers
 /// handle_output(output);
 ///
-/// let mut minbfts: HashMap<ReplicaId, MinBft<SamplePayload, _>> = setup_set(n);
-/// let replica_id = ReplicaId::from_u64(0);
-/// let minbft = minbfts.get_mut(&replica_id).unwrap();
+/// // all peers are now ready for client requests as they have
+/// // successfully communicated with each replica for the first time.
 ///
 /// let some_client_message: SamplePayload = todo!();
 /// let output = minbft.handle_client_message(ClientId::from_u64(0), some_client_message);
