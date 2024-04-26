@@ -1,3 +1,6 @@
+//! Models the configuration parameters of a replica in the partially
+//! asynchronous Byzantine fault-tolerant atomic broadcast (BFT) algorithm.
+
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use shared_ids::IdIter;
@@ -10,10 +13,11 @@ use std::{
 use super::{ReplicaId, View};
 
 /// Contains the configuration parameters for the
-/// partially asynchronous Byzantine fault-tolerant atomic broadcast (BFT) algorithm.
+/// partially asynchronous Byzantine fault-tolerant atomic broadcast (BFT)
+/// algorithm.
 ///
-/// The configuration belongs to one specific participant
-/// of a system of multiple participants that together form an atomic broadcast.
+/// The configuration belongs to one specific replica
+/// of a system of multiple replicas that together form the atomic broadcast.
 #[derive(Debug)]
 pub struct Config {
     /// The amount of replicas (n > 2t).
@@ -25,9 +29,10 @@ pub struct Config {
     /// The duration set for a batch to timeout.
     pub batch_timeout: Duration,
     /// The maximum amount of client-requests a batch may contain.
-    /// None for unlimited.
+    /// [None] for unlimited.
     pub max_batch_size: Option<NonZeroUsize>,
-    /// The initial duration set for a view-change message or client request to timeout.
+    /// The initial duration set for a view-change message or client request to
+    /// timeout.
     pub initial_timeout_duration: Duration,
     /// The amount of accepted batches it is needed for a checkpoint
     /// to be generated each time after generating the last one.
@@ -35,7 +40,8 @@ pub struct Config {
 }
 
 /// Defines the multiplier used to calculate the duration
-/// of the next timeout of a client or view-change message.
+/// of the next timeout of a client or view-change message in case requests
+/// are not handled in-time.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct BackoffMultiplier(f64);
 

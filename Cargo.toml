@@ -24,6 +24,7 @@ thiserror = "1.0.40"
 
 [dev-dependencies]
 rstest = "0.16.0"
+rand = "0.8.5"
 
 test-log = { version = "0.2.11", default-features = false, features = [
     "trace",

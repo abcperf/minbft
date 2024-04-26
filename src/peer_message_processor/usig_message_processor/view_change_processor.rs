@@ -19,6 +19,26 @@ where
     U::Signature: Debug,
 {
     /// Process a message of type ViewChange.
+    ///
+    /// Steps for processing the message:
+    ///
+    /// 1. If the [ViewState] of the replica is not in the state of changing
+    ///    views, ignore the message and return.
+    /// 2. If the replica is not the next primary, skip the processing, too.
+    /// 3. Collect the [ViewChange].
+    /// 4. If `t + 1` [ViewChange]s with the same next View and from different
+    ///    origins (see the collector for details) have not been collected yet,
+    ///    return.
+    /// 5. If the next View set in the [ViewChange] does not correspond to
+    ///    the inner [ViewState] of the replica, ignore it (for now).
+    /// 6. Create the [NewViewCertificate] and the [NewView] message.
+    /// 7. Broadcast the [NewView].
+    ///
+    /// # Arguments
+    ///
+    /// * `msg` - The [ViewChange] to process.
+    /// * `output` - The output struct to be adjusted in case of, e.g., errors
+    ///              or responses.
     pub(crate) fn process_view_change(
         &mut self,
         msg: ViewChange<P, U::Signature>,
@@ -37,7 +57,7 @@ where
                 }
 
                 // Only the new primary runs following code.
-                let amount_collected = self.collector_vc.collect(msg.clone(), &self.config);
+                let amount_collected = self.collector_vc.collect_view_change(msg.clone());
 
                 if msg.next_view != in_progress.next_view {
                     debug!("Processing ViewChange (origin: {:?}, next view: {:?}) resulted in ignoring creation of NewView: Next view set in message is not the same as the current (to become) next view.", msg.origin, msg.next_view);
@@ -49,7 +69,9 @@ where
                     return;
                 }
 
-                let view_changes = self.collector_vc.retrieve(&msg, &self.config);
+                let view_changes = self
+                    .collector_vc
+                    .retrieve_collected_view_changes(&msg, &self.config);
 
                 if view_changes.is_none() {
                     return;

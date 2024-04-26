@@ -38,6 +38,38 @@ where
     U::Signature: Debug,
 {
     /// Process a message of type [NewView].
+    ///
+    /// The steps are as follows:
+    ///
+    /// 1. The [NewViewCertificate] of the received [NewView] has to be valid.\
+    ///     1.1. If it is invalid, request a new view-change by broadcasting a
+    ///         [crate::ReqViewChange], and return\
+    ///     1.2. If it is valid, proceed.
+    /// 2. Send a request to stop the current timeout of the view-change.
+    /// 3. Compute the state of the [NewView].
+    /// 4. Accept all new and unique [Prepare]s contained in the
+    /// [NewViewCertificate].\
+    ///     4.1. If there is a hole, a state transfer has to be performed
+    ///          (currently unimplemented).
+    ///     4.2. Else, proceed.
+    /// 5. Clean up the collector of [crate::ReqViewChange]s.
+    /// 6. Stop the timeouts of any pending client requests.
+    /// 7. Start a timeout for the next pending client request.
+    /// 8. Depending on the replica, proceed as follows:
+    ///     8.1. Replica is not the new primary.\
+    ///         8.1.1. Transition to new [crate::View] in [crate::ViewState].
+    ///         8.1.2. Relay message [NewView] to all other replicas.
+    ///     8.2. Replica is the primary.\
+    ///         8.2.1. Broadcast [Prepare]s for client requests for which there
+    ///               was no Commit in the previous [crate::View].
+    /// 9. Set the counter of the last accepted [Prepare] as the counter of the
+    ///    [NewView] to synchronize replicas.
+    ///
+    /// # Arguments
+    ///
+    /// * `new_view` - The [NewView] to be processed.
+    /// * `output` - The output struct to be adjusted in case of, e.g., errors
+    ///              or responses.
     pub(crate) fn process_new_view(
         &mut self,
         new_view: NewView<P, U::Signature>,
@@ -142,7 +174,7 @@ where
                 self.view_state = ViewState::InView(InView {
                     view: new_view.next_view,
                     has_requested_view_change: false,
-                    collector_commits: CollectorCommits::new(self.config.t),
+                    collector_commits: CollectorCommits::new(),
                 });
 
                 output.timeout_request(TimeoutRequest::new_stop_any_client_req());
@@ -169,7 +201,7 @@ where
                         "Relayed NewView (origin: {:?}, next view: {:?}).",
                         new_view.origin, new_view.next_view
                     );
-                    output.broadcast(new_view, &mut Vec::new());
+                    output.broadcast(new_view.clone(), &mut Vec::new());
                 } else {
                     let mut requests_to_batch: Vec<ClientRequest<P>> = Vec::new();
 
@@ -213,23 +245,34 @@ where
                             }
                         };
                     }
-
-                    // Set the counter of the last accepted Prepare temporarily
-                    // as the counter of the last sent UsigMessage by the new View.
-                    // This makes sure all replicas are synced correctly upon changing views.
-                    debug!(
-                        "Set counter of last accepted Prepare to counter of NewView ({:?}).",
-                        new_view.counter()
-                    );
-                    self.counter_last_accepted_prep = Some(new_view.counter());
                 }
+                // Set the counter of the last accepted Prepare temporarily
+                // as the counter of the last sent UsigMessage by the new View.
+                // This makes sure all replicas are synced correctly upon changing views.
+                debug!(
+                    "Set counter of last accepted Prepare to counter of NewView ({:?}).",
+                    new_view.counter()
+                );
+                self.counter_last_accepted_prep = Some(new_view.counter());
             }
         }
     }
 
-    /// Computes the new [crate::View] state.
-    /// That is to say, it returns the latest [Checkpoint] and the unique [Prepare]s contained in the [NewViewCertificate].
-    /// Only the [Prepare]s with a counter higher than the given counter are gathered.
+    /// Computes the new [NewView] state.
+    /// That is to say, it returns the latest [Checkpoint] and the unique
+    /// [Prepare]s contained in the [NewViewCertificate].
+    /// Only the [Prepare]s with a counter higher than the given counter are
+    /// gathered.
+    ///
+    /// # Arguments
+    ///
+    /// * `counter_last_accepted_prep` - The counter of the latest accepted
+    /// [Prepare] to use for the computation.
+    /// * `new_view_cert` - The [NewViewCertificate] to use for the computation.
+    ///
+    /// # Return Value
+    ///
+    /// The computed [NewView] state.
     fn compute_new_view_state(
         counter_last_accepted_prep: Option<Count>,
         new_view_cert: &NewViewCertificate<P, U::Signature>,

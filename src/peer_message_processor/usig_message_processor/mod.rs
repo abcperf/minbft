@@ -24,7 +24,23 @@ where
     U::Signature: Debug,
 {
     /// Process a [UsigMessage].
-    // At this stage, it is not guaranteed that previous messages of type UsigMessage have already been processed.
+    /// At this stage, it is not guaranteed that previous messages of type
+    /// UsigMessage have already been processed.
+    /// This is ensured with a proceeding call.
+    ///
+    /// The steps are as follows:
+    ///
+    /// 1. If the [UsigMessage] is a nested one, process the inner messages
+    /// first.
+    /// 2. If it is not a nested message, use the UsigMsgOrderEnforcer to
+    /// process the messages in order, i.e., from lowest USIG counter to highest
+    /// and without a hole.
+    ///
+    /// # Arguments
+    ///
+    /// * `usig_message` - The UsigMessage to be processed.
+    /// * `output` - The output struct to be adjusted in case of, e.g., errors
+    ///              or responses.
     pub(crate) fn process_usig_message(
         &mut self,
         usig_message: UsigMessage<P, U::Signature>,
@@ -125,7 +141,7 @@ where
     }
 
     /// Process a [UsigMessage] in an ordered way.
-    // Now, it is guaranteed that previous messages of type UsigMessage have already been processed.
+    /// The messages passed are assumed to be ordered.
     fn process_usig_message_ordered(
         &mut self,
         usig_message: UsigMessage<P, U::Signature>,

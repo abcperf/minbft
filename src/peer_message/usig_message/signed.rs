@@ -1,4 +1,5 @@
-//! Defines how messages are signed by the USIG, and wraps them in a respective struct ([UsigSigned]).
+//! Defines how messages are signed by the USIG, and wraps them in a
+//! respective struct ([UsigSigned]).
 
 use std::ops::{Deref, DerefMut};
 
@@ -34,14 +35,16 @@ impl<T, Sig: Clone> UsigSigned<T, Sig> {
 impl<T, Sig> Deref for UsigSigned<T, Sig> {
     type Target = T;
 
-    /// Dereferencing a [UsigSigned] returns a reference to the data of the [UsigSigned].
+    /// Dereferencing a [UsigSigned] returns a reference to the data of the
+    /// [UsigSigned].
     fn deref(&self) -> &Self::Target {
         &self.data
     }
 }
 
 impl<T, Sig> DerefMut for UsigSigned<T, Sig> {
-    /// Mutably dereferencing [UsigSigned] returns a mutable reference to the data of the [UsigSigned].
+    /// Mutably dereferencing [UsigSigned] returns a mutable reference to the
+    /// data of the [UsigSigned].
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.data
     }
@@ -55,7 +58,7 @@ impl<T, Sig: Counter> Counter for UsigSigned<T, Sig> {
 }
 
 pub(crate) trait UsigSignable: AsRef<ReplicaId> {
-    /// Hashes the [UsigSignable].
+    /// Hashes the [UsigSignable].\
     /// Required for signing and verifying a [UsigSignable].
     fn hash_content<H: Update>(&self, hasher: &mut H);
 }

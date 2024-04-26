@@ -21,6 +21,18 @@ pub(crate) struct RequestBatcher<P> {
 
 impl<P: RequestPayload> RequestBatcher<P> {
     /// Creates a new RequestBatcher.
+    ///
+    /// # Arguments
+    ///
+    /// * `timeout` - The timeout duration before the batch of requests
+    ///               should be handled.
+    /// * `max_size` - The maximum size of requests that a batch should hold.
+    ///                If the maximum size is reached before the duration,
+    ///                the batch should be handled right away.
+    ///
+    /// # Return Value
+    ///
+    /// The created [RequestBatcher].
     pub(super) fn new(timeout: Duration, max_size: Option<NonZeroUsize>) -> Self {
         Self {
             next_batch: Vec::new(),
@@ -29,7 +41,18 @@ impl<P: RequestPayload> RequestBatcher<P> {
         }
     }
 
-    /// Returns the next batch of ClientRequests if ready.
+    /// Batches the provided [ClientRequest].
+    ///
+    /// # Arguments
+    ///
+    /// * `request` - The [ClientRequest] to batch.
+    ///
+    /// # Return Value
+    ///
+    /// If the next batch of [ClientRequest]s is ready, it is returned.
+    /// Additionally, the timeout request to stop the batch timeout is returned.
+    /// Otherwise, only a new timeout for the batch request is sent.
+    ///
     pub(super) fn batch(
         &mut self,
         request: ClientRequest<P>,
@@ -53,7 +76,11 @@ impl<P: RequestPayload> RequestBatcher<P> {
     }
 
     /// Triggers the timeout for the next RequestBatch.
-    /// Returns the next RequestBatch.
+    ///
+    /// # Return Value
+    ///
+    /// Returns the next batch of requests and a request to stop the current
+    /// batch timeout.
     pub(crate) fn timeout(&mut self) -> (Option<RequestBatch<P>>, TimeoutRequest) {
         (
             if self.next_batch.is_empty() {

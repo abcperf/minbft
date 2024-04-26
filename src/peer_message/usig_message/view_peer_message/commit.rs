@@ -1,19 +1,14 @@
 //! Defines a message of type [Commit].
-//! A [Commit] consists of two main parts.
-//! The first part is its content, the [CommitContent].
-//! It contains the ID of the replica ([ReplicaId]) which created the [Commit].
-//! Moreover, it contains the [Prepare] to which the [Commit] belongs to.
-//! The second part is its signature, as [Commit]s must be signed by a USIG.
-//! For further explanation to why these messages (alongside other ones) must be signed by a USIG,
-//! see the paper "Efficient Byzantine Fault Tolerance" by Veronese et al.
-//! A [Commit] is broadcast by a replica (other than the current primary)
-//! in response to a received Prepare (only sent by the current primary).
+//! A [Commit] is broadcast by a backup replica in response to a received
+//! [Prepare] from the primary replica.
+
+use core::fmt;
 
 use anyhow::Result;
 use blake2::digest::Update;
 use serde::{Deserialize, Serialize};
 use shared_ids::ReplicaId;
-use tracing::{debug, error};
+use tracing::{error, trace};
 use usig::Usig;
 
 use crate::{
@@ -25,8 +20,9 @@ use crate::{
 use super::prepare::Prepare;
 
 /// The content of a message of type [Commit].
-/// The prepare to which the [Commit] belongs to is needed.
-/// Furthermore, the ID of the Replica that created the [Commit] is necessary.
+/// Consists of the [Prepare] to which the [Commit] belongs to.
+/// Furthermore, it contains the ID of the backup replica that created the
+/// [Commit].
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct CommitContent<P, Sig> {
     /// The replica which the [Commit] originates from.
@@ -36,14 +32,14 @@ pub(crate) struct CommitContent<P, Sig> {
 }
 
 impl<P, Sig> AsRef<ReplicaId> for CommitContent<P, Sig> {
-    /// Referencing [CommitContent] returns a reference to the origin set in the [CommitContent].
+    /// Referencing [CommitContent] returns a reference to its origin.
     fn as_ref(&self) -> &ReplicaId {
         &self.origin
     }
 }
 
 impl<P: Serialize, Sig: Serialize> UsigSignable for CommitContent<P, Sig> {
-    /// Hashes the content of a message of type Commit.
+    /// Hashes the content of a [Commit].
     /// Required for signing and verifying a message of type [Commit].
     fn hash_content<H: Update>(&self, hasher: &mut H) {
         let encoded = bincode::serialize(self).unwrap();
@@ -52,217 +48,266 @@ impl<P: Serialize, Sig: Serialize> UsigSignable for CommitContent<P, Sig> {
 }
 
 /// The message of type [Commit].
-/// [Commit]s consist of their content and must be signed by a USIG.
-/// Such a message is broadcast by a replica (other than the current primary)
-/// in response to a received Prepare (only sent by the current primary).
-/// They can and should be validated.
-/// For further explanation regarding the content of the module including [Commit], see the documentation of the module itself.
-/// For further explanation regarding the use of [Commit]s, see the documentation of [crate::MinBft].
+/// A [Commit] consists of its content and must be signed by a USIG.
+/// Such a message is broadcast by a backup replica in response to a received
+/// [Prepare] sent by the current primary.
 pub(crate) type Commit<P, Sig> = UsigSigned<CommitContent<P, Sig>, Sig>;
+
+impl<P: RequestPayload, Sig: Serialize> fmt::Display for Commit<P, Sig> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "(origin: {0}, prepare: {1})",
+            self.origin.as_u64(),
+            self.prepare
+        )
+    }
+}
 
 impl<P: RequestPayload, Sig: Serialize> Commit<P, Sig> {
     /// Validates a message of type [Commit].
     /// Following conditions must be met for the [Commit] to be valid:
-    ///     (1) The [Commit] must originate from a replica other than the current primary.
-    ///     (2) The [Prepare] must be valid (for further explanation regarding
-    ///         the validation of [Prepare]s see the equally named function).
-    ///     (3) Additionally, the signature of the [Commit] must be verified.
+    ///     (1) The [Commit] must originate from a backup replica, i.a. a
+    ///         replica other than the current primary.
+    ///     (2) The [Prepare] must be valid.
+    ///     (3) Additionally, the USIG signature of the [Commit] must be
+    ///         valid.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - The [Config] of the algorithm.
+    /// * `usig` - The USIG signature that should be a valid one for this
+    ///            [Commit] message.
+    ///
+    /// # Return Value
+    ///
+    /// * `config` - The config of the replica.
+    /// * `usig` - The USIG signature that should be a valid one for the Commit.
     pub(crate) fn validate(
         &self,
         config: &Config,
         usig: &mut impl Usig<Signature = Sig>,
     ) -> Result<(), InnerError> {
-        debug!(
-            "Validating Commit (origin: {:?}, Prepare: [origin: {:?}, view: {:?}]) ...",
-            self.origin, self.prepare.origin, self.prepare.view
-        );
+        trace!("Validating Commit ({self}) ...");
+
+        // Check condition (1).
         if self.origin == self.prepare.origin {
-            error!("Failed validating Commit (origin: {:?}, Prepare: [origin: {:?}, view: {:?}]): Commit originates from Primary. For further information see output", self.origin, self.prepare.origin, self.prepare.view);
+            error!(
+                "Failed validating Commit ({self}): Commit originates from 
+            Primary. For further information see output."
+            );
             return Err(InnerError::CommitFromPrimary {
                 receiver: config.id,
                 primary: self.origin,
             });
         }
+
+        // Check condition (2).
         self.prepare.validate(config, usig)?;
 
-        debug!(
-            "Verifying signature of Commit (origin: {:?}, Prepare: [origin: {:?}, view: {:?}]) ...",
-            self.origin, self.prepare.origin, self.prepare.view
-        );
+        // Check condition (3).
+        trace!("Verifying signature of Commit ({self}) ...");
         self.verify(usig).map_or_else(|usig_error| {
             error!(
-                "Failed validating Commit (origin: {:?}, Prepare: [origin: {:?}, view: {:?}]): Signature of Commit is invalid. For further information see output.",
-                self.origin, self.prepare.origin, self.prepare.view
-            );
+                "Failed validating Commit ({self}): Signature of Commit is invalid. For further information see output.");
             Err(InnerError::parse_usig_error(usig_error, config.id, "Commit", self.origin))
         }, |v| {
-            debug!("Successfully verified signature of Commit (origin: {:?}, Prepare: [origin: {:?}, view: {:?}]).", self.origin, self.prepare.origin, self.prepare.view);
-            debug!("Successfully validated Commit (origin: {:?}, Prepare: [origin: {:?}, view: {:?}]).", self.origin, self.prepare.origin, self.prepare.view);
+            trace!("Successfully verified signature of Commit ({self}).");
+            trace!("Successfully validated Commit ({self}).");
             Ok(v)
         })
     }
 }
 
 #[cfg(test)]
-mod test {
-    use std::{num::NonZeroU64, time::Duration};
+pub(crate) mod test {
+    use std::num::NonZeroU64;
 
-    use shared_ids::ReplicaId;
-    use usig::{noop::UsigNoOp, Usig};
+    use rand::thread_rng;
+    use rstest::rstest;
+    use usig::{
+        noop::{Signature, UsigNoOp},
+        ReplicaId, Usig,
+    };
 
     use crate::{
-        client_request::{self, RequestBatch},
+        client_request::test::create_batch,
         peer_message::usig_message::view_peer_message::{
             commit::CommitContent,
-            prepare::{Prepare, PrepareContent},
+            prepare::{
+                test::{create_invalid_prepares, create_prepare},
+                Prepare,
+            },
         },
-        tests::DummyPayload,
-        Config, View,
+        tests::{
+            add_attestations, create_config_default, get_random_included_replica_id,
+            get_random_replica_id, DummyPayload,
+        },
+        View,
     };
 
     use super::Commit;
 
+    /// Create a commit for the tests below.
+    ///
+    /// # Arguments
+    ///
+    /// * `origin` - The ID of the replica to which the Commit belongs to.
+    /// * `prepare` - The Prepare to which the Commit belongs to.
+    /// * `usig` - The USIG signature to use to sign the CommitContent.
+    pub(crate) fn create_commit(
+        origin: ReplicaId,
+        prepare: Prepare<DummyPayload, Signature>,
+        usig: &mut impl Usig<Signature = Signature>,
+    ) -> Commit<DummyPayload, Signature> {
+        Commit::sign(CommitContent { origin, prepare }, usig).unwrap()
+    }
+
     /// Tests if the validation of a valid [Commit] succeeds.
-    #[test]
-    fn validate_valid_commit() {
-        let mut usig_0 = UsigNoOp::default();
+    ///
+    /// * `n` - The number of replicas.
+    #[rstest]
+    fn validate_valid_commit(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
 
-        let prepare = Prepare::sign(
-            PrepareContent {
-                origin: ReplicaId::from_u64(0),
-                view: View(0),
-                request_batch: RequestBatch::new(Box::<
-                    [client_request::ClientRequest<DummyPayload>; 0],
-                >::new([])),
-            },
-            &mut usig_0,
-        )
-        .unwrap();
+        for t in 0..n / 2 {
+            let primary_id = get_random_replica_id(n_parsed, &mut rng);
+            let view = View(primary_id.as_u64());
+            let mut usig_primary = UsigNoOp::default();
+            let config_primary = create_config_default(n_parsed, t, primary_id);
+            let request_batch = create_batch();
+            let prepare = create_prepare(view, request_batch, &config_primary, &mut usig_primary);
 
-        let mut usig_1 = UsigNoOp::default();
+            let backup_id = get_random_included_replica_id(n_parsed, primary_id, &mut rng);
+            let mut usig_backup = UsigNoOp::default();
+            let config_backup = create_config_default(n_parsed, t, backup_id);
+            let commit = create_commit(backup_id, prepare, &mut usig_backup);
 
-        usig_0.add_remote_party(ReplicaId::from_u64(0), ());
-        usig_0.add_remote_party(ReplicaId::from_u64(1), ());
-        usig_1.add_remote_party(ReplicaId::from_u64(0), ());
-        usig_1.add_remote_party(ReplicaId::from_u64(1), ());
+            add_attestations(&mut vec![
+                (primary_id, &mut usig_primary),
+                (backup_id, &mut usig_backup),
+            ]);
 
-        let commit = Commit::sign(
-            CommitContent {
-                origin: ReplicaId::from_u64(1),
-                prepare,
-            },
-            &mut usig_1,
-        )
-        .unwrap();
-
-        let config = Config {
-            n: NonZeroU64::new(3).unwrap(),
-            t: 1,
-            id: ReplicaId::from_u64(0),
-            batch_timeout: Duration::from_secs(2),
-            max_batch_size: None,
-            initial_timeout_duration: Duration::from_secs(2),
-            checkpoint_period: NonZeroU64::new(2).unwrap(),
-        };
-
-        assert!(commit.validate(&config, &mut usig_1).is_ok());
-        assert!(commit.validate(&config, &mut usig_0).is_ok());
+            assert!(commit.validate(&config_primary, &mut usig_primary).is_ok());
+            assert!(commit.validate(&config_backup, &mut usig_backup).is_ok());
+        }
     }
 
-    /// Tests if the validation of an invalid [Commit],
-    /// in which the origin of the [Commit] is the primary, results in an error.
-    #[test]
-    fn validate_invalid_commit_primary() {
-        let mut usig_0 = UsigNoOp::default();
+    /// Tests if the validation of an invalid Commit fails.
+    /// The Commit's origin is that of the primary.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
+    #[rstest]
+    fn validate_invalid_commit_origin(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
 
-        usig_0.add_remote_party(ReplicaId::from_u64(0), ());
+        for t in 0..n / 2 {
+            let primary_id = get_random_replica_id(n_parsed, &mut rng);
+            let view = View(primary_id.as_u64());
+            let mut usig_primary = UsigNoOp::default();
+            let config_primary = create_config_default(n_parsed, t, primary_id);
+            let request_batch = create_batch();
+            let prepare = create_prepare(view, request_batch, &config_primary, &mut usig_primary);
 
-        let prepare = Prepare::sign(
-            PrepareContent {
-                origin: ReplicaId::from_u64(0),
-                view: View(0),
-                request_batch: RequestBatch::new(Box::<
-                    [client_request::ClientRequest<DummyPayload>; 0],
-                >::new([])),
-            },
-            &mut usig_0,
-        )
-        .unwrap();
+            let backup_id = get_random_included_replica_id(n_parsed, primary_id, &mut rng);
+            let mut usig_backup = UsigNoOp::default();
+            let config_backup = create_config_default(n_parsed, t, backup_id);
+            let commit = create_commit(primary_id, prepare, &mut usig_primary);
 
-        let mut usig_1 = UsigNoOp::default();
+            add_attestations(&mut vec![
+                (primary_id, &mut usig_primary),
+                (backup_id, &mut usig_backup),
+            ]);
 
-        usig_0.add_remote_party(ReplicaId::from_u64(0), ());
-        usig_0.add_remote_party(ReplicaId::from_u64(1), ());
-        usig_1.add_remote_party(ReplicaId::from_u64(0), ());
-        usig_1.add_remote_party(ReplicaId::from_u64(1), ());
-
-        let commit = Commit::sign(
-            CommitContent {
-                origin: ReplicaId::from_u64(0),
-                prepare,
-            },
-            &mut usig_0,
-        )
-        .unwrap();
-
-        let config = Config {
-            n: NonZeroU64::new(3).unwrap(),
-            t: 1,
-            id: ReplicaId::from_u64(0),
-            batch_timeout: Duration::from_secs(2),
-            max_batch_size: None,
-            initial_timeout_duration: Duration::from_secs(2),
-            checkpoint_period: NonZeroU64::new(2).unwrap(),
-        };
-
-        assert!(commit.validate(&config, &mut usig_0).is_err());
-        assert!(commit.validate(&config, &mut usig_1).is_err());
+            assert!(commit.validate(&config_primary, &mut usig_primary).is_err());
+            assert!(commit.validate(&config_backup, &mut usig_backup).is_err());
+        }
     }
 
-    /// Tests if the validation of an invalid [Commit],
-    /// in which the replica is unknown (not previously added as remote party), results in an error.
-    #[test]
-    fn validate_invalid_commit_unknown_remote_party() {
-        let mut usig_0 = UsigNoOp::default();
+    /// Tests if the validation of an invalid Commit fails.
+    /// The Commit originates from an unknown (and therefore untrusted) remote
+    /// party.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
+    #[rstest]
+    fn validate_invalid_commit_unknown_party(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
 
-        let prepare = Prepare::sign(
-            PrepareContent {
-                origin: ReplicaId::from_u64(0),
-                view: View(0),
-                request_batch: RequestBatch::new(Box::<
-                    [client_request::ClientRequest<DummyPayload>; 0],
-                >::new([])),
-            },
-            &mut usig_0,
-        )
-        .unwrap();
+        for t in 0..n / 2 {
+            let primary_id = get_random_replica_id(n_parsed, &mut rng);
+            let view = View(primary_id.as_u64());
+            let mut usig_primary = UsigNoOp::default();
+            let config_primary = create_config_default(n_parsed, t, primary_id);
+            let request_batch = create_batch();
+            let prepare = create_prepare(view, request_batch, &config_primary, &mut usig_primary);
 
-        let mut usig_1 = UsigNoOp::default();
+            let backup_id = get_random_included_replica_id(n_parsed, primary_id, &mut rng);
+            let mut usig_backup = UsigNoOp::default();
+            let config_backup = create_config_default(n_parsed, t, backup_id);
+            let commit = create_commit(backup_id, prepare, &mut usig_backup);
 
-        usig_0.add_remote_party(ReplicaId::from_u64(0), ());
-        usig_1.add_remote_party(ReplicaId::from_u64(0), ());
-        usig_1.add_remote_party(ReplicaId::from_u64(1), ());
+            usig_primary.add_remote_party(primary_id, ());
+            usig_backup.add_remote_party(backup_id, ());
+            usig_backup.add_remote_party(primary_id, ());
 
-        let commit = Commit::sign(
-            CommitContent {
-                origin: ReplicaId::from_u64(1),
-                prepare,
-            },
-            &mut usig_1,
-        )
-        .unwrap();
+            assert!(commit.validate(&config_primary, &mut usig_primary).is_err());
+            assert!(commit.validate(&config_backup, &mut usig_backup).is_ok());
+        }
+    }
 
-        let config = Config {
-            n: NonZeroU64::new(3).unwrap(),
-            t: 1,
-            id: ReplicaId::from_u64(0),
-            batch_timeout: Duration::from_secs(2),
-            max_batch_size: None,
-            initial_timeout_duration: Duration::from_secs(2),
-            checkpoint_period: NonZeroU64::new(2).unwrap(),
-        };
+    /// Tests if the validation of an invalid Commit fails.
+    /// The Prepare is invalid.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The number of replicas.
+    #[rstest]
+    fn validate_invalid_commit_invalid_prepare(#[values(3, 4, 5, 6, 7, 8, 9, 10)] n: u64) {
+        let n_parsed = NonZeroU64::new(n).unwrap();
+        let mut rng = thread_rng();
 
-        assert!(commit.validate(&config, &mut usig_1).is_ok());
-        assert!(commit.validate(&config, &mut usig_0).is_err());
+        for t in 0..n / 2 {
+            let primary_id = get_random_replica_id(n_parsed, &mut rng);
+            let view = View(primary_id.as_u64());
+            let mut usig_primary = UsigNoOp::default();
+            let config_primary = create_config_default(n_parsed, t, primary_id);
+            let request_batch = create_batch();
+            let prepares_invalid = create_invalid_prepares(
+                view,
+                request_batch.clone(),
+                &config_primary,
+                &mut usig_primary,
+                &mut rng,
+            );
+
+            let backup_id = get_random_included_replica_id(n_parsed, primary_id, &mut rng);
+            let mut usig_backup = UsigNoOp::default();
+            let config_backup = create_config_default(n_parsed, t, backup_id);
+
+            usig_primary.add_remote_party(primary_id, ());
+            usig_primary.add_remote_party(backup_id, ());
+            usig_backup.add_remote_party(backup_id, ());
+
+            let prepare_unknown_usig =
+                create_prepare(view, request_batch, &config_primary, &mut usig_primary);
+            let commit = create_commit(backup_id, prepare_unknown_usig, &mut usig_backup);
+            assert!(commit.validate(&config_primary, &mut usig_primary).is_ok());
+            assert!(commit.validate(&config_backup, &mut usig_backup).is_err());
+
+            usig_backup.add_remote_party(primary_id, ());
+
+            for prep_invalid in prepares_invalid {
+                let commit = create_commit(backup_id, prep_invalid, &mut usig_backup);
+                assert!(commit.validate(&config_primary, &mut usig_primary).is_err());
+                assert!(commit.validate(&config_backup, &mut usig_backup).is_err());
+            }
+        }
     }
 }
