@@ -2,7 +2,7 @@
 //! consenting nodes (replicas) required as much as possible.
 //!
 //! Based on the paper ["Efficient Byzantine Fault-Tolerance" by
-//! Veronese et al](doi: 10.1109/TC.2011.221), the crate provides an
+//! Veronese et al](https://doi.org/10.1109/TC.2011.221), the crate provides an
 //! implementation of a partially asynchronous Byzantine fault-tolerant atomic
 //! broadcast (BFT) algorithm.
 //! The algorithm requires n = 2t + 1 replicas in total, where t is the number
@@ -22,7 +22,7 @@
 //! Timeouts must be handled explicitly by calling the respective function.
 //! See the dedicated function below for further explanation.
 //!
-//! This implementation was created as part of the [ABCperf project](doi: 10.1145/3626564.3629101).
+//! This implementation was created as part of the [ABCperf project](https://doi.org/10.1145/3626564.3629101).
 //! An [integration in ABCperf](https://github.com/abcperf/demo) also exists.
 
 use std::cmp::Reverse;
@@ -194,9 +194,8 @@ struct ReplicaState<P, Sig> {
 ///
 /// ```no_run
 /// use anyhow::Result;
-/// use std::{num::NonZeroU64, time::Duration, collections::HashMap};
+/// use std::time::Duration;
 /// use serde::{Deserialize, Serialize};
-/// use core::fmt::Debug;
 ///
 /// use shared_ids::{ReplicaId, ClientId, RequestId};
 /// use usig::{Usig, noop::UsigNoOp};
@@ -231,8 +230,6 @@ struct ReplicaState<P, Sig> {
 ///         todo!();
 ///     }
 /// }
-///
-/// let n = NonZeroU64::new(10).unwrap();
 ///
 /// let (mut minbft, output) = MinBft::<SamplePayload, _>::new(
 ///         UsigNoOp::default(),
