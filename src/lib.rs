@@ -625,16 +625,16 @@ where
     /// They are handled differently depending on their type.
     ///
     /// A timeout for a batch is only handled if the primary is non-faulty
-    /// from the standpoint of the replica.\
+    /// from the standpoint of the replica.
     /// Is this the case, then a message of type Prepare is created
     /// and broadcast for the next batch of client-requests.
     ///
     /// A timeout for a client-request is only handled if the primary is non-faulty
-    /// from the standpoint of the replica.\
+    /// from the standpoint of the replica.
     /// Is this the case, then a view-change is requested.
     ///
     /// A timeout for a view-change is only handled if the replica is currently
-    /// in the state of changing views.\
+    /// in the state of changing views.
     /// Is this the case, then a view-change is requested.
     ///
     /// # Arguments

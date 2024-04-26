@@ -1,6 +1,6 @@
-//! Defines the collector of messages of type [Checkpoint].\
+//! Defines the collector of messages of type [Checkpoint].
 //! A [CheckpointCertificate] is generated when sufficient valid [Checkpoint]s
-//! have been collected.\
+//! have been collected.
 //! For further explanation, see the paper "Efficient Byzantine Fault Tolerance"
 //! by Veronese et al.
 
@@ -21,14 +21,14 @@ use super::CollectorMessages;
 /// [Checkpoint]s (collection of messages of type [Checkpoint]) are unstable
 /// until the replica's own message and `t` (see [crate::Config]) other messages
 /// of type Checkpoint with equal state hash and amount of accepted batches are
-/// successfully received.\
+/// successfully received.
 /// Additionally, all messages of type [Checkpoint] must originate from
-/// different replicas.\
-/// The struct allows to save received messages of type [Checkpoint].\
+/// different replicas.
+/// The struct allows to save received messages of type [Checkpoint].
 
 pub(crate) type CollectorCheckpoints<Sig> = CollectorMessages<KeyCheckpoints, Checkpoint<Sig>>;
 
-/// Defines the key for the collector.\
+/// Defines the key for the collector.
 /// The key must be the state hash and the counter of the last accepted prepare.
 #[serde_as]
 #[derive(Debug, Clone, Hash, PartialEq, Serialize, Deserialize, Eq)]
@@ -68,11 +68,11 @@ impl<Sig: Clone> CollectorCheckpoints<Sig> {
         amount_collected
     }
 
-    /// Generates a new checkpoint certificate.\
+    /// Generates a new checkpoint certificate.
     /// It only remains to be checked if at least `t + 1` messages have already
-    /// been received (one being implicitly the replica's own message).\
+    /// been received (one being implicitly the replica's own message).
     /// This is because the struct field's type choice and the insert method
-    /// already guarantee ...\
+    /// already guarantee ...
     ///
     /// 1. that the replica's own message was already received,
     /// 2. that all other messages have the same state hash,
@@ -276,7 +276,7 @@ mod test {
     /// Tests if the collection of different Checkpoints (not belonging to the
     /// same group of state hashes and amount of accepted batches) behaves as
     /// expectedly, i.e., the checkpoint certificate should not be stable
-    /// as not enough checkpoints have been collected.\
+    /// as not enough checkpoints have been collected.
     /// Here, the state hashes differ.
     ///
     /// # Arguments
@@ -365,7 +365,7 @@ mod test {
     /// Tests if the collection of different Checkpoints (not belonging to the
     /// same group of state hashes and amount of accepted batches) behaves as
     /// expectedly, i.e., the checkpoint certificate should not be stable
-    /// as not enough checkpoints have been collected.\
+    /// as not enough checkpoints have been collected.
     /// Here, the amount of accepted batches differ.
     ///
     /// # Arguments
@@ -455,7 +455,7 @@ mod test {
     /// Tests if the collection of different Checkpoints (not belonging to the
     /// same group of state hashes and amount of accepted batches) behaves as
     /// expectedly, i.e., the checkpoint certificate should not be stable
-    /// as not enough checkpoints have been collected.\
+    /// as not enough checkpoints have been collected.
     /// Here, both the state hash as well as the amount of accepted batches
     /// differ.
     ///

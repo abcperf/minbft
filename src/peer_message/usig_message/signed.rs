@@ -58,7 +58,7 @@ impl<T, Sig: Counter> Counter for UsigSigned<T, Sig> {
 }
 
 pub(crate) trait UsigSignable: AsRef<ReplicaId> {
-    /// Hashes the [UsigSignable].\
+    /// Hashes the [UsigSignable].
     /// Required for signing and verifying a [UsigSignable].
     fn hash_content<H: Update>(&self, hasher: &mut H);
 }

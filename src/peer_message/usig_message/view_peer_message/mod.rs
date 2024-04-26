@@ -1,5 +1,5 @@
-//! Defines a message of type [ViewPeerMessage].\
-//! Such messages are either of inner type [Prepare] or [Commit].\
+//! Defines a message of type [ViewPeerMessage].
+//! Such messages are either of inner type [Prepare] or [Commit].
 //! For further explanation of the inner types, refer to the specific
 //! documentation.
 
@@ -70,8 +70,8 @@ impl<P: RequestPayload, Sig: Serialize> ViewPeerMessage<P, Sig> {
         .view
     }
 
-    /// Validates the [ViewPeerMessage].\
-    /// Essentially, the inner type of the [ViewPeerMessage] is validated.\
+    /// Validates the [ViewPeerMessage].
+    /// Essentially, the inner type of the [ViewPeerMessage] is validated.
     /// An [InnerError] is returned when the validation is unsuccessful.
     ///
     /// # Arguments
@@ -128,7 +128,7 @@ mod test {
         View,
     };
 
-    /// Tests if the validation of a valid ViewPeerMessage succeeds.\
+    /// Tests if the validation of a valid ViewPeerMessage succeeds.
     /// The inner type of the ViewPeerMessage is a Prepare.
     ///
     /// # Arguments
@@ -163,7 +163,7 @@ mod test {
         }
     }
 
-    /// Tests if the validation of a valid ViewPeerMessage succeeds.\
+    /// Tests if the validation of a valid ViewPeerMessage succeeds.
     /// The inner type of the ViewPeerMessage is a Commit.
     ///
     /// # Arguments
@@ -199,8 +199,8 @@ mod test {
         }
     }
 
-    /// Tests if the validation of an invalid ViewPeerMessage fails.\
-    /// The inner type of the ViewPeerMessage is a Prepare.\
+    /// Tests if the validation of an invalid ViewPeerMessage fails.
+    /// The inner type of the ViewPeerMessage is a Prepare.
     /// All variants of an invalid Prepare are tested.
     ///
     /// # Arguments
@@ -249,7 +249,7 @@ mod test {
         }
     }
 
-    /// Tests if the validation of an invalid ViewPeerMessage fails.\
+    /// Tests if the validation of an invalid ViewPeerMessage fails.
     /// The inner type of the ViewPeerMessage is a Commit.
     ///
     /// # Arguments

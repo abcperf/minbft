@@ -1,4 +1,4 @@
-//! Defines a message of type [Prepare].\
+//! Defines a message of type [Prepare].
 //! A [Prepare] is broadcast by the current primary (no other replicas are
 //! allowed to send a [Prepare]) in response to a received client request.
 
@@ -18,8 +18,8 @@ use crate::{
     Config, RequestPayload, View,
 };
 
-/// The content of a message of type [Prepare].\
-/// Contains the ID of the replica that created the [Prepare].\
+/// The content of a message of type [Prepare].
+/// Contains the ID of the replica that created the [Prepare].
 /// Additionally, it consists of the [View] and the batch of client requests
 /// for which the [Prepare] is for.
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -41,7 +41,7 @@ impl<P> AsRef<ReplicaId> for PrepareContent<P> {
 }
 
 impl<P: Serialize> UsigSignable for PrepareContent<P> {
-    /// Hashes the content of a message of type [Prepare].\
+    /// Hashes the content of a message of type [Prepare].
     /// Required for signing and verifying a message of type [Prepare].
     fn hash_content<H: Update>(&self, hasher: &mut H) {
         let encoded = bincode::serialize(self).unwrap();
@@ -49,11 +49,11 @@ impl<P: Serialize> UsigSignable for PrepareContent<P> {
     }
 }
 
-/// The message of type [Prepare].\
+/// The message of type [Prepare].
 /// [Prepare]s consist of their content ([PrepareContent]) and must be signed by
-/// a USIG.\
+/// a USIG.
 /// Such a message is broadcast by the current primary in response to a received
-/// client request.\
+/// client request.
 /// Only the current primary is allowed to create a [Prepare] and broadcast it.
 pub(crate) type Prepare<P, Sig> = UsigSigned<PrepareContent<P>, Sig>;
 
@@ -93,12 +93,12 @@ impl<P, Sig: Counter> Ord for Prepare<P, Sig> {
 }
 
 impl<P: RequestPayload, Sig> Prepare<P, Sig> {
-    /// Validates a message of type [Prepare].\
+    /// Validates a message of type [Prepare].
     /// Following conditions must be met for the [Prepare] to be valid:\
-    /// 1. The [Prepare] must originate from the current primary.\
+    /// 1. The [Prepare] must originate from the current primary.
     /// 2. The batch of requests to which the [Prepare] belongs to must be
-    ///    valid.\
-    ///    In other words, each batched request must be valid.\
+    ///    valid.
+    ///    In other words, each batched request must be valid.
     /// 3. Additionally, the signature of the [Prepare] must be verified.
     ///
     /// # Arguments
@@ -202,7 +202,7 @@ pub(crate) mod test {
         .unwrap()
     }
 
-    /// Create an invalid [Prepare].\
+    /// Create an invalid [Prepare].
     /// The [Prepare] contains invalid client requests.
     ///
     /// # Arguments
@@ -238,7 +238,7 @@ pub(crate) mod test {
         .unwrap()
     }
 
-    /// Create an invalid [Prepare].\
+    /// Create an invalid [Prepare].
     /// The origin of the [Prepare] is invalid (replica is not, as demanded, the
     /// primary).
     ///
@@ -274,7 +274,7 @@ pub(crate) mod test {
         .unwrap()
     }
 
-    /// Create invalid [Prepare]s.\
+    /// Create invalid [Prepare]s.
     /// The [Prepare]s are all invalid for different reasons.
     ///
     /// # Arguments
@@ -334,7 +334,7 @@ pub(crate) mod test {
         }
     }
 
-    /// Tests if the validation of an invalid Prepare fails.\
+    /// Tests if the validation of an invalid Prepare fails.
     /// The origin of the Prepare is not the primary.
     ///
     /// # Arguments
@@ -375,7 +375,7 @@ pub(crate) mod test {
         }
     }
 
-    /// Test if the validation of an invalid Prepare fails.\
+    /// Test if the validation of an invalid Prepare fails.
     /// The Prepare contains invalid requests.
     ///
     /// # Arguments
@@ -410,7 +410,7 @@ pub(crate) mod test {
         }
     }
 
-    /// Tests if the validation of an invalid Prepare fails.\
+    /// Tests if the validation of an invalid Prepare fails.
     /// The origin of the Prepare is an unknown remote party.
     ///
     /// # Arguments

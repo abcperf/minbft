@@ -21,10 +21,10 @@ pub enum TimeoutType {
     ViewChange,
 }
 
-/// Defines a Timeout consisting of a type, duration, and stop class.\
-/// Timeouts ensure view-changes occur when they are necessary.\
+/// Defines a Timeout consisting of a type, duration, and stop class.
+/// Timeouts ensure view-changes occur when they are necessary.
 /// [crate::MinBft] outputs timeout requests when a timeout may possibly have to
-/// be set.\
+/// be set.
 /// Timeout requests and timeouts must be handled explicitly, see [crate::MinBft].
 ///
 /// Contains a [StopClass], making sure running timeouts can only be stopped
@@ -40,9 +40,9 @@ pub struct Timeout {
     pub stop_class: StopClass,
 }
 
-/// Defines a Timeout consisting of a type, duration, and stop class.\
-/// Timeouts ensure view-changes occur when they are necessary.\
-/// [crate::MinBft] outputs timeout requests when a timeout may possibly have to be set.\
+/// Defines a Timeout consisting of a type, duration, and stop class.
+/// Timeouts ensure view-changes occur when they are necessary.
+/// [crate::MinBft] outputs timeout requests when a timeout may possibly have to be set.
 /// Timeout requests and timeouts must be handled explicitly, see [crate::MinBft].
 ///
 /// Does not contain a [StopClass].

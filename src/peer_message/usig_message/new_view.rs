@@ -1,6 +1,6 @@
-//! Defines a message of type [NewView].\
+//! Defines a message of type [NewView].
 //! A [NewView] is broadcast by the new [View] when enough [ViewChange]s have
-//! been collected.\
+//! been collected.
 //! For further explanation, see the documentation in [crate::MinBft] or the
 //! paper "Efficient Byzantine Fault-Tolerance" by Veronese et al.
 
@@ -21,7 +21,7 @@ use super::{
     view_change::ViewChange,
 };
 
-/// The content of a message of type [NewView].\
+/// The content of a message of type [NewView].
 /// The content consists of the origin of the message, the next [View], and the
 /// [NewViewCertificate].
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -64,15 +64,15 @@ impl<P: RequestPayload, Sig: Serialize + Counter + Debug> NewViewContent<P, Sig>
     }
 }
 
-/// The message of type [NewView].\
-/// [NewView]s consist of their content and must be signed by a USIG.\
+/// The message of type [NewView].
+/// [NewView]s consist of their content and must be signed by a USIG.
 /// Such a message is broadcast by the next [View] in response to having
 /// collected a sufficient amount (`t + 1`) of [ViewChange]s
 /// (for further explanation, see [crate::Config], [crate::peer_message_processor].
 pub(crate) type NewView<P, Sig> = UsigSigned<NewViewContent<P, Sig>, Sig>;
 
 impl<P: Serialize, Sig: Serialize> UsigSignable for NewViewContent<P, Sig> {
-    /// Hashes the content of a message of type [NewView].\
+    /// Hashes the content of a message of type [NewView].
     /// Required for signing and verifying a message of type [NewView].
     fn hash_content<H: Update>(&self, hasher: &mut H) {
         let encoded = bincode::serialize(self).unwrap();
@@ -81,7 +81,7 @@ impl<P: Serialize, Sig: Serialize> UsigSignable for NewViewContent<P, Sig> {
 }
 
 impl<P: RequestPayload, Sig: Serialize + Counter + Debug> NewView<P, Sig> {
-    /// Validates the [NewView].\
+    /// Validates the [NewView].
     /// See below for the different steps regarding the validation.
     ///
     /// # Arguments
@@ -155,7 +155,7 @@ impl<P: RequestPayload, Sig: Serialize + Counter + Debug> NewView<P, Sig> {
     }
 }
 
-/// The certificate of the [NewView].\
+/// The certificate of the [NewView].
 /// Must contain at least `t + 1` valid messages of type [ViewChange].
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct NewViewCertificate<P, Sig> {
@@ -165,7 +165,7 @@ pub(crate) struct NewViewCertificate<P, Sig> {
 }
 
 impl<P: RequestPayload, Sig: Serialize + Counter + Debug> NewViewCertificate<P, Sig> {
-    /// Validates the [NewViewCertificate].\
+    /// Validates the [NewViewCertificate].
     /// See below for the different steps regarding the validation.
     ///
     /// # Arguments
