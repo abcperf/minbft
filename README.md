@@ -12,7 +12,7 @@ An [integration in ABCperf](https://github.com/abcperf/demo) also exists.
 
 ```rs
 use anyhow::Result;
-use std::time::Duration;
+use std::{num::NonZeroU64, time::Duration};
 use serde::{Deserialize, Serialize};
 use shared_ids::{ReplicaId, ClientId, RequestId};
 use usig::{Usig, noop::UsigNoOp};
@@ -28,7 +28,7 @@ impl RequestPayload for SamplePayload {
         todo!()
     }
 }
-// Should handle the output.
+/// Should handle the output.
 fn handle_output<U: Usig>(output: Output<SamplePayload, U>) {
     let Output { broadcasts, responses, timeout_requests, .. } = output;
     for broadcast in broadcasts.iter() {
@@ -46,15 +46,21 @@ fn handle_output<U: Usig>(output: Output<SamplePayload, U>) {
 }
 
 fn main() {
-    let checkpoint_period = NonZeroU64::new(checkpoint_period).unwrap();
+    // define the amount of replicas that form the atomic broadcast
+    let n = NonZeroU64::new(10).unwrap();
+    // define the maximum amount of faulty replicas (`n >= t / 2 + 1`)
+    let t = n.get() / 2;
+    // define the ID of one of the replicas
+    let replica_id = ReplicaId::from_u64(0);
+
     let config = Config {
                 n: n.try_into().unwrap(),
                 t,
-                id,
+                id: replica_id,
                 max_batch_size: Some(1.try_into().expect("> 0")),
                 batch_timeout: Duration::from_secs(1),
                 initial_timeout_duration: Duration::from_secs(1),
-                checkpoint_period,
+                checkpoint_period: NonZeroU64::new(2).unwrap(),
             };
     
     // can be exchanged with a different USIG implementation
@@ -75,7 +81,7 @@ fn main() {
     // create and send client message to be handled by replicas.
     let some_client_message: SamplePayload = todo!();
     let output = minbft.handle_client_message(ClientId::from_u64(0), some_client_message);
-    handle_output(output); 
+    handle_output(output);
     // after the atomic broadcast achieves consensus,
     // a response to the client request can be seen in the output struct.
 }
