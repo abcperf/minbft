@@ -17,7 +17,11 @@
 //! respective function.
 //!
 //! The replicas must sign their peer messages with a Unique Sequential
-//! Identifier Generator (USIG), as described in section 2 of the paper above.
+//! Identifier Generator (USIG), as described in Section 2 of the paper above.
+//! A USIG implementation compatible with this MinBFT implementation can be
+//! found [here](https://github.com/abcperf/usig).
+//! Note that this implementation does not use Trusted Execution Environments
+//! and, thus, should not be used in untrusted environments.
 //!
 //! Timeouts must be handled explicitly by calling the respective function.
 //! See the dedicated function below for further explanation.
