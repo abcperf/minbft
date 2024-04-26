@@ -397,7 +397,7 @@ pub(crate) fn create_random_valid_req_vc_next_jump(
     }
 }
 
-/// Setups n [MinBft]s configured with the given parameters.
+/// Sets up n [MinBft]s configured with the given parameters.
 /// Moreover, it returns the [TimeoutHandler]s of the [MinBft]s.
 pub(crate) fn setup_set(n: u64, t: u64, checkpoint_period: u64) -> SetupSet {
     let mut minbfts = HashMap::new();
