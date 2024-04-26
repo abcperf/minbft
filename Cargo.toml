@@ -1,10 +1,12 @@
 [package]
 name = "minbft"
-version = "0.11.0"
+version = "1.0.0"
 edition = "2021"
 license = "MIT"
 description = "Efficient Byzantine Fault-Tolerance in the partially synchronous timing model"
+documentation = "https://docs.rs/minbft/latest/minbft/"
 repository = "https://github.com/abcperf/minbft"
+readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
