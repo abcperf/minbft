@@ -3,6 +3,7 @@ use tracing::debug;
 
 use serde::Serialize;
 use tracing::error;
+use tracing::warn;
 use usig::Counter;
 use usig::Usig;
 
@@ -51,7 +52,9 @@ where
     ) {
         match &mut self.view_state {
             ViewState::InView(in_view) => {
-                assert!(Some(prepare.counter()) > self.counter_last_accepted_prep, "Failed to process Prepare (origin: {:?}, view: {:?}, counter: {:?}): Counter of Prepare is less than or equal to counter of last accepted Prepare ({:?}).", prepare.origin, prepare.view, prepare.counter(), self.counter_last_accepted_prep);
+                if Some(prepare.counter()) <= self.counter_last_accepted_prep {
+                    warn!("Failed to process Prepare (origin: {:?}, view: {:?}, counter: {:?}): Counter of Prepare is less than or equal to counter of last accepted Prepare ({:?}).", prepare.origin, prepare.view, prepare.counter(), self.counter_last_accepted_prep);
+                }
                 // no Commit for own Prepare since Prepares already count as Commit
                 if prepare.origin != self.config.me() {
                     let origin = self.config.me();
