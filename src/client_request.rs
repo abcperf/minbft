@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use shared_ids::ClientId;
-use tracing::debug;
+use tracing::trace;
 
 use crate::RequestPayload;
 
@@ -54,17 +54,17 @@ impl<P: RequestPayload> RequestBatch<P> {
 
     /// Validates the RequestBatch.
     pub(crate) fn validate(&self) -> Result<()> {
-        debug!("Validating batch of requests ...");
+        trace!("Validating batch of requests ...");
         for request in self.batch.iter() {
-            debug!(
+            trace!(
                 "Validating client request (ID: {:?}, client ID: {:?}) contained in batch ...",
                 request.id(),
                 request.client
             );
             request.validate()?;
-            debug!("Successfully validated client request (ID: {:?}, client ID: {:?}) contained in batch.", request.id(), request.client);
+            trace!("Successfully validated client request (ID: {:?}, client ID: {:?}) contained in batch.", request.id(), request.client);
         }
-        debug!("Successfully validated batch of requests.");
+        trace!("Successfully validated batch of requests.");
         Ok(())
     }
 }

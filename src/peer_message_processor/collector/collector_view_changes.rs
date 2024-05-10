@@ -3,7 +3,7 @@
 //! the next leader broadcasts the
 //! [NewView](crate::peer_message::usig_message::new_view::NewView) message.
 
-use tracing::debug;
+use tracing::trace;
 
 use crate::{peer_message::usig_message::view_change::ViewChange, Config, View};
 
@@ -23,14 +23,16 @@ impl<P: Clone, Sig: Clone> CollectorViewChanges<P, Sig> {
     pub(crate) fn collect_view_change(&mut self, msg: ViewChange<P, Sig>) -> u64 {
         let origin = msg.origin;
         let next_view = msg.next_view;
-        debug!(
+        trace!(
             "Collecting ViewChange (origin: {:?}, next_view: {:?}) ...",
-            origin, next_view
+            origin,
+            next_view
         );
         let amount_collected = self.collect(msg, origin, next_view);
-        debug!(
+        trace!(
             "Successfully collected ViewChange (origin: {:?}, next view: {:?}).",
-            origin, next_view
+            origin,
+            next_view
         );
         amount_collected
     }
@@ -56,7 +58,7 @@ impl<P: Clone, Sig: Clone> CollectorViewChanges<P, Sig> {
         msg: &ViewChange<P, Sig>,
         config: &Config,
     ) -> Option<Vec<ViewChange<P, Sig>>> {
-        debug!(
+        trace!(
             "Retrieving ViewChanges (next view: {:?}) from collector ...",
             msg.next_view,
         );
@@ -64,7 +66,7 @@ impl<P: Clone, Sig: Clone> CollectorViewChanges<P, Sig> {
         let mut retrieved_all = Vec::new();
         retrieved_all.push(retrieved.0);
         retrieved_all.append(&mut retrieved.1);
-        debug!(
+        trace!(
             "Successfully retrieved ViewChanges (next view: {:?}).",
             msg.next_view
         );

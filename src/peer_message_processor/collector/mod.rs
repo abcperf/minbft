@@ -10,7 +10,7 @@ use std::{collections::HashMap, hash::Hash};
 
 use serde::{Deserialize, Serialize};
 use shared_ids::ReplicaId;
-use tracing::debug;
+use tracing::trace;
 
 use crate::Config;
 
@@ -40,19 +40,19 @@ impl<K: Eq + Hash + PartialOrd + Clone, M> CollectorMessages<K, M> {
             Some(messages) => {
                 // At least one message with the same key has been received before.
                 if messages.get(&from).is_some() {
-                    debug!("Skipped inserting message (origin: {from:?}) into collector: Message was a duplicate.");
+                    trace!("Skipped inserting message (origin: {from:?}) into collector: Message was a duplicate.");
                     return messages.len() as u64;
                 }
                 // The given message is new.
                 messages.insert(from, msg);
-                debug!("Inserted message (origin: {from:?}) into collector.");
+                trace!("Inserted message (origin: {from:?}) into collector.");
             }
             None => {
                 // No message with the same key has been received before
                 let mut messages = HashMap::new();
                 messages.insert(from, msg);
                 self.0.insert(key.clone(), messages);
-                debug!("Inserted message (origin: {from:?}) into collector.");
+                trace!("Inserted message (origin: {from:?}) into collector.");
             }
         }
         self.0.get_mut(&key).unwrap().len() as u64

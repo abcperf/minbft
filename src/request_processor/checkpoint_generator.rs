@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use blake2::{Blake2b512, Digest};
-use tracing::debug;
+use tracing::trace;
 use usig::{Counter, Usig};
 
 use crate::{
@@ -54,7 +54,7 @@ impl<P: RequestPayload, U: Usig> CheckpointGenerator<P, U> {
         self.total_amount_accepted_batches += 1;
         self.last_hash = self.next_state_hash(prepare);
 
-        debug!(
+        trace!(
             "Accepted in total {:?} batches.",
             self.total_amount_accepted_batches
         );

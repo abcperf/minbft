@@ -1,7 +1,7 @@
 use serde::Serialize;
 use shared_ids::ReplicaId;
 use std::fmt::Debug;
-use tracing::{debug, info, warn};
+use tracing::{error, info, trace, warn};
 use usig::Usig;
 
 use crate::{
@@ -10,7 +10,7 @@ use crate::{
         req_view_change::ReqViewChange,
         usig_message::view_change::{ViewChange, ViewChangeContent},
     },
-    ChangeInProgress, Error, MinBft, RequestPayload, ViewState, BACKOFF_MULTIPLIER,
+    ChangeInProgress, Error, MinBft, RequestPayload, ViewState,
 };
 
 impl<P: RequestPayload, U: Usig> MinBft<P, U>
@@ -81,11 +81,11 @@ where
             }
         };
         if req.prev_view != to_become_prev_view {
-            debug!("Processing ReqViewChange (origin: {from:?}, previous view: {:?}, next view: {:?}) resulted in ignoring creation of ViewChange: Previous view set in message is not the same as the current (to become) previous view.", req.prev_view, req.next_view);
+            warn!("Processing ReqViewChange (origin: {from:?}, previous view: {:?}, next view: {:?}) resulted in ignoring creation of ViewChange: Previous view set in message is not the same as the current (to become) previous view.", req.prev_view, req.next_view);
             return;
         }
         if amount_collected <= self.config.t {
-            debug!("Processing ReqViewChange (origin: {from:?}, previous view: {:?}, next view: {:?}) resulted in ignoring creation of ViewChange: A sufficient amount of ReqViewChanges has not been collected yet (collected: {:?}, required: {:?}).", req.prev_view, req.next_view, amount_collected, self.config.t + 1);
+            trace!("Processing ReqViewChange (origin: {from:?}, previous view: {:?}, next view: {:?}) resulted in ignoring creation of ViewChange: A sufficient amount of ReqViewChanges has not been collected yet (collected: {:?}, required: {:?}).", req.prev_view, req.next_view, amount_collected, self.config.t + 1);
             return;
         }
 
@@ -93,15 +93,11 @@ where
             ViewState::InView(_) => {}
             ViewState::ChangeInProgress(in_progress) => {
                 if in_progress.has_broadcast_view_change {
-                    debug!("Processing ReqViewChange (origin: {from:?}, previous view: {:?}, next view: {:?}) resulted in ignoring creation of ViewChange: ViewChange has already been broadcast for this view.", req.prev_view, req.next_view);
+                    trace!("Processing ReqViewChange (origin: {from:?}, previous view: {:?}, next view: {:?}) resulted in ignoring creation of ViewChange: ViewChange has already been broadcast for this view.", req.prev_view, req.next_view);
                     return;
                 }
             }
         }
-
-        output.timeout_request(TimeoutRequest::new_stop_vc_req());
-        self.current_timeout_duration *= BACKOFF_MULTIPLIER as u32;
-        let start_new_timeout = TimeoutRequest::new_start_vc_req(self.current_timeout_duration);
 
         self.view_state = ViewState::ChangeInProgress(ChangeInProgress {
             prev_view: req.prev_view,
@@ -112,9 +108,10 @@ where
         output.timeout_request(TimeoutRequest::new_stop_any_client_req());
 
         let origin = self.config.me();
-        debug!(
+        trace!(
             "Creating ViewChange for ReqViewChanges (previous view: {:?}, next view: {:?}) ...",
-            req.prev_view, req.next_view
+            req.prev_view,
+            req.next_view
         );
         let view_change = match ViewChange::sign(
             ViewChangeContent::new(
@@ -126,11 +123,11 @@ where
             &mut self.usig,
         ) {
             Ok(view_change) => {
-                debug!("Successfully created ViewChange for ReqViewChanges (previous view: {:?}, next view: {:?}).", req.prev_view, req.next_view);
+                trace!("Successfully created ViewChange for ReqViewChanges (previous view: {:?}, next view: {:?}).", req.prev_view, req.next_view);
                 view_change
             }
             Err(usig_error) => {
-                debug!("Failed to create ViewChange for ReqViewChanges (previous view: {:?}, next view: {:?}): Signing ViewChange failed. For further information see output.", req.prev_view, req.next_view);
+                error!("Failed to create ViewChange for ReqViewChanges (previous view: {:?}, next view: {:?}): Signing ViewChange failed. For further information see output.", req.prev_view, req.next_view);
                 let output_error = Error::Usig {
                     replica: origin,
                     msg_type: "ViewChange",
@@ -145,6 +142,5 @@ where
             view_change.next_view
         );
         output.broadcast(view_change, &mut self.sent_usig_msgs);
-        output.timeout_request(start_new_timeout);
     }
 }

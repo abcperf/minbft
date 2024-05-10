@@ -2,9 +2,7 @@ use serde::Serialize;
 use std::cmp::Reverse;
 use std::collections::VecDeque;
 use std::fmt::Debug;
-use tracing::debug;
-use tracing::error;
-use tracing::info;
+use tracing::{error, info, trace};
 use usig::Count;
 use usig::Counter;
 use usig::Usig;
@@ -26,7 +24,6 @@ use crate::Error;
 use crate::InView;
 use crate::MinBft;
 use crate::MinHeap;
-use crate::BACKOFF_MULTIPLIER;
 use crate::{output::NotReflectedOutput, ChangeInProgress, RequestPayload, ViewState};
 
 type NewViewState<P, Sig> = (Option<Checkpoint<Sig>>, VecDeque<Prepare<P, Sig>>);
@@ -82,11 +79,8 @@ where
                 match new_view.certificate.validate(&self.config, &mut self.usig) {
                     Ok(_) => {}
                     Err(_) => {
-                        output.timeout_request(TimeoutRequest::new_stop_vc_req());
+                        output.timeout_request(TimeoutRequest::new_stop_view_change());
                         let next_view = new_view.next_view + 1;
-                        self.current_timeout_duration *= BACKOFF_MULTIPLIER as u32;
-                        let start_new_timeout =
-                            TimeoutRequest::new_start_vc_req(self.current_timeout_duration);
 
                         let view_change = match ViewChange::sign(
                             ViewChangeContent::new(
@@ -119,14 +113,13 @@ where
                             view_change.next_view
                         );
                         output.broadcast(view_change, &mut self.sent_usig_msgs);
-                        output.timeout_request(start_new_timeout);
                         return;
                     }
                 }
                 // The NewViewCertificate is valid.
 
                 // Stops the current timeout of type ViewChange.
-                output.timeout_request(TimeoutRequest::new_stop_vc_req());
+                output.timeout_request(TimeoutRequest::new_stop_view_change());
 
                 let (last_cp, mut unique_preps) = Self::compute_new_view_state(
                     self.counter_last_accepted_prep,
@@ -147,7 +140,7 @@ where
                     }
                 }
 
-                debug!("Accepting unique Prepares contained in NewViewCertificate ...");
+                trace!("Accepting unique Prepares contained in NewViewCertificate ...");
                 while !unique_preps.is_empty() {
                     let unique_prep = unique_preps.pop_front().unwrap();
                     let from = unique_prep.origin;
@@ -165,7 +158,7 @@ where
                         .usig_message_order_enforcer
                         .update_in_new_view(counter);
                 }
-                debug!("Accepted unique Prepares contained in NewViewCertificate.");
+                trace!("Accepted unique Prepares contained in NewViewCertificate.");
 
                 // Clean up the collection of ReqViewChanges.
                 self.collector_rvc
@@ -177,29 +170,17 @@ where
                     collector_commits: CollectorCommits::new(),
                 });
 
-                output.timeout_request(TimeoutRequest::new_stop_any_client_req());
-                if let Some((_, req)) = self.request_processor.currently_processing_all().next() {
-                    output.timeout_request(TimeoutRequest::new_start_client_req(
-                        req.client,
-                        self.current_timeout_duration,
-                    ));
-                }
+                // Set the counter of the last accepted Prepare temporarily
+                // as the counter of the last sent UsigMessage by the new View.
+                // This makes sure all replicas are synced correctly upon changing views.
+                self.counter_last_accepted_prep = Some(new_view.counter());
 
                 if !self.config.me_primary(new_view.next_view) {
-                    // Set the counter of the last accepted Prepare temporarily
-                    // as the counter of the last sent UsigMessage by the new View.
-                    // This makes sure all replicas are synced correctly upon changing views.
-                    self.counter_last_accepted_prep = Some(new_view.counter());
-
-                    info!(
-                        "Successfully transitioned to next view ({:?})",
-                        new_view.next_view
-                    );
-
                     // Relay the NewView message.
-                    debug!(
+                    trace!(
                         "Relayed NewView (origin: {:?}, next view: {:?}).",
-                        new_view.origin, new_view.next_view
+                        new_view.origin,
+                        new_view.next_view
                     );
                     output.broadcast(new_view.clone(), &mut Vec::new());
                 } else {
@@ -212,7 +193,7 @@ where
                     }
 
                     // Send Prepares in a batch.
-                    debug!("Creating Prepare for client requests that have yet to be accepted ...");
+                    trace!("Creating Prepare for client requests that have yet to be accepted ...");
                     let origin = self.config.me();
                     if !requests_to_batch.is_empty() {
                         match Prepare::sign(
@@ -226,13 +207,9 @@ where
                             &mut self.usig,
                         ) {
                             Ok(prepare) => {
-                                debug!("Successfully created Prepare for client requests that have yet to be accepted.");
-                                debug!("Broadcast Prepare for client requests that have yet to be accepted.");
+                                trace!("Successfully created Prepare for client requests that have yet to be accepted.");
+                                trace!("Broadcast Prepare for client requests that have yet to be accepted.");
                                 output.broadcast(prepare, &mut self.sent_usig_msgs);
-                                info!(
-                                    "Successfully transitioned to new view ({:?}).",
-                                    new_view.next_view
-                                );
                             }
                             Err(usig_error) => {
                                 error!("Failed to create Prepare for client requests that have yet to be accepted. For further information see output.");
@@ -242,18 +219,15 @@ where
                                     usig_error,
                                 };
                                 output.error(output_error);
+                                return;
                             }
                         };
                     }
                 }
-                // Set the counter of the last accepted Prepare temporarily
-                // as the counter of the last sent UsigMessage by the new View.
-                // This makes sure all replicas are synced correctly upon changing views.
-                debug!(
-                    "Set counter of last accepted Prepare to counter of NewView ({:?}).",
-                    new_view.counter()
+                info!(
+                    "Successfully transitioned to new view ({:?}).",
+                    new_view.next_view
                 );
-                self.counter_last_accepted_prep = Some(new_view.counter());
             }
         }
     }

@@ -10,7 +10,7 @@ use std::{
     collections::{HashMap, HashSet},
     hash::Hash,
 };
-use tracing::{debug, trace};
+use tracing::trace;
 
 use crate::{peer_message::req_view_change::ReqViewChange, View};
 
@@ -131,7 +131,7 @@ impl CollectorReqViewChanges {
     /// * `next_view` - The next [View] that should be used to filter out old,
     ///                 no longer necessary messages.
     pub(crate) fn clean_up(&mut self, prev_view: View, next_view: View) {
-        debug!("Cleaning up collector of ReqViewChanges: Removing ReqViewChanges with previous view less than {:?} or equal to it and next view less than {:?}", prev_view, next_view);
+        trace!("Cleaning up collector of ReqViewChanges: Removing ReqViewChanges with previous view less than {:?} or equal to it and next view less than {:?}", prev_view, next_view);
         let key = KeyRVC {
             prev_view,
             next_view,

@@ -11,7 +11,7 @@ use blake2::digest::Update;
 use serde::{Deserialize, Serialize};
 use shared_ids::ReplicaId;
 use std::fmt::Debug;
-use tracing::{debug, error};
+use tracing::{error, trace};
 use usig::{Counter, Usig};
 
 use crate::{error::InnerError, Config, RequestPayload, View};
@@ -98,9 +98,10 @@ impl<P: RequestPayload, Sig: Serialize + Counter + Debug> NewView<P, Sig> {
         config: &Config,
         usig: &mut impl Usig<Signature = Sig>,
     ) -> Result<(), InnerError> {
-        debug!(
+        trace!(
             "Validating NewView (origin: {:?}, next view: {:?}) ...",
-            self.origin, self.next_view
+            self.origin,
+            self.next_view
         );
         // The origin of the message of type NewView must be the replica that
         // corresponds to the set next View.
@@ -113,9 +114,10 @@ impl<P: RequestPayload, Sig: Serialize + Counter + Debug> NewView<P, Sig> {
         };
 
         // Assure that the signature is correct.
-        debug!(
+        trace!(
             "Verifying signature of NewView (origin: {:?}, next view: {:?}) ...",
-            self.origin, self.next_view
+            self.origin,
+            self.next_view
         );
         self.verify(usig).map_or_else(
             |usig_error| {
@@ -132,23 +134,26 @@ impl<P: RequestPayload, Sig: Serialize + Counter + Debug> NewView<P, Sig> {
                 ))
             },
             |v| {
-                debug!(
+                trace!(
                     "Successfully verified signature of NewView (origin: {:?}, 
                         next view: {:?}).",
-                    self.origin, self.next_view
+                    self.origin,
+                    self.next_view
                 );
-                debug!(
+                trace!(
                     "Successfully validated NewView (origin: {:?}, next view: {:?}).",
-                    self.origin, self.next_view
+                    self.origin,
+                    self.next_view
                 );
                 Ok(v)
             },
         )?;
 
         self.data.validate(config).map(|v| {
-            debug!(
+            trace!(
                 "Successfully validated NewView (origin: {:?}, next view: {:?}).",
-                self.origin, self.next_view
+                self.origin,
+                self.next_view
             );
             v
         })
@@ -179,7 +184,7 @@ impl<P: RequestPayload, Sig: Serialize + Counter + Debug> NewViewCertificate<P, 
         config: &Config,
         usig: &mut impl Usig<Signature = Sig>,
     ) -> Result<(), InnerError> {
-        debug!("Validating NewViewCertificate ...");
+        trace!("Validating NewViewCertificate ...");
         // Assure that there are at least t + 1 ViewChanges.
         if (self.view_changes.len() as u64) <= config.t {
             error!(

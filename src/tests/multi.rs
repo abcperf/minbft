@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use crate::{
     client_request::RequestBatch,
@@ -31,7 +31,7 @@ fn view_change_new_view_receives_msgs(
 
         // send client message
         // the primary got deleted, therefore it is expected that the message is not handled
-        let collected_output = try_client_request(
+        let mut collected_output = try_client_request(
             &mut minbfts,
             ClientId::from_u64(0),
             DummyPayload(0, true),
@@ -44,9 +44,15 @@ fn view_change_new_view_receives_msgs(
         }
 
         // force timeout in order for view-change to take place
-        let timeouts_to_handle =
-            collected_output.timeouts_to_handle(&mut timeout_handlers, &mut rng);
-        let collected_output = force_timeout(&mut minbfts, &timeouts_to_handle, &mut rng);
+        for (r, _) in minbfts.iter() {
+            timeout_handlers
+                .get_mut(r)
+                .unwrap()
+                .handle_timeout_requests(
+                    collected_output.timeout_requests.get(r).unwrap().to_owned(),
+                );
+        }
+        collected_output = force_timeout(&mut minbfts, &mut timeout_handlers, &mut rng);
 
         // (ClientId::from_u64(0), DummyPayload(0, true)) should have been handled by the new View now
         for responses in collected_output.responses.values() {
@@ -154,7 +160,7 @@ fn view_change_two_view_changes(
     #[values(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)] checkpoint_period: u64,
 ) {
     let mut rng = thread_rng();
-    for t in 1..n / 2 - 1 {
+    for t in 1..(n - 1) / 2 {
         let (mut minbfts, mut timeout_handlers) = setup_set(n, t, checkpoint_period);
 
         let collected_output = try_client_request(
@@ -214,7 +220,7 @@ fn view_change_two_view_changes(
 
         minbfts.remove(&id_primary);
 
-        let collected_output = try_client_request(
+        let mut collected_output = try_client_request(
             &mut minbfts,
             ClientId::from_u64(0),
             DummyPayload(2, true),
@@ -225,13 +231,35 @@ fn view_change_two_view_changes(
             assert_eq!(responses.len(), 0);
         }
 
-        let timeouts_to_handle =
-            collected_output.timeouts_to_handle(&mut timeout_handlers, &mut rng);
-        let collected_output = force_timeout(&mut minbfts, &timeouts_to_handle, &mut rng);
+        for (r, _) in minbfts.iter() {
+            timeout_handlers
+                .get_mut(r)
+                .unwrap()
+                .handle_timeout_requests(
+                    collected_output.timeout_requests.get(r).unwrap().to_owned(),
+                );
+        }
 
-        let timeouts_to_handle =
-            collected_output.timeouts_to_handle(&mut timeout_handlers, &mut rng);
-        let collected_output = force_timeout(&mut minbfts, &timeouts_to_handle, &mut rng);
+        for (r, _) in minbfts.iter() {
+            timeout_handlers
+                .get_mut(r)
+                .unwrap()
+                .handle_timeout_requests(
+                    collected_output.timeout_requests.get(r).unwrap().to_owned(),
+                );
+        }
+        collected_output = force_timeout(&mut minbfts, &mut timeout_handlers, &mut rng);
+
+        for (r, _) in minbfts.iter() {
+            timeout_handlers
+                .get_mut(r)
+                .unwrap()
+                .handle_timeout_requests(
+                    collected_output.timeout_requests.get(r).unwrap().to_owned(),
+                );
+        }
+
+        collected_output = force_timeout(&mut minbfts, &mut timeout_handlers, &mut rng);
 
         // The View should be Replica(1), and the counter of the latest accepted
         // Prepare should be synchronized.
@@ -270,7 +298,7 @@ fn view_change_two_view_changes(
 
         minbfts.remove(&primary_id);
 
-        let collected_output = try_client_request(
+        let mut collected_output = try_client_request(
             &mut minbfts,
             ClientId::from_u64(0),
             DummyPayload(3, true),
@@ -282,9 +310,15 @@ fn view_change_two_view_changes(
         }
 
         // force handling timeout, view-change is expected to be forced as well
-        let timeouts_to_handle =
-            collected_output.timeouts_to_handle(&mut timeout_handlers, &mut rng);
-        let collected_output = force_timeout(&mut minbfts, &timeouts_to_handle, &mut rng);
+        for (r, _) in minbfts.iter() {
+            timeout_handlers
+                .get_mut(r)
+                .unwrap()
+                .handle_timeout_requests(
+                    collected_output.timeout_requests.get(r).unwrap().to_owned(),
+                );
+        }
+        collected_output = force_timeout(&mut minbfts, &mut timeout_handlers, &mut rng);
 
         // the View should be Replica(2), and the counters of the last accepted
         // Prepare should be synced.
@@ -352,7 +386,7 @@ fn view_change_request_accepted_prev_view(
             // primary is deleted, a client message should therefore be ignored
             let deleted_primary = ReplicaId::from_u64(i.try_into().unwrap());
             minbfts.remove(&deleted_primary);
-            let collected_output = try_client_request(
+            let mut collected_output = try_client_request(
                 &mut minbfts,
                 ClientId::from_u64(0),
                 DummyPayload(client_request_i + 1, true),
@@ -365,13 +399,25 @@ fn view_change_request_accepted_prev_view(
             }
 
             // force handling timeout, view-change is expected to be forced as well
-            let timeouts_to_handle =
-                collected_output.timeouts_to_handle(&mut timeout_handlers, &mut rng);
-            let collected_output = force_timeout(&mut minbfts, &timeouts_to_handle, &mut rng);
+            for (r, _) in minbfts.iter() {
+                timeout_handlers
+                    .get_mut(r)
+                    .unwrap()
+                    .handle_timeout_requests(
+                        collected_output.timeout_requests.get(r).unwrap().to_owned(),
+                    );
+            }
+            collected_output = force_timeout(&mut minbfts, &mut timeout_handlers, &mut rng);
 
-            let timeouts_to_handle =
-                collected_output.timeouts_to_handle(&mut timeout_handlers, &mut rng);
-            let collected_output = force_timeout(&mut minbfts, &timeouts_to_handle, &mut rng);
+            for (r, _) in minbfts.iter() {
+                timeout_handlers
+                    .get_mut(r)
+                    .unwrap()
+                    .handle_timeout_requests(
+                        collected_output.timeout_requests.get(r).unwrap().to_owned(),
+                    );
+            }
+            collected_output = force_timeout(&mut minbfts, &mut timeout_handlers, &mut rng);
 
             // DummyPayload(client_request_i + 1, true) should have been handled by the new View now
             for responses in collected_output.responses.values() {
@@ -456,7 +502,7 @@ fn view_change_primary_impersonation(
         // primary is deleted, a client message should therefore be ignored
         let primary_id = ReplicaId::from_u64(0);
         let deleted_primary = minbfts.remove(&primary_id).unwrap();
-        let collected_output = try_client_request(
+        let mut collected_output = try_client_request(
             &mut minbfts,
             ClientId::from_u64(0),
             DummyPayload(1, true),
@@ -469,9 +515,15 @@ fn view_change_primary_impersonation(
         }
 
         // force handling timeout, view-change is expected to be forced as well
-        let timeouts_to_handle =
-            collected_output.timeouts_to_handle(&mut timeout_handlers, &mut rng);
-        let collected_output = force_timeout(&mut minbfts, &timeouts_to_handle, &mut rng);
+        for (r, _) in minbfts.iter() {
+            timeout_handlers
+                .get_mut(r)
+                .unwrap()
+                .handle_timeout_requests(
+                    collected_output.timeout_requests.get(r).unwrap().to_owned(),
+                );
+        }
+        collected_output = force_timeout(&mut minbfts, &mut timeout_handlers, &mut rng);
 
         // view-change should have taken place
         // new View should be Replica(1)
@@ -571,7 +623,7 @@ fn view_change_manipulate_message_log_pop(
         // primary is deleted, a client message should therefore be ignored
         let primary_id = ReplicaId::from_u64(0);
         minbfts.remove(&primary_id);
-        let collected_output = try_client_request(
+        let mut collected_output = try_client_request(
             &mut minbfts,
             ClientId::from_u64(0),
             DummyPayload(1, true),
@@ -587,9 +639,15 @@ fn view_change_manipulate_message_log_pop(
         minbft.sent_usig_msgs.pop().unwrap();
 
         // force handling timeout, view-change is expected to be forced as well
-        let timeouts_to_handle =
-            collected_output.timeouts_to_handle(&mut timeout_handlers, &mut rng);
-        let collected_output = force_timeout(&mut minbfts, &timeouts_to_handle, &mut rng);
+        for (r, _) in minbfts.iter() {
+            timeout_handlers
+                .get_mut(r)
+                .unwrap()
+                .handle_timeout_requests(
+                    collected_output.timeout_requests.get(r).unwrap().to_owned(),
+                );
+        }
+        collected_output = force_timeout(&mut minbfts, &mut timeout_handlers, &mut rng);
         assert_eq!(collected_output.errors.len(), minbfts.len());
     }
 }
@@ -948,9 +1006,15 @@ fn view_change_multi_view_changes(#[values(4)] n: u64, #[values(1)] checkpoint_p
                 &mut rng,
             );
 
-            let timeouts_to_handle: HashMap<ReplicaId, Vec<TimeoutType>> =
-                collected_output.timeouts_to_handle(&mut timeout_handlers, &mut rng);
-            let collected_output = force_timeout(&mut minbfts, &timeouts_to_handle, &mut rng);
+            for (r, _) in minbfts.iter() {
+                timeout_handlers
+                    .get_mut(r)
+                    .unwrap()
+                    .handle_timeout_requests(
+                        collected_output.timeout_requests.get(r).unwrap().to_owned(),
+                    );
+            }
+            collected_output = force_timeout(&mut minbfts, &mut timeout_handlers, &mut rng);
 
             // view-change should have taken place
 
@@ -1049,7 +1113,7 @@ fn two_view_changes_subsequently() {
     minbfts.remove(&primary_id);
 
     // Send a client-request.
-    let collected_output = try_client_request(
+    let mut collected_output = try_client_request(
         &mut minbfts,
         ClientId::from_u64(0),
         DummyPayload(0, true),
@@ -1060,11 +1124,20 @@ fn two_view_changes_subsequently() {
         assert_eq!(responses.len(), 0);
     }
 
-    let timeouts_to_handle = collected_output.timeouts_to_handle(&mut timeout_handlers, &mut rng);
-    let collected_output = force_timeout(&mut minbfts, &timeouts_to_handle, &mut rng);
-
-    let timeouts_to_handle = collected_output.timeouts_to_handle(&mut timeout_handlers, &mut rng);
-    let collected_output = force_timeout(&mut minbfts, &timeouts_to_handle, &mut rng);
+    for (r, _) in minbfts.iter() {
+        timeout_handlers
+            .get_mut(r)
+            .unwrap()
+            .handle_timeout_requests(collected_output.timeout_requests.get(r).unwrap().to_owned());
+    }
+    collected_output = force_timeout(&mut minbfts, &mut timeout_handlers, &mut rng);
+    for (r, _) in minbfts.iter() {
+        timeout_handlers
+            .get_mut(r)
+            .unwrap()
+            .handle_timeout_requests(collected_output.timeout_requests.get(r).unwrap().to_owned());
+    }
+    collected_output = force_timeout(&mut minbfts, &mut timeout_handlers, &mut rng);
 
     // the View should be Replica(2)
     let mut counters_last_accepted_prep = HashSet::new();
@@ -1102,25 +1175,26 @@ fn two_view_changes_subsequently() {
 
 /// Tests if performing two view-changes subsequently changes to the respective view and
 /// if a pending client-request is accepted in the end.
+// #[traced_test]
 #[rstest]
 fn multi_view_changes_subsequently(
     #[values(5, 6, 7, 8, 9, 11, 21, 31)] n: u64,
     #[values(1, 2, 3)] checkpoint_period: u64,
 ) {
     let mut rng = thread_rng();
-    let mut t = 1;
-    let mut amount_replicas_removable = n - (2 * t + 1);
-    while amount_replicas_removable > 1 {
+    let mut f = 1;
+    let t = (n - 1) / 2;
+    while f <= t {
         // At least two view-changes can be forced.
         let (mut minbfts, mut timeout_handlers) = setup_set(n, t, checkpoint_period);
         // Remove first n - (2 * t + 1) replicas to force the same amount of view-changes.
         let mut amount_replicas_removed = 0;
-        while amount_replicas_removed < amount_replicas_removable {
+        while amount_replicas_removed < f {
             minbfts.remove(&ReplicaId::from_u64(amount_replicas_removed));
             amount_replicas_removed += 1;
         }
         // Send a client-request.
-        let collected_output = try_client_request(
+        let mut collected_output = try_client_request(
             &mut minbfts,
             ClientId::from_u64(0),
             DummyPayload(0, true),
@@ -1131,15 +1205,17 @@ fn multi_view_changes_subsequently(
             assert_eq!(responses.len(), 0);
         }
 
-        let timeouts_to_handle: HashMap<ReplicaId, Vec<TimeoutType>> =
-            collected_output.timeouts_to_handle(&mut timeout_handlers, &mut rng);
-        let mut collected_output = force_timeout(&mut minbfts, &timeouts_to_handle, &mut rng);
-
-        let mut i = 1;
-        while i < amount_replicas_removed {
-            let timeouts_to_handle: HashMap<ReplicaId, Vec<TimeoutType>> =
-                collected_output.timeouts_to_handle(&mut timeout_handlers, &mut rng);
-            collected_output = force_timeout(&mut minbfts, &timeouts_to_handle, &mut rng);
+        let mut i = 0;
+        while i < f {
+            for (r, _) in minbfts.iter() {
+                timeout_handlers
+                    .get_mut(r)
+                    .unwrap()
+                    .handle_timeout_requests(
+                        collected_output.timeout_requests.get(r).unwrap().to_owned(),
+                    );
+            }
+            collected_output = force_timeout(&mut minbfts, &mut timeout_handlers, &mut rng);
             i += 1;
         }
 
@@ -1151,13 +1227,14 @@ fn multi_view_changes_subsequently(
                 ViewState::InView(in_view) => {
                     assert!(minbft
                         .config
-                        .is_primary(in_view.view, minbfts.get(&primary_id).unwrap().config.id));
+                        .is_primary(in_view.view, primary_id));
                     assert!(minbft.counter_last_accepted_prep.is_some());
                     counters_last_accepted_prep.insert(minbft.counter_last_accepted_prep.unwrap());
                 }
                 ViewState::ChangeInProgress(_) => panic!(
-                    "view-change is still in progress for {:?}, possibly stuck",
-                    minbft.config.id
+                    "view-change is still in progress for {:?}, possibly stuck (primary should be {:?}",
+                    minbft.config.id,
+                    primary_id
                 ),
             }
         }
@@ -1175,8 +1252,7 @@ fn multi_view_changes_subsequently(
         for errors in collected_output.errors.values() {
             assert!(errors.is_empty());
         }
-        t += 1;
-        amount_replicas_removable = n - (2 * t + 1);
+        f += 1;
     }
 }
 
@@ -1199,7 +1275,7 @@ fn replica_becomes_primary_after_view_change_cycle(
 
         // send client message
         // the primary got deleted, therefore it is expected that the message is not handled
-        let collected_output = try_client_request(
+        let mut collected_output = try_client_request(
             &mut minbfts,
             ClientId::from_u64(0),
             DummyPayload(current_req_id, true),
@@ -1212,13 +1288,28 @@ fn replica_becomes_primary_after_view_change_cycle(
         minbfts.insert(primary_id, current_primary);
 
         // force timeout in order for view-change to take place
-        let timeouts_to_handle =
-            collected_output.timeouts_to_handle(&mut timeout_handlers, &mut rng);
-        let collected_output = force_timeout(&mut minbfts, &timeouts_to_handle, &mut rng);
+        for (r, _) in minbfts.iter() {
+            if *r == primary_id {
+                continue;
+            }
+            timeout_handlers
+                .get_mut(r)
+                .unwrap()
+                .handle_timeout_requests(
+                    collected_output.timeout_requests.get(r).unwrap().to_owned(),
+                );
+        }
+        collected_output = force_timeout(&mut minbfts, &mut timeout_handlers, &mut rng);
 
-        let timeouts_to_handle =
-            collected_output.timeouts_to_handle(&mut timeout_handlers, &mut rng);
-        let collected_output = force_timeout(&mut minbfts, &timeouts_to_handle, &mut rng);
+        for (r, _) in minbfts.iter() {
+            timeout_handlers
+                .get_mut(r)
+                .unwrap()
+                .handle_timeout_requests(
+                    collected_output.timeout_requests.get(r).unwrap().to_owned(),
+                );
+        }
+        collected_output = force_timeout(&mut minbfts, &mut timeout_handlers, &mut rng);
 
         // client request should have been handled by the new View now
         for responses in collected_output.responses.values() {

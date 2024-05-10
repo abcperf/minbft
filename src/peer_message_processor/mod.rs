@@ -6,7 +6,7 @@ mod usig_message_processor;
 use serde::Serialize;
 use shared_ids::ReplicaId;
 use std::fmt::Debug;
-use tracing::debug;
+use tracing::trace;
 
 use usig::Usig;
 
@@ -37,7 +37,7 @@ where
         output: &mut NotReflectedOutput<P, U>,
     ) {
         let msg_type = message.msg_type();
-        debug!(
+        trace!(
             "Processing message (origin: {from:?}, type: {:?}) ...",
             msg_type
         );
@@ -52,7 +52,7 @@ where
                 self.process_hello_message(from, attestation, output)
             }
         };
-        debug!(
+        trace!(
             "Successfully processed message (origin: {from:?}, type: {:?}).",
             msg_type
         );
