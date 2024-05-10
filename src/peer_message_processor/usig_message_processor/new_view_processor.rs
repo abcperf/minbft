@@ -245,15 +245,15 @@ where
                             }
                         };
                     }
+                    // Set the counter of the last accepted Prepare temporarily
+                    // as the counter of the last sent UsigMessage by the new View.
+                    // This makes sure all replicas are synced correctly upon changing views.
+                    debug!(
+                        "Set counter of last accepted Prepare to counter of NewView ({:?}).",
+                        new_view.counter()
+                    );
+                    self.counter_last_accepted_prep = Some(new_view.counter());
                 }
-                // Set the counter of the last accepted Prepare temporarily
-                // as the counter of the last sent UsigMessage by the new View.
-                // This makes sure all replicas are synced correctly upon changing views.
-                debug!(
-                    "Set counter of last accepted Prepare to counter of NewView ({:?}).",
-                    new_view.counter()
-                );
-                self.counter_last_accepted_prep = Some(new_view.counter());
             }
         }
     }
