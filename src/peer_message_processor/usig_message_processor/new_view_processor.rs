@@ -177,14 +177,6 @@ where
                     collector_commits: CollectorCommits::new(),
                 });
 
-                output.timeout_request(TimeoutRequest::new_stop_any_client_req());
-                if let Some((_, req)) = self.request_processor.currently_processing_all().next() {
-                    output.timeout_request(TimeoutRequest::new_start_client_req(
-                        req.client,
-                        self.current_timeout_duration,
-                    ));
-                }
-
                 if !self.config.me_primary(new_view.next_view) {
                     // Set the counter of the last accepted Prepare temporarily
                     // as the counter of the last sent UsigMessage by the new View.
@@ -245,15 +237,16 @@ where
                             }
                         };
                     }
-                    // Set the counter of the last accepted Prepare temporarily
-                    // as the counter of the last sent UsigMessage by the new View.
-                    // This makes sure all replicas are synced correctly upon changing views.
-                    debug!(
-                        "Set counter of last accepted Prepare to counter of NewView ({:?}).",
-                        new_view.counter()
-                    );
-                    self.counter_last_accepted_prep = Some(new_view.counter());
                 }
+
+                // Set the counter of the last accepted Prepare temporarily
+                // as the counter of the last sent UsigMessage by the new View.
+                // This makes sure all replicas are synced correctly upon changing views.
+                debug!(
+                    "Set counter of last accepted Prepare to counter of NewView ({:?}).",
+                    new_view.counter()
+                );
+                self.counter_last_accepted_prep = Some(new_view.counter());
             }
         }
     }
