@@ -85,8 +85,6 @@ where
                         output.timeout_request(TimeoutRequest::new_stop_vc_req());
                         let next_view = new_view.next_view + 1;
                         self.current_timeout_duration *= BACKOFF_MULTIPLIER as u32;
-                        let start_new_timeout =
-                            TimeoutRequest::new_start_vc_req(self.current_timeout_duration);
 
                         let view_change = match ViewChange::sign(
                             ViewChangeContent::new(
@@ -119,7 +117,6 @@ where
                             view_change.next_view
                         );
                         output.broadcast(view_change, &mut self.sent_usig_msgs);
-                        output.timeout_request(start_new_timeout);
                         return;
                     }
                 }

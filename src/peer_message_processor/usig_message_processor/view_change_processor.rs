@@ -4,7 +4,7 @@ use tracing::{debug, info};
 use usig::Usig;
 
 use crate::{
-    output::NotReflectedOutput,
+    output::{NotReflectedOutput, TimeoutRequest},
     peer_message::usig_message::{
         new_view::{NewView, NewViewCertificate, NewViewContent},
         view_change::ViewChange,
@@ -52,11 +52,6 @@ where
                 // Only consider messages consistent to the system state.
                 // Automatically fulfilled at this point, as messages of type ViewChange are validated when received.
 
-                if !self.config.me_primary(in_progress.next_view) {
-                    return;
-                }
-
-                // Only the new primary runs following code.
                 let amount_collected = self.collector_vc.collect_view_change(msg.clone());
 
                 if msg.next_view != in_progress.next_view {
@@ -69,13 +64,20 @@ where
                     return;
                 }
 
+                let start_new_timeout =
+                    TimeoutRequest::new_start_vc_req(self.current_timeout_duration);
+                output.timeout_request(start_new_timeout);
+
+                if !self.config.me_primary(in_progress.next_view) {
+                    return;
+                }
+
+                // Only the new primary runs following code.
                 let view_changes = self
                     .collector_vc
                     .retrieve_collected_view_changes(&msg, &self.config);
 
-                if view_changes.is_none() {
-                    return;
-                }
+                assert!(view_changes.is_some());
 
                 let view_changes = view_changes.unwrap();
                 let new_view_cert = NewViewCertificate { view_changes };

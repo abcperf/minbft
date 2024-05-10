@@ -10,7 +10,7 @@ use crate::{
         req_view_change::ReqViewChange,
         usig_message::view_change::{ViewChange, ViewChangeContent},
     },
-    ChangeInProgress, Error, MinBft, RequestPayload, ViewState, BACKOFF_MULTIPLIER,
+    ChangeInProgress, Error, MinBft, RequestPayload, ViewState,
 };
 
 impl<P: RequestPayload, U: Usig> MinBft<P, U>
@@ -99,10 +99,6 @@ where
             }
         }
 
-        output.timeout_request(TimeoutRequest::new_stop_vc_req());
-        self.current_timeout_duration *= BACKOFF_MULTIPLIER as u32;
-        let start_new_timeout = TimeoutRequest::new_start_vc_req(self.current_timeout_duration);
-
         self.view_state = ViewState::ChangeInProgress(ChangeInProgress {
             prev_view: req.prev_view,
             next_view: req.next_view,
@@ -145,6 +141,5 @@ where
             view_change.next_view
         );
         output.broadcast(view_change, &mut self.sent_usig_msgs);
-        output.timeout_request(start_new_timeout);
     }
 }
