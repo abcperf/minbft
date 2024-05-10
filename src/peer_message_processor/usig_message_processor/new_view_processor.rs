@@ -24,7 +24,6 @@ use crate::Error;
 use crate::InView;
 use crate::MinBft;
 use crate::MinHeap;
-use crate::BACKOFF_MULTIPLIER;
 use crate::{output::NotReflectedOutput, ChangeInProgress, RequestPayload, ViewState};
 
 type NewViewState<P, Sig> = (Option<Checkpoint<Sig>>, VecDeque<Prepare<P, Sig>>);
@@ -82,7 +81,6 @@ where
                     Err(_) => {
                         output.timeout_request(TimeoutRequest::new_stop_view_change());
                         let next_view = new_view.next_view + 1;
-                        self.current_timeout_duration *= BACKOFF_MULTIPLIER as u32;
 
                         let view_change = match ViewChange::sign(
                             ViewChangeContent::new(
@@ -178,11 +176,6 @@ where
                 self.counter_last_accepted_prep = Some(new_view.counter());
 
                 if !self.config.me_primary(new_view.next_view) {
-                    info!(
-                        "Successfully transitioned to next view ({:?})",
-                        new_view.next_view
-                    );
-
                     // Relay the NewView message.
                     trace!(
                         "Relayed NewView (origin: {:?}, next view: {:?}).",
@@ -230,11 +223,11 @@ where
                             }
                         };
                     }
-                    info!(
-                        "Successfully transitioned to new view ({:?}).",
-                        new_view.next_view
-                    );
                 }
+                info!(
+                    "Successfully transitioned to new view ({:?}).",
+                    new_view.next_view
+                );
             }
         }
     }
