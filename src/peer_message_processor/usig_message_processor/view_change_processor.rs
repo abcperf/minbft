@@ -64,19 +64,18 @@ where
                     return;
                 }
 
-                let start_new_timeout =
-                    TimeoutRequest::new_start_view_change(self.current_timeout_duration);
-                output.timeout_request(start_new_timeout);
-
-                if !self.config.me_primary(in_progress.next_view) {
-                    return;
-                }
-
-                // Only the new primary runs following code.
                 let view_changes = self
                     .collector_vc
                     .retrieve_collected_view_changes(&msg, &self.config);
 
+                if !self.config.me_primary(in_progress.next_view) {
+                    let start_new_timeout =
+                        TimeoutRequest::new_start_view_change(self.current_timeout_duration);
+                    output.timeout_request(start_new_timeout);
+                    return;
+                }
+
+                // Only the new primary runs following code.
                 assert!(view_changes.is_some());
 
                 let view_changes = view_changes.unwrap();
