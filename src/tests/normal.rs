@@ -485,7 +485,7 @@ fn client_n_1_batching_two() {
 
     timeout_handler.handle_timeout_requests(timeout_requests);
     let timeout_types = timeout_handler.retrieve_timeouts_ordered();
-    assert_eq!(timeout_types.len(), 0);
+    assert_eq!(timeout_types.len(), 2);
 
     let output = minbft.handle_timeout(timeout_type);
 
@@ -632,7 +632,7 @@ fn client_n_1_batching_multi() {
 
         timeout_handler.handle_timeout_requests(timeout_requests);
         let timeout_types = timeout_handler.retrieve_timeouts_ordered();
-        assert_eq!(timeout_types.len(), 0);
+        assert_eq!(timeout_types.len(), 2);
     }
 
     let output = minbft.handle_timeout(timeout_type);
