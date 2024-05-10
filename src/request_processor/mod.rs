@@ -106,7 +106,7 @@ impl<P> ClientState<P> {
     /// Returns false if the client request was already accepted, otherwise
     /// true.
     fn update_upon_request_completion(&mut self, request_id: RequestId) -> bool {
-        if self.last_accepted_req < Some(request_id) {
+        if self.last_accepted_req >= Some(request_id) {
             warn!("Failed to update client state regarding the completion of client request (ID: {:?}): ID of last accepted request from the same client is greater than or equal to the receiving request's ID.", request_id);
             return false;
         }
