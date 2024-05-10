@@ -11,7 +11,7 @@ use std::{
 use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 use shared_ids::{ClientId, RequestId};
-use tracing::debug;
+use tracing::{debug, warn};
 use usig::Usig;
 
 use crate::{
@@ -100,14 +100,23 @@ impl<P> ClientState<P> {
     /// # Arguments
     ///
     /// * `request_id` - The ID of the request that was completed.
-    fn update_upon_request_completion(&mut self, request_id: RequestId) {
-        assert!(self.last_accepted_req < Some(request_id), "Failed to update client state regarding the completion of client request (ID: {:?}): ID of last accepted request from the same client is greater than or equal to the receiving request's ID.", request_id);
+    ///
+    /// # Return Value
+    ///
+    /// Returns false if the client request was already accepted, otherwise
+    /// true.
+    fn update_upon_request_completion(&mut self, request_id: RequestId) -> bool {
+        if self.last_accepted_req < Some(request_id) {
+            warn!("Failed to update client state regarding the completion of client request (ID: {:?}): ID of last accepted request from the same client is greater than or equal to the receiving request's ID.", request_id);
+            return false;
+        }
         self.last_accepted_req = Some(request_id);
         if let Some(currently_processing) = &self.currently_processing_req {
             if currently_processing.0 <= request_id {
                 self.currently_processing_req = None;
             }
         }
+        true
     }
 }
 
@@ -322,10 +331,14 @@ where
             request, request.client
         );
         // Update state of the client from which the request is.
-        self.clients_state
+        if !self
+            .clients_state
             .entry(request.client)
             .or_default()
-            .update_upon_request_completion(request.payload.id());
+            .update_upon_request_completion(request.payload.id())
+        {
+            return;
+        };
 
         // Send request to stop timeout that may be set for this now accepted client-request.
         let stop_client_request = TimeoutRequest::new_stop_client_req(request.client);
