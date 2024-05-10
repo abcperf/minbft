@@ -292,7 +292,7 @@ impl TimeoutRequest {
     }
 
     /// Creates a new [TimeoutRequest::Start] for a [Timeout] of type ViewChange with the given duration.
-    pub(crate) fn new_start_vc_req(duration: Duration) -> Self {
+    pub(crate) fn new_start_view_change(duration: Duration) -> Self {
         Self::Start(Timeout::view_change(duration))
     }
 
@@ -307,7 +307,7 @@ impl TimeoutRequest {
     }
 
     /// Creates a new [TimeoutRequest::Stop] for a [Timeout] of type ViewChange.
-    pub(crate) fn new_stop_vc_req() -> Self {
+    pub(crate) fn new_stop_view_change() -> Self {
         Self::Stop(Timeout::view_change(Duration::from_secs(0)))
     }
 

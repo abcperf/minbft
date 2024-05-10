@@ -65,7 +65,7 @@ where
                 }
 
                 let start_new_timeout =
-                    TimeoutRequest::new_start_vc_req(self.current_timeout_duration);
+                    TimeoutRequest::new_start_view_change(self.current_timeout_duration);
                 output.timeout_request(start_new_timeout);
 
                 if !self.config.me_primary(in_progress.next_view) {

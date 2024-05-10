@@ -82,7 +82,7 @@ where
                 match new_view.certificate.validate(&self.config, &mut self.usig) {
                     Ok(_) => {}
                     Err(_) => {
-                        output.timeout_request(TimeoutRequest::new_stop_vc_req());
+                        output.timeout_request(TimeoutRequest::new_stop_view_change());
                         let next_view = new_view.next_view + 1;
                         self.current_timeout_duration *= BACKOFF_MULTIPLIER as u32;
 
@@ -123,7 +123,7 @@ where
                 // The NewViewCertificate is valid.
 
                 // Stops the current timeout of type ViewChange.
-                output.timeout_request(TimeoutRequest::new_stop_vc_req());
+                output.timeout_request(TimeoutRequest::new_stop_view_change());
 
                 let (last_cp, mut unique_preps) = Self::compute_new_view_state(
                     self.counter_last_accepted_prep,
