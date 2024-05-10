@@ -9,7 +9,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use shared_ids::ReplicaId;
-use tracing::debug;
+use tracing::{error, trace};
 
 use crate::{error::InnerError, Config, View};
 
@@ -37,18 +37,20 @@ impl ReqViewChange {
     ///
     /// [Ok] if the validation succeeds, otherwise [InnerError].
     pub(crate) fn validate(&self, origin: ReplicaId, config: &Config) -> Result<(), InnerError> {
-        debug!(
+        trace!(
             "Validating ReqViewChange (previous view: {:?}, next view: {:?}) ...",
-            self.prev_view, self.next_view
+            self.prev_view,
+            self.next_view
         );
         if self.prev_view < self.next_view {
-            debug!(
+            trace!(
                 "Successfully validated ReqViewChange (previous view: {:?}, next view: {:?}).",
-                self.prev_view, self.next_view
+                self.prev_view,
+                self.next_view
             );
             Ok(())
         } else {
-            debug!(
+            error!(
                 "Failed validating ReqViewChange (previous view: {:?}, next view: {:?}): Previous view set is not smaller than next view set.",
                 self.prev_view, self.next_view
             );

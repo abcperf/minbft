@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use std::time::Duration;
 
 use shared_ids::{ClientId, ReplicaId};
-use tracing::{debug, error_span, info};
+use tracing::{error_span, info, trace};
 
 use usig::{Usig, UsigError};
 
@@ -142,7 +142,7 @@ where
     /// * `output` - The output struct to be adjusted in case of, e.g., errors
     ///              or responses.
     pub(super) fn response(&mut self, client_id: ClientId, output: P) {
-        debug!(
+        trace!(
             "Output response to client request (ID: {:?}, client ID: {:?}).",
             output.id(),
             client_id
@@ -154,21 +154,22 @@ where
     pub(super) fn timeout_request(&mut self, timeout_request: TimeoutRequest) {
         match &timeout_request {
             TimeoutRequest::Start(timeout) => {
-                debug!(
+                trace!(
                     "Output request for starting timeout (type: {:?}, duration: {:?}, stop class: {:?}).",
                     timeout.timeout_type, timeout.duration, timeout.stop_class
                 );
             }
             TimeoutRequest::Stop(timeout) => {
-                debug!(
+                trace!(
                     "Output request for stopping timeout (type: {:?}, duration: {:?}, stop class: {:?}).",
                     timeout.timeout_type, timeout.duration, timeout.stop_class
                 );
             }
             TimeoutRequest::StopAny(timeout) => {
-                debug!(
+                trace!(
                     "Output request for stopping timeout (type: {:?}, duration: {:?} ).",
-                    timeout.timeout_type, timeout.duration
+                    timeout.timeout_type,
+                    timeout.duration
                 );
             }
         }
@@ -229,7 +230,7 @@ where
             }
             let messages: Vec<_> = self.broadcasts.iter().skip(last_len).cloned().collect();
             for message in messages {
-                debug!(
+                trace!(
                     "Processing reflected message (type {:?}) ...",
                     message.msg_type()
                 );
@@ -238,7 +239,7 @@ where
                     &mut self,
                     OutputRestricted(()),
                 );
-                debug!(
+                trace!(
                     "Processed reflected message (type: {:?}).",
                     message.msg_type()
                 );

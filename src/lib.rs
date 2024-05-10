@@ -49,7 +49,7 @@ use peer_message_processor::collector::collector_view_changes::CollectorViewChan
 use request_processor::RequestProcessor;
 use shared_ids::{ClientId, ReplicaId, RequestId};
 use timeout::TimeoutType;
-use tracing::{debug, error, error_span, info, warn};
+use tracing::{debug, error, error_span, info, trace, warn};
 use usig::Count;
 use usig::{Counter, Usig};
 
@@ -438,9 +438,10 @@ where
 
         let req_id = request.id();
 
-        debug!(
+        trace!(
             "Handling client request (ID: {:?}, client ID: {:?}) ...",
-            req_id, client_id
+            req_id,
+            client_id
         );
 
         // Create output in order to return information regarding the handling of the client-message.
@@ -449,9 +450,10 @@ where
         // The payload of a client-request is forced to have a function that verifies itself.
         // It must be valid, otherwise it is not handled further.
         // Errors are stored in the output variable.
-        debug!(
+        trace!(
             "Verifying client request (ID {:?}, client ID: {:?}) ...",
-            req_id, client_id
+            req_id,
+            client_id
         );
         if request.verify(client_id).is_err() {
             error!(
@@ -465,9 +467,10 @@ where
             });
             return output.reflect(self);
         }
-        debug!(
+        trace!(
             "Successfully verified client request (ID: {:?}, client ID: {:?}).",
-            req_id, client_id
+            req_id,
+            client_id
         );
 
         let client_request = ClientRequest {
@@ -490,7 +493,7 @@ where
         if let Some(prepare_content) = prepare_content {
             match Prepare::sign(prepare_content, &mut self.usig) {
                 Ok(prepare) => {
-                    debug!("Broadcast Prepare (view: {:?}, counter: {:?}) for client request (ID: {:?}, client ID: {:?}).", prepare.view, prepare.counter(), req_id, client_id);
+                    trace!("Broadcast Prepare (view: {:?}, counter: {:?}) for client request (ID: {:?}, client ID: {:?}).", prepare.view, prepare.counter(), req_id, client_id);
                     output.broadcast(prepare, &mut self.sent_usig_msgs);
                 }
                 Err(usig_error) => {
@@ -585,9 +588,10 @@ where
 
         let msg_type = message.msg_type();
 
-        debug!(
+        trace!(
             "Handling message (origin: {:?}, type: {:?}) ...",
-            from, msg_type,
+            from,
+            msg_type,
         );
 
         assert_ne!(from, self.config.me());
@@ -602,9 +606,10 @@ where
             }
         };
         self.process_peer_message(from, message, &mut output);
-        debug!(
+        trace!(
             "Successfully handled message (origin: {:?}, from {:?}).",
-            from, msg_type
+            from,
+            msg_type
         );
         output.reflect(self)
     }
@@ -712,7 +717,7 @@ where
                     output.timeout_request(stop_timeout_request);
                     let origin = self.config.me();
                     if let Some(batch) = maybe_batch {
-                        debug!("Creating Prepare for timed out batch ...");
+                        trace!("Creating Prepare for timed out batch ...");
                         match Prepare::sign(
                             PrepareContent {
                                 view: in_view.view,
@@ -722,10 +727,10 @@ where
                             &mut self.usig,
                         ) {
                             Ok(prepare) => {
-                                debug!("Successfully created Prepare for timed-out batch.");
-                                debug!("Broadcast Prepare (view: {:?}, counter: {:?}) for timed-out batch.", prepare.view, prepare.counter());
+                                trace!("Successfully created Prepare for timed-out batch.");
+                                trace!("Broadcast Prepare (view: {:?}, counter: {:?}) for timed-out batch.", prepare.view, prepare.counter());
                                 output.broadcast(prepare, &mut self.sent_usig_msgs);
-                                debug!("Successfully handled timeout (type: {:?}).", timeout_type);
+                                trace!("Successfully handled timeout (type: {:?}).", timeout_type);
                             }
                             Err(usig_error) => {
                                 error!("Failed to handle timeout (type: {:?}): Failed to sign Prepare for batch before broadcasting it. For further information see output.", timeout_type);
@@ -753,12 +758,12 @@ where
                         );
                         output.broadcast(msg, &mut self.sent_usig_msgs)
                     } else {
-                        debug!("Already broadcast ReqViewChange (previous view: {:?}, next view: {:?}).", in_view.view, in_view.view + 1);
+                        trace!("Already broadcast ReqViewChange (previous view: {:?}, next view: {:?}).", in_view.view, in_view.view + 1);
                     }
-                    debug!("Successfully handled timeout (type: {:?}).", timeout_type);
+                    trace!("Successfully handled timeout (type: {:?}).", timeout_type);
                 }
                 ViewState::ChangeInProgress(in_progress) => {
-                    debug!("Handling timeout resulted in skipping creation of ReqViewChange: Replica is in progress of changing views (from: {:?}, to: {:?}).", in_progress.prev_view, in_progress.next_view);
+                    warn!("Handling timeout resulted in skipping creation of ReqViewChange: Replica is in progress of changing views (from: {:?}, to: {:?}).", in_progress.prev_view, in_progress.next_view);
                 }
             },
             TimeoutType::ViewChange => match &mut self.view_state {
@@ -779,7 +784,7 @@ where
                         msg.prev_view, msg.next_view
                     );
                     output.broadcast(msg, &mut self.sent_usig_msgs);
-                    debug!("Successfully handled timeout (type: {:?}).", timeout_type);
+                    trace!("Successfully handled timeout (type: {:?}).", timeout_type);
                 }
             },
         }

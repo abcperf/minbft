@@ -3,6 +3,7 @@ use tracing::debug;
 
 use serde::Serialize;
 use tracing::error;
+use tracing::trace;
 use tracing::warn;
 use usig::Counter;
 use usig::Usig;
@@ -58,7 +59,7 @@ where
                 // no Commit for own Prepare since Prepares already count as Commit
                 if prepare.origin != self.config.me() {
                     let origin = self.config.me();
-                    debug!(
+                    trace!(
                         "Creating Commit for Prepare (origin: {:?}, view: {:?}, counter: {:?}) ...",
                         prepare.origin,
                         prepare.view,
@@ -72,7 +73,7 @@ where
                         &mut self.usig,
                     ) {
                         Ok(commit) => {
-                            debug!("Successfully created Commit for Prepare (origin: {:?}, view: {:?}, counter: {:?}) ...", prepare.origin, prepare.view, prepare.counter());
+                            trace!("Successfully created Commit for Prepare (origin: {:?}, view: {:?}, counter: {:?}) ...", prepare.origin, prepare.view, prepare.counter());
                             commit
                         }
                         Err(usig_error) => {
@@ -106,10 +107,10 @@ where
                         self.current_timeout_duration,
                         output,
                     ) {
-                        debug!("Generating new Checkpoint since checkpoint period ({:?}) has been reached by accepting Prepare ...", self.config.checkpoint_period);
+                        trace!("Generating new Checkpoint since checkpoint period ({:?}) has been reached by accepting Prepare ...", self.config.checkpoint_period);
                         match Checkpoint::sign(checkpoint_content, &mut self.usig) {
                             Ok(checkpoint) => {
-                                debug!("Successfully generated new Checkpoint.");
+                                trace!("Successfully generated new Checkpoint.");
                                 debug!("Broadcast Checkpoint (counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}).", checkpoint.counter_latest_prep, checkpoint.total_amount_accepted_batches);
                                 output.broadcast(checkpoint, &mut self.sent_usig_msgs);
                             }
@@ -172,10 +173,10 @@ where
                         self.current_timeout_duration,
                         output,
                     ) {
-                        debug!("Generating new Checkpoint since checkpoint period ({:?}) has been reached by accepting Prepare ...", self.config.checkpoint_period);
+                        trace!("Generating new Checkpoint since checkpoint period ({:?}) has been reached by accepting Prepare ...", self.config.checkpoint_period);
                         match Checkpoint::sign(checkpoint_content, &mut self.usig) {
                             Ok(checkpoint) => {
-                                debug!("Successfully generated new Checkpoint.");
+                                trace!("Successfully generated new Checkpoint.");
                                 debug!("Broadcast Checkpoint (counter of latest accepted Prepare: {:?}, amount accepted batches: {:?}).", checkpoint.counter_latest_prep, checkpoint.total_amount_accepted_batches);
                                 output.broadcast(checkpoint, &mut self.sent_usig_msgs);
                             }

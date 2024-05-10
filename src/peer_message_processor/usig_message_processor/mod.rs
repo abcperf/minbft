@@ -1,7 +1,7 @@
 use std::{borrow::Cow, fmt::Debug};
 
 use serde::Serialize;
-use tracing::debug;
+use tracing::trace;
 use tracing::warn;
 use usig::Counter;
 use usig::Usig;
@@ -50,7 +50,7 @@ where
 
         // case 1.1: The UsigMessage is a Commit.
         if let UsigMessage::View(ViewPeerMessage::Commit(commit)) = &usig_message {
-            debug!(
+            trace!(
                 "Processing inner message Prepare (origin: {:?}, view: {:?}, counter {:?}) by first passing it to the order enforcer ... (outer message is Commit [origin: {:?}, counter: {:?}])",
                 commit.prepare.origin,
                 commit.prepare.view,
@@ -72,7 +72,7 @@ where
 
         // case 1.2: The UsigMessage is a ViewChange.
         if let UsigMessage::ViewChange(view_change) = &usig_message {
-            debug!("Processing inner messages of outer message ViewChange (origin: {:?}, next view: {:?}, counter: {:?}) by first passing them to the order enforcer ...", view_change.origin, view_change.next_view, view_change.counter());
+            trace!("Processing inner messages of outer message ViewChange (origin: {:?}, next view: {:?}, counter: {:?}) by first passing them to the order enforcer ...", view_change.origin, view_change.next_view, view_change.counter());
             view_change
                 .variant
                 .message_log
@@ -103,7 +103,7 @@ where
 
         // case 1.3: The UsigMessage is a NewView.
         if let UsigMessage::NewView(new_view) = &usig_message {
-            debug!("Processing inner messages of outer message NewView (origin: {:?}, next view: {:?}, counter: {:?}) by first passing them to the order enforcer ...", new_view.origin, new_view.next_view, new_view.counter());
+            trace!("Processing inner messages of outer message NewView (origin: {:?}, next view: {:?}, counter: {:?}) by first passing them to the order enforcer ...", new_view.origin, new_view.next_view, new_view.counter());
             // process the other messages of type ViewChange
             new_view.data.certificate.view_changes.iter().for_each(
                 |usig_inner_view_change_message| {
@@ -120,7 +120,7 @@ where
             );
         }
 
-        debug!(
+        trace!(
             "Process message (origin: {:?}, type: {:?}, counter: {:?}) by first passing it to the order enforcer ...",
             *usig_message.as_ref(),
             usig_message.msg_type(),
@@ -150,7 +150,7 @@ where
         let origin = *usig_message.as_ref();
         let msg_type = usig_message.msg_type();
         let counter = usig_message.counter();
-        debug!("Processing message (origin: {:?}, type: {:?}, counter: {:?}) completely as it has been selected by the order enforcer as the next one to be processed ...", origin, msg_type, counter);
+        trace!("Processing message (origin: {:?}, type: {:?}, counter: {:?}) completely as it has been selected by the order enforcer as the next one to be processed ...", origin, msg_type, counter);
         match usig_message {
             UsigMessage::View(view) => match &mut self.view_state {
                 ViewState::InView(in_view) => {
@@ -172,9 +172,11 @@ where
             UsigMessage::NewView(new_view) => self.process_new_view(new_view, output),
             UsigMessage::Checkpoint(checkpoint) => self.process_checkpoint(checkpoint),
         }
-        debug!(
+        trace!(
             "Successfully processed message (origin: {:?}, type: {:?}, counter: {:?}) completely.",
-            origin, msg_type, counter
+            origin,
+            msg_type,
+            counter
         );
     }
 }

@@ -1,6 +1,6 @@
 use serde::Serialize;
 use std::fmt::Debug;
-use tracing::{debug, info};
+use tracing::{error, info, trace, warn};
 use usig::Usig;
 
 use crate::{
@@ -46,7 +46,7 @@ where
     ) {
         match &mut self.view_state {
             ViewState::InView(in_view) => {
-                debug!("Processing ViewChange (origin: {:?}, next view: {:?}) resulted in ignoring it: Replica is in view ({:?}).", msg.origin, msg.next_view, in_view.view);
+                trace!("Processing ViewChange (origin: {:?}, next view: {:?}) resulted in ignoring it: Replica is in view ({:?}).", msg.origin, msg.next_view, in_view.view);
             }
             ViewState::ChangeInProgress(in_progress) => {
                 // Only consider messages consistent to the system state.
@@ -55,12 +55,12 @@ where
                 let amount_collected = self.collector_vc.collect_view_change(msg.clone());
 
                 if msg.next_view != in_progress.next_view {
-                    debug!("Processing ViewChange (origin: {:?}, next view: {:?}) resulted in ignoring creation of NewView: Next view set in message is not the same as the current (to become) next view.", msg.origin, msg.next_view);
+                    warn!("Processing ViewChange (origin: {:?}, next view: {:?}) resulted in ignoring creation of NewView: Next view set in message is not the same as the current (to become) next view.", msg.origin, msg.next_view);
                     return;
                 }
 
                 if amount_collected <= self.config.t {
-                    debug!("Processing ViewChange (origin: {:?}, next view: {:?}) resulted in ignoring creation of NewView: A sufficient amount of ViewChanges has not been collected yet (collected: {:?}, required: {:?}).", msg.origin, msg.next_view, amount_collected, self.config.t + 1);
+                    trace!("Processing ViewChange (origin: {:?}, next view: {:?}) resulted in ignoring creation of NewView: A sufficient amount of ViewChanges has not been collected yet (collected: {:?}, required: {:?}).", msg.origin, msg.next_view, amount_collected, self.config.t + 1);
                     return;
                 }
 
@@ -85,7 +85,7 @@ where
                 // Create the NewView message.
                 let next_view = in_progress.next_view;
                 let origin = self.config.me();
-                debug!(
+                trace!(
                     "Creating NewView for ViewChanges (next view: {:?}) ...",
                     msg.next_view
                 );
@@ -98,14 +98,14 @@ where
                     &mut self.usig,
                 ) {
                     Ok(new_view) => {
-                        debug!(
+                        trace!(
                             "Successfully created NewView for ViewChanges (next view: {:?}).",
                             msg.next_view
                         );
                         new_view
                     }
                     Err(usig_error) => {
-                        debug!("Failed to create NewView for ViewChanges (next view: {:?}): Signing NewView failed. For further information see output.", msg.next_view);
+                        error!("Failed to create NewView for ViewChanges (next view: {:?}): Signing NewView failed. For further information see output.", msg.next_view);
                         let output_error = Error::Usig {
                             replica: origin,
                             msg_type: "NewView",
