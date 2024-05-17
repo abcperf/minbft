@@ -58,7 +58,7 @@ impl<P> ClientState<P> {
         client_req: ClientRequest<P>,
     ) -> bool {
         if Some(request_id) <= self.last_accepted_req {
-            warn!("Ignored request to update client state with an old client request with ID {:?} from client with ID {:?}: last accepted request of the same client had ID {:?}.", request_id, client_req.client, self.last_accepted_req);
+            trace!("Ignored request to update client state with an old client request with ID {:?} from client with ID {:?}: last accepted request of the same client had ID {:?}.", request_id, client_req.client, self.last_accepted_req);
             return false;
         }
 
