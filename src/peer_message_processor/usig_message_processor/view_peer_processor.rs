@@ -55,6 +55,7 @@ where
             ViewState::InView(in_view) => {
                 if Some(prepare.counter()) <= self.counter_last_accepted_prep {
                     warn!("Failed to process Prepare (origin: {:?}, view: {:?}, counter: {:?}): Counter of Prepare is less than or equal to counter of last accepted Prepare ({:?}).", prepare.origin, prepare.view, prepare.counter(), self.counter_last_accepted_prep);
+                    return;
                 }
                 // no Commit for own Prepare since Prepares already count as Commit
                 if prepare.origin != self.config.me() {
