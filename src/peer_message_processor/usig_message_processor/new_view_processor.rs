@@ -2,6 +2,7 @@ use serde::Serialize;
 use std::cmp::Reverse;
 use std::collections::VecDeque;
 use std::fmt::Debug;
+use tracing::debug;
 use tracing::{error, info, trace};
 use usig::Count;
 use usig::Counter;
@@ -75,6 +76,11 @@ where
         match &mut self.view_state {
             ViewState::InView(_) => {}
             ViewState::ChangeInProgress(in_progress) => {
+                if new_view.next_view != in_progress.next_view {
+                    debug!("Received a NewView message to change to another View from the one expected (received: {}, expected: {})", new_view.next_view, in_progress.next_view);
+                    return;
+                }
+
                 // Assure the NewViewCertificate is valid.
                 match new_view.certificate.validate(&self.config, &mut self.usig) {
                     Ok(_) => {}
