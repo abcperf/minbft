@@ -85,7 +85,7 @@ where
                             .usig_message_order_enforcer
                             .push_to_handle(Cow::Borrowed(view_peer_message))
                             .collect(),
-                        UsigMessageV::ViewChange(_) => return,
+                        UsigMessageV::ViewChange(_) => Vec::new(),
                         UsigMessageV::NewView(new_view_message) => replica_state
                             .usig_message_order_enforcer
                             .push_to_handle(Cow::Borrowed(new_view_message))
