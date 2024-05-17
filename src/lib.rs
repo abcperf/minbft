@@ -717,26 +717,33 @@ where
                     output.timeout_request(stop_timeout_request);
                     let origin = self.config.me();
                     if let Some(batch) = maybe_batch {
-                        trace!("Creating Prepare for timed out batch ...");
-                        match Prepare::sign(
-                            PrepareContent {
-                                view: in_view.view,
-                                origin,
-                                request_batch: batch,
-                            },
-                            &mut self.usig,
-                        ) {
-                            Ok(prepare) => {
-                                trace!("Successfully created Prepare for timed-out batch.");
-                                trace!("Broadcast Prepare (view: {:?}, counter: {:?}) for timed-out batch.", prepare.view, prepare.counter());
-                                output.broadcast(prepare, &mut self.sent_usig_msgs);
-                                trace!("Successfully handled timeout (type: {:?}).", timeout_type);
-                            }
-                            Err(usig_error) => {
-                                error!("Failed to handle timeout (type: {:?}): Failed to sign Prepare for batch before broadcasting it. For further information see output.", timeout_type);
-                                output.process_usig_error(usig_error, origin, "Prepare");
-                            }
-                        };
+                        if self.config.me_primary(in_view.view) {
+                            trace!("Creating Prepare for timed out batch ...");
+                            match Prepare::sign(
+                                PrepareContent {
+                                    view: in_view.view,
+                                    origin,
+                                    request_batch: batch,
+                                },
+                                &mut self.usig,
+                            ) {
+                                Ok(prepare) => {
+                                    trace!("Successfully created Prepare for timed-out batch.");
+                                    trace!("Broadcast Prepare (view: {:?}, counter: {:?}) for timed-out batch.", prepare.view, prepare.counter());
+                                    output.broadcast(prepare, &mut self.sent_usig_msgs);
+                                    trace!(
+                                        "Successfully handled timeout (type: {:?}).",
+                                        timeout_type
+                                    );
+                                }
+                                Err(usig_error) => {
+                                    error!("Failed to handle timeout (type: {:?}): Failed to sign Prepare for batch before broadcasting it. For further information see output.", timeout_type);
+                                    output.process_usig_error(usig_error, origin, "Prepare");
+                                }
+                            };
+                        } else {
+                            trace!("Ignoring timed out batch as replica is no longer the primary (current View: {})", in_view.view);
+                        }
                     }
                 }
                 ViewState::ChangeInProgress(in_progress) => {

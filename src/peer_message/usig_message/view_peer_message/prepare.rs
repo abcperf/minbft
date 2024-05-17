@@ -94,7 +94,7 @@ impl<P, Sig: Counter> Ord for Prepare<P, Sig> {
 
 impl<P: RequestPayload, Sig> Prepare<P, Sig> {
     /// Validates a message of type [Prepare].
-    /// Following conditions must be met for the [Prepare] to be valid:\
+    /// Following conditions must be met for the [Prepare] to be valid:
     /// 1. The [Prepare] must originate from the current primary.
     /// 2. The batch of requests to which the [Prepare] belongs to must be
     ///    valid.
@@ -115,10 +115,7 @@ impl<P: RequestPayload, Sig> Prepare<P, Sig> {
 
         // Check for condition (1).
         if !config.is_primary(self.view, self.origin) {
-            error!(
-                "Failed validating Prepare ({self}): Prepare originates from 
-            a backup replica."
-            );
+            error!("Failed validating Prepare ({self}): Prepare originates from a backup replica.");
             return Err(InnerError::PrepareFromBackup {
                 receiver: config.id,
                 backup: self.origin,
