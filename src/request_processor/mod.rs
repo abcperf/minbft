@@ -11,7 +11,7 @@ use std::{
 use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 use shared_ids::{ClientId, RequestId};
-use tracing::{debug, trace, warn};
+use tracing::{debug, trace};
 use usig::Usig;
 
 use crate::{
@@ -107,7 +107,7 @@ impl<P> ClientState<P> {
     /// true.
     fn update_upon_request_completion(&mut self, request_id: RequestId) -> bool {
         if self.last_accepted_req >= Some(request_id) {
-            warn!("Failed to update client state regarding the completion of client request (ID: {:?}): ID of last accepted request from the same client is greater than or equal to the receiving request's ID.", request_id);
+            trace!("Failed to update client state regarding the completion of client request (ID: {:?}): ID of last accepted request from the same client is greater than or equal to the receiving request's ID.", request_id);
             return false;
         }
         self.last_accepted_req = Some(request_id);
