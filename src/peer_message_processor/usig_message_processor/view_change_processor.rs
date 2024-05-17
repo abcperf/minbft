@@ -1,6 +1,6 @@
 use serde::Serialize;
 use std::fmt::Debug;
-use tracing::{error, info, trace, warn};
+use tracing::{debug, error, info, trace};
 use usig::Usig;
 
 use crate::{
@@ -9,7 +9,7 @@ use crate::{
         new_view::{NewView, NewViewCertificate, NewViewContent},
         view_change::ViewChange,
     },
-    Error, MinBft, RequestPayload, ViewState,
+    ChangeInProgress, Error, MinBft, RequestPayload, ViewState,
 };
 
 impl<P: RequestPayload, U: Usig> MinBft<P, U>
@@ -44,18 +44,41 @@ where
         msg: ViewChange<P, U::Signature>,
         output: &mut NotReflectedOutput<P, U>,
     ) {
+        // Only consider messages consistent to the system state.
+        // Automatically fulfilled at this point, as messages of type ViewChange are validated when received.
         match &mut self.view_state {
             ViewState::InView(in_view) => {
-                trace!("Processing ViewChange (origin: {:?}, next view: {:?}) resulted in ignoring it: Replica is in view ({:?}).", msg.origin, msg.next_view, in_view.view);
-            }
-            ViewState::ChangeInProgress(in_progress) => {
-                // Only consider messages consistent to the system state.
-                // Automatically fulfilled at this point, as messages of type ViewChange are validated when received.
-
+                if msg.next_view <= in_view.view {
+                    debug!("Received ViewChange message to change to View less than or equal to the current View set (request to change to: {}, currently stable in View: {}", msg.next_view, in_view.view);
+                    return;
+                }
                 let amount_collected = self.collector_vc.collect_view_change(msg.clone());
 
-                if msg.next_view != in_progress.next_view {
-                    warn!("Processing ViewChange (origin: {:?}, next view: {:?}) resulted in ignoring creation of NewView: Next view set in message is not the same as the current (to become) next view.", msg.origin, msg.next_view);
+                if amount_collected <= self.config.t {
+                    trace!("Processing ViewChange (origin: {:?}, next view: {:?}) resulted in ignoring creation of NewView: A sufficient amount of ViewChanges has not been collected yet (collected: {:?}, required: {:?}).", msg.origin, msg.next_view, amount_collected, self.config.t + 1);
+                    return;
+                }
+
+                self.view_state = ViewState::ChangeInProgress(ChangeInProgress {
+                    prev_view: in_view.view,
+                    next_view: msg.next_view,
+                    has_broadcast_view_change: false,
+                });
+
+                let _ = self
+                    .collector_vc
+                    .retrieve_collected_view_changes(&msg, &self.config);
+
+                let start_new_timeout =
+                    TimeoutRequest::new_start_view_change(self.current_timeout_duration);
+                output.timeout_request(start_new_timeout);
+            }
+
+            ViewState::ChangeInProgress(in_progress) => {
+                let amount_collected = self.collector_vc.collect_view_change(msg.clone());
+
+                if msg.next_view < in_progress.next_view {
+                    debug!("Processing ViewChange (origin: {:?}, next view: {:?}) resulted in ignoring creation of NewView: Next view set in message is smaller than the expected (to become) next view ({}).", msg.origin, msg.next_view, in_progress.next_view);
                     return;
                 }
 
