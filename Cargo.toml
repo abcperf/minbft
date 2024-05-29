@@ -1,6 +1,6 @@
 [package]
 name = "minbft"
-version = "1.0.2"
+version = "1.0.3"
 edition = "2021"
 license = "MIT"
 description = "Efficient Byzantine Fault-Tolerance in the partially synchronous timing model"
